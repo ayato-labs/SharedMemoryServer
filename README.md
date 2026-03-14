@@ -68,6 +68,11 @@ Google AI Studio の `gemini-embedding-001` を統合しました。
 - **Importance Score**: 参照回数と経過時間に基づく指数関数的減衰（Decay Factor）を用いて、頻繁に使われる重要な情報を優先提示します。
 - **Archival Mechanism**: 長期間参照されず重要度が下がった情報を `archive_memory` ツールで自動的にアクティブな文脈から除外（忘却）できます。
 
+### 6. Observability & Hardening (観測性と堅牢化)
+システムの内部状態を透明化し、デバッグを容易にします。
+- **Health Diagnostics**: `get_memory_health` ツールにより、知識の蓄積量、重要度の分布、セマンティック検索の稼働状態を診断できます。
+- **Improved Logging**: 全てのエラーが標準エラー出力（stderr）に集約され、サイレントな失敗を防止しました。
+
 ## Environment Variables
 - `MEMORY_DB_PATH`: Path to the SQLite database.
 - `MEMORY_BANK_DIR`: Directory for memory bank markdown files.

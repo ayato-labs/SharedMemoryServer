@@ -3,12 +3,20 @@ import sqlite3
 import os
 import aiofiles
 import json
+import sys
 from typing import List, Optional, Dict, Any
 import numpy as np
 import pickle
 from google import genai
 
 mcp = FastMCP("SharedMemoryServer")
+
+# --- UTILS ---
+def log_error(msg: str, e: Exception = None):
+    error_msg = f"[SharedMemoryServer ERROR] {msg}"
+    if e:
+        error_msg += f": {e}"
+    sys.stderr.write(error_msg + "\n")
 
 # --- CONFIGURATION HELPERS ---
 def get_db_path():
@@ -83,7 +91,8 @@ def get_gemini_client():
         return None
     try:
         return genai.Client(api_key=api_key)
-    except:
+    except Exception as e:
+        log_error("Failed to initialize Google AI client", e)
         return None
 
 async def compute_embedding(text: str):
@@ -133,7 +142,8 @@ def update_access(content_id: str):
                 last_accessed = CURRENT_TIMESTAMP
         """, (content_id,))
         conn.commit()
-    except: pass
+    except Exception as e:
+        log_error(f"Failed to update access for {content_id}", e)
     finally: conn.close()
 
 # --- MEMORY BANK STORAGE (Markdown) ---
@@ -232,6 +242,7 @@ async def save_memory(
                     await f.write(content)
                 file_count += 1
             except Exception as e:
+                log_error(f"Failed to write {filename} to disk", e)
                 results.append(f"Warning: Failed to write {filename} to disk: {e}")
         if file_count:
             results.append(f"Updated {file_count} bank files on disk")
@@ -292,7 +303,8 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
                                 bank_data[filename] = content
                                 found_files.add(filename)
                                 update_access(filename)
-                    except: pass
+                    except Exception as e:
+                        log_error(f"Failed to read bank file {filename}", e)
 
         # Fallback/Supplemental: Read from DB mirror
         conn = sqlite3.connect(get_db_path())
@@ -409,6 +421,41 @@ async def archive_memory(threshold: float = 0.1):
     finally:
         conn.close()
     return " | ".join(results)
+
+@mcp.tool()
+async def get_memory_health():
+    """
+    Returns diagnostic information about the health and state of the knowledge base.
+    """
+    conn = sqlite3.connect(get_db_path())
+    health = {}
+    try:
+        cursor = conn.cursor()
+        health["entities_count"] = cursor.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+        health["relations_count"] = cursor.execute("SELECT COUNT(*) FROM relations").fetchone()[0]
+        health["observations_count"] = cursor.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+        health["bank_files_cached"] = cursor.execute("SELECT COUNT(*) FROM bank_files").fetchone()[0]
+        health["embeddings_count"] = cursor.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+        
+        # Importance distribution
+        metadata = cursor.execute("SELECT access_count, last_accessed FROM knowledge_metadata").fetchall()
+        if metadata:
+            scores = [calculate_importance(m[0], m[1]) for m in metadata]
+            health["importance_stats"] = {
+                "avg": round(sum(scores) / len(scores), 2),
+                "max": round(max(scores), 2),
+                "min": round(min(scores), 2)
+            }
+        
+        # Check for missing embeddings
+        health["missing_embeddings"] = health["entities_count"] + health["bank_files_cached"] - health["embeddings_count"]
+        
+        # BYOK Check
+        health["semantic_search_active"] = get_gemini_client() is not None
+        
+    finally:
+        conn.close()
+    return health
 
 # --- INITIALIZATION ---
 def main():
