@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import argparse
+import hashlib
 from pathlib import Path
 from typing import Dict, List
 
@@ -50,18 +51,44 @@ You have access to SharedMemoryServer MCP.
 - Use `save_memory` to persist important architectural roles, technical decisions, and multi-step progress.
 """
 
-def register_mcp(dry_run=False):
+def register_mcp(dry_run=False, isolate=False):
     config_paths = get_config_paths()
     cmd = get_server_command()
+    cwd = os.getcwd()
     
+    # Isolation Logic
+    server_name = "SharedMemoryServer"
+    db_name = "shared_memory.db"
+    bank_dir_name = "memory-bank"
+    
+    if isolate:
+        # Generate a short hash of the current directory path for uniqueness
+        path_hash = hashlib.md5(cwd.encode('utf-8')).hexdigest()[:8]
+        server_name = f"SharedMemoryServer_{path_hash}"
+        db_name = f"shared_memory.{path_hash}.db"
+        bank_dir_name = f"memory-bank-{path_hash}"
+        print(f"  [INFO] Isolation Mode: Project ID = {path_hash}")
+
     mcp_config = {
         "command": cmd[0],
         "args": cmd[1:],
         "env": {
-            "MEMORY_DB_PATH": os.path.join(os.getcwd(), "shared_memory.db"),
-            "MEMORY_BANK_DIR": os.path.join(os.getcwd(), "memory-bank")
+            "MEMORY_DB_PATH": os.path.join(cwd, db_name),
+            "MEMORY_BANK_DIR": os.path.join(cwd, bank_dir_name)
         }
     }
+
+    # BYOK Logic
+    google_api_key = os.environ.get("GOOGLE_API_KEY")
+    if not google_api_key and not dry_run:
+        print(f"\n--- Google AI API Key (BYOK) ---")
+        google_api_key = input("Enter your Google AI API Key (leave empty to skip semantic search): ").strip()
+    
+    if google_api_key:
+        mcp_config["env"]["GOOGLE_API_KEY"] = google_api_key
+        print(f"  [INFO] API Key configured for {server_name}")
+    else:
+        print(f"  [WARN] No API Key provided. Semantic search will be disabled.")
 
     print(f"--- MCP Registration (Dry Run: {dry_run}) ---")
     
@@ -83,7 +110,7 @@ def register_mcp(dry_run=False):
             if any(x in str(path) for x in ["mcp_config.json", "cline_mcp_settings.json", "claude_desktop_config.json"]):
                 if "mcpServers" not in config:
                     config["mcpServers"] = {}
-                config["mcpServers"]["SharedMemoryServer"] = mcp_config
+                config["mcpServers"][server_name] = mcp_config
             elif "settings.json" in str(path):
                 print(f"  [SKIP] Global Cursor settings.json is complex. Please register manually via UI if needed.")
                 continue
@@ -130,9 +157,10 @@ def register_mcp(dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description="Register SharedMemoryServer as an MCP tool and update system prompts.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes.")
+    parser.add_argument("--isolate", action="store_true", help="Register a unique instance for the current project to avoid shared memory.")
     args = parser.parse_args()
     
-    register_mcp(dry_run=args.dry_run)
+    register_mcp(dry_run=args.dry_run, isolate=args.isolate)
 
 if __name__ == "__main__":
     main()
