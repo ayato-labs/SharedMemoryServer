@@ -1,182 +1,18 @@
-from fastmcp import FastMCP
-import sqlite3
 import os
+import sqlite3
 import aiofiles
-import sys
-from typing import List, Optional, Dict
-import numpy as np
 import pickle
-from google import genai
+import numpy as np
+import math
+from typing import List, Optional, Dict, Any
+from fastmcp import FastMCP
+
+from .utils import log_error, get_bank_dir
+from .database import get_connection, init_db, update_access
+from .logic import cosine_similarity, batch_cosine_similarity, calculate_importance
+from .embeddings import get_gemini_client, compute_embedding, EMBEDDING_MODEL
 
 mcp = FastMCP("SharedMemoryServer")
-
-
-# --- UTILS ---
-def log_error(msg: str, e: Exception = None):
-    error_msg = f"[SharedMemoryServer ERROR] {msg}"
-    if e:
-        error_msg += f": {e}"
-    sys.stderr.write(error_msg + "\n")
-
-
-# --- CONFIGURATION HELPERS ---
-def get_db_path():
-    return os.environ.get("MEMORY_DB_PATH", "shared_memory.db")
-
-
-def get_bank_dir():
-    return os.environ.get("MEMORY_BANK_DIR", "memory-bank")
-
-
-def init_db():
-    conn = sqlite3.connect(get_db_path())
-    conn.execute("PRAGMA foreign_keys = ON")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS entities (
-            name TEXT PRIMARY KEY,
-            entity_type TEXT,
-            description TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS relations (
-            source TEXT,
-            target TEXT,
-            relation_type TEXT,
-            PRIMARY KEY (source, target, relation_type),
-            FOREIGN KEY (source) REFERENCES entities (name) ON DELETE CASCADE,
-            FOREIGN KEY (target) REFERENCES entities (name) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS observations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entity_name TEXT,
-            content TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (entity_name) REFERENCES entities (name) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bank_files (
-            filename TEXT PRIMARY KEY,
-            content TEXT,
-            last_synced DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS embeddings (
-            content_id TEXT PRIMARY KEY,
-            vector BLOB,
-            model_name TEXT,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS knowledge_metadata (
-            content_id TEXT PRIMARY KEY,
-            access_count INTEGER DEFAULT 0,
-            last_accessed DATETIME DEFAULT CURRENT_TIMESTAMP,
-            importance_score REAL DEFAULT 1.0
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-
-# --- EMBEDDING HELPERS (BYOK Fallback) ---
-EMBEDDING_MODEL = "gemini-embedding-001"
-DIMENSIONALITY = 768
-
-
-def get_gemini_client():
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        return None
-    try:
-        return genai.Client(api_key=api_key)
-    except Exception as e:
-        log_error("Failed to initialize Google AI client", e)
-        return None
-
-
-async def compute_embedding(text: str):
-    client = get_gemini_client()
-    if not client:
-        return None
-    try:
-        # We use sync client in async wrapper for simplicity if needed,
-        # but google-genai client is generally blocking.
-        # FastMCP runs things in threads if not async?
-        # Actually google-genai client is blocking.
-        result = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-            config={"output_dimensionality": DIMENSIONALITY},
-        )
-        return result.embeddings[0].values
-    except Exception as e:
-        log_error("Embedding computation failed", e)
-        return None
-
-
-def cosine_similarity(v1, v2):
-    if v1 is None or v2 is None:
-        return 0
-    # Vectorized similarity for single pair
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
-
-def batch_cosine_similarity(query_v, vectors_v):
-    """
-    Experimental vectorized similarity for a batch of vectors.
-    vectors_v should be a 2D numpy array.
-    """
-    if query_v is None or vectors_v.size == 0:
-        return np.array([])
-    dot_product = np.dot(vectors_v, query_v)
-    norms = np.linalg.norm(vectors_v, axis=1) * np.linalg.norm(query_v)
-    return np.divide(
-        dot_product, norms, out=np.zeros_like(dot_product), where=norms != 0
-    )
-
-
-def calculate_importance(access_count, last_accessed_str):
-    from datetime import datetime
-    import math
-
-    try:
-        last_accessed = datetime.strptime(last_accessed_str, "%Y-%m-%d %H:%M:%S")
-    except Exception:
-        # Fallback to now if timestamp is corrupted or missing
-        last_accessed = datetime.now()
-
-    # Decay Factor (lambda = 0.0001 per minute ~ roughly half in 5 days)
-    delta_minutes = (datetime.now() - last_accessed).total_seconds() / 60
-    decay = math.exp(-0.0001 * delta_minutes)
-    return (access_count + 1) * decay
-
-
-def update_access(content_id: str):
-    conn = sqlite3.connect(get_db_path())
-    try:
-        conn.execute(
-            """
-            INSERT INTO knowledge_metadata (content_id, access_count, last_accessed, importance_score)
-            VALUES (?, 1, CURRENT_TIMESTAMP, 1.0)
-            ON CONFLICT(content_id) DO UPDATE SET
-                access_count = access_count + 1,
-                last_accessed = CURRENT_TIMESTAMP
-        """,
-            (content_id,),
-        )
-        conn.commit()
-    except Exception as e:
-        log_error(f"Failed to update access for {content_id}", e)
-    finally:
-        conn.close()
-
 
 # --- MEMORY BANK STORAGE (Markdown) ---
 BANK_FILES = {
@@ -188,7 +24,6 @@ BANK_FILES = {
     "progress.md": "Status, roadmap, and what's next.",
     "decisionLog.md": "Record of significant technical choices.",
 }
-
 
 async def initialize_bank():
     bank_dir = get_bank_dir()
@@ -202,11 +37,7 @@ async def initialize_bank():
                     f"# {filename}\n\n{description}\n\n## Status\n- Initialized\n"
                 )
 
-
-# --- GRAPH TOOLS (Official MCP Logic) ---
-
 # --- UNIFIED TOOLS (V2 API) ---
-
 
 @mcp.tool()
 async def save_memory(
@@ -223,8 +54,7 @@ async def save_memory(
     - bank_files: Dict of {filename: content}
     """
     results = []
-    conn = sqlite3.connect(get_db_path())
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn = get_connection()
     try:
         if entities:
             for e in entities:
@@ -257,14 +87,13 @@ async def save_memory(
                     "INSERT INTO observations (entity_name, content) VALUES (?, ?)",
                     (o["entity_name"], o["content"]),
                 )
-                # Observations contribute to entity context but for now we embed per entity
             results.append(f"Saved {len(observations)} observations")
 
             # Implicit Mention Detection
             existing_entities = [
                 row[0] for row in conn.execute("SELECT name FROM entities").fetchall()
             ]
-            for filename, content in bank_files.items():
+            for filename, content in bank_files.items() if bank_files else []:
                 if not filename.endswith(".md"):
                     filename += ".md"
                 conn.execute(
@@ -281,17 +110,16 @@ async def save_memory(
                         )
 
                 # Semantic segment
-                vector = await compute_embedding(
-                    f"File: {filename}\nContent:\n{content}"
-                )
+                vector = await compute_embedding(f"File: {filename}\nContent:\n{content}")
                 if vector:
                     conn.execute(
                         "INSERT OR REPLACE INTO embeddings (content_id, vector, model_name) VALUES (?, ?, ?)",
                         (filename, pickle.dumps(vector), EMBEDDING_MODEL),
                     )
-            results.append(
-                f"Mirrored {len(bank_files)} bank files and checked for implicit mentions"
-            )
+            if bank_files:
+                results.append(
+                    f"Mirrored {len(bank_files)} bank files and checked for implicit mentions"
+                )
 
         conn.commit()
     except Exception as e:
@@ -319,7 +147,6 @@ async def save_memory(
 
     return " | ".join(results) if results else "No data provided."
 
-
 @mcp.tool()
 async def read_memory(query: Optional[str] = None, scope: str = "all"):
     """
@@ -331,7 +158,7 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
 
     # 1. READ GRAPH
     if scope in ["all", "graph"]:
-        conn = sqlite3.connect(get_db_path())
+        conn = get_connection()
         try:
             cursor = conn.cursor()
             if query:
@@ -339,16 +166,18 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
                 e_matches = cursor.execute(
                     "SELECT * FROM entities WHERE name LIKE ? OR description LIKE ?",
                     (q, q),
-                ).fetchall()
+                )
+                e_cols = [col[0] for col in cursor.description]
+                e_rows = e_matches.fetchall()
+                
                 o_matches = cursor.execute(
                     "SELECT * FROM observations WHERE content LIKE ?", (q,)
                 ).fetchall()
-                for e in e_matches:
-                    update_access(e[0])
+                for row in e_rows:
+                    update_access(row[0])
                 response["graph"] = {
                     "entities": [
-                        {"name": e[0], "type": e[1], "description": e[2]}
-                        for e in e_matches
+                        {"name": r[0], "type": r[1], "description": r[2]} for r in e_rows
                     ],
                     "observations": [
                         {"entity": o[1], "content": o[2], "at": o[3]} for o in o_matches
@@ -399,7 +228,7 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
                         log_error(f"Failed to read bank file {filename}", e)
 
         # Fallback/Supplemental: Read from DB mirror
-        conn = sqlite3.connect(get_db_path())
+        conn = get_connection()
         try:
             cursor = conn.cursor()
             db_files = cursor.execute(
@@ -420,7 +249,7 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
     if query and get_gemini_client():
         query_vector = await compute_embedding(query)
         if query_vector:
-            conn = sqlite3.connect(get_db_path())
+            conn = get_connection()
             try:
                 cursor = conn.cursor()
                 rows = cursor.execute(
@@ -443,8 +272,6 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
 
                     # Hybrid ranking: Similarity * Importance
                     hybrid_results = []
-                    import math
-
                     for cid, score in semantic_results:
                         imp_weight = importance_map.get(cid, 1.0)
                         final_score = score * (0.8 + 0.2 * math.log1p(imp_weight))
@@ -468,25 +295,20 @@ async def read_memory(query: Optional[str] = None, scope: str = "all"):
 
     return response
 
-
 @mcp.tool()
 def delete_memory(entities: List[str]):
     """Removes specific entities and their associated data from the Knowledge Graph."""
-    conn = sqlite3.connect(get_db_path())
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn = get_connection()
     try:
         for name in entities:
             conn.execute("DELETE FROM entities WHERE name = ?", (name,))
         conn.commit()
-        return (
-            f"Deleted {len(entities)} entities and all related observations/relations."
-        )
+        return f"Deleted {len(entities)} entities and all related observations/relations."
     except Exception as e:
         log_error(f"Failed to delete entities: {entities}", e)
         return f"Error: Deletion failed: {e}"
     finally:
         conn.close()
-
 
 @mcp.tool()
 async def repair_memory():
@@ -496,7 +318,7 @@ async def repair_memory():
     if not os.path.exists(bank_dir):
         os.makedirs(bank_dir)
 
-    conn = sqlite3.connect(get_db_path())
+    conn = get_connection()
     try:
         cursor = conn.cursor()
         files = cursor.execute("SELECT filename, content FROM bank_files").fetchall()
@@ -514,13 +336,12 @@ async def repair_memory():
         conn.close()
     return " | ".join(results)
 
-
 @mcp.tool()
 async def archive_memory(threshold: float = 0.1):
     """
     Archives low-importance knowledge that falls below the importance threshold.
     """
-    conn = sqlite3.connect(get_db_path())
+    conn = get_connection()
     results = []
     try:
         cursor = conn.cursor()
@@ -536,7 +357,6 @@ async def archive_memory(threshold: float = 0.1):
 
         if to_archive:
             # For simplicity in this version, we mark them as archived in the description
-            # or move them to a different category.
             for cid in to_archive:
                 cursor.execute(
                     "UPDATE entities SET description = '[ARCHIVED] ' || description WHERE name = ? AND description NOT LIKE '[ARCHIVED]%'",
@@ -556,13 +376,12 @@ async def archive_memory(threshold: float = 0.1):
         conn.close()
     return " | ".join(results)
 
-
 @mcp.tool()
 async def get_memory_health():
     """
     Returns diagnostic information about the health and state of the knowledge base.
     """
-    conn = sqlite3.connect(get_db_path())
+    conn = get_connection()
     health = {}
     try:
         cursor = conn.cursor()
@@ -619,15 +438,12 @@ async def get_memory_health():
         conn.close()
     return health
 
-
 # --- INITIALIZATION ---
 def main():
     init_db()
     import asyncio
-
     asyncio.run(initialize_bank())
     mcp.run()
-
 
 if __name__ == "__main__":
     main()
