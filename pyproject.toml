@@ -12,6 +12,13 @@ dependencies = [
     "ruff",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+
 [project.scripts]
 shared-memory = "shared_memory.server:main"
 shared-memory-register = "shared_memory.register:main"
