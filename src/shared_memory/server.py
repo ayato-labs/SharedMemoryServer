@@ -125,11 +125,14 @@ async def save_memory(
             results.append(f"Saved {len(entities)} entities (with embeddings)")
 
         if relations:
-            for r in relations:
-                conn.execute(
-                    "INSERT OR REPLACE INTO relations (source, target, relation_type, created_by) VALUES (?, ?, ?, ?)",
-                    (r["source"], r["target"], r["relation_type"], agent_id),
-                )
+            relation_tuples = [
+                (r["source"], r["target"], r["relation_type"], agent_id)
+                for r in relations
+            ]
+            conn.executemany(
+                "INSERT OR REPLACE INTO relations (source, target, relation_type, created_by) VALUES (?, ?, ?, ?)",
+                relation_tuples,
+            )
             results.append(f"Saved {len(relations)} relations")
 
         if observations:
