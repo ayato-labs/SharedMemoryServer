@@ -1,12 +1,15 @@
-import os
-import sys
-import re
 import asyncio
-import time
-import math
+import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Dict, Any, List
+import math
+import os
+import re
+import shutil
+import sys
+import time
+from datetime import UTC, datetime
+from typing import Any
+
 from shared_memory.exceptions import SecurityError
 
 # Global flag for structured logging
@@ -15,13 +18,13 @@ ENABLE_STRUCTURED_LOGGING = (
 )
 
 
-def log_error(msg: str, e: Exception = None, extra: Dict[str, Any] = None):
+def log_error(msg: str, e: Exception = None, extra: dict[str, Any] = None):
     """
     Standard error logger. Supports plain text and structured JSON output.
     """
     if ENABLE_STRUCTURED_LOGGING:
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": "ERROR",
             "message": msg,
             "exception": str(e) if e else None,
@@ -37,13 +40,13 @@ def log_error(msg: str, e: Exception = None, extra: Dict[str, Any] = None):
         sys.stderr.write(error_msg + "\n")
 
 
-def log_info(msg: str, extra: Dict[str, Any] = None):
+def log_info(msg: str, extra: dict[str, Any] = None):
     """
     Standard info logger.
     """
     if ENABLE_STRUCTURED_LOGGING:
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": "INFO",
             "message": msg,
             "extra": extra or {},
@@ -56,16 +59,145 @@ def log_info(msg: str, extra: Dict[str, Any] = None):
         sys.stdout.write(info_msg + "\n")
 
 
+class PathResolver:
+    """
+    Autonomous path resolver for project-based context isolation.
+    """
+
+    @staticmethod
+    def find_project_root() -> str:
+        """
+        Searches upwards from the current working directory for project indicators.
+        Returns the home directory if no project root is found.
+        """
+        curr = os.getcwd()
+        indicators = [
+            ".git",
+            "pyproject.toml",
+            "package.json",
+            "Cargo.toml",
+            ".clinerules",
+            ".cursorrules",
+        ]
+        while curr != os.path.dirname(curr):
+            if any(os.path.exists(os.path.join(curr, ind)) for ind in indicators):
+                return curr
+            curr = os.path.dirname(curr)
+        return os.path.expanduser("~")
+
+    @staticmethod
+    def ensure_gitignore(root_dir: str):
+        """
+        Safely adds .shared_memory/ to .gitignore if it exists and doesn't already have it.
+        """
+        gitignore_path = os.path.join(root_dir, ".gitignore")
+        if os.path.exists(gitignore_path):
+            try:
+                with open(gitignore_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if ".shared_memory/" not in content:
+                    # Append with a clear comment
+                    with open(gitignore_path, "a", encoding="utf-8") as f:
+                        f.write(
+                            "\n# SharedMemoryServer local data\n.shared_memory/\n"
+                        )
+                    log_info(f"Automatically added .shared_memory/ to {gitignore_path}")
+            except Exception as e:
+                log_error(f"Failed to update {gitignore_path}", e)
+
+    @classmethod
+    def get_base_data_dir(cls) -> str:
+        """
+        Determines the base directory for all SharedMemoryServer data.
+        Implements auto-detection and legacy migration.
+        """
+        # 1. Environment Override (Power User / Explicit Path)
+        env_dir = os.environ.get("SHARED_MEMORY_HOME")
+        if env_dir:
+            os.makedirs(env_dir, exist_ok=True)
+            return env_dir
+
+        # 2. Project Detection
+        root = cls.find_project_root()
+        data_dir = os.path.join(root, ".shared_memory")
+
+        # 3. Initialization and Security
+        if not os.path.exists(data_dir):
+            try:
+                os.makedirs(data_dir, exist_ok=True)
+                # If we found a real project (not just home), ensure security
+                if root != os.path.expanduser("~"):
+                    cls.ensure_gitignore(root)
+
+                # 4. Migration Check (only on first creation)
+                cls._migrate_legacy_data(root, data_dir)
+            except Exception as e:
+                log_error(f"Failed to initialize data directory {data_dir}", e)
+                # Fallback to local if creation fails
+                return os.getcwd()
+
+        return data_dir
+
+    @staticmethod
+    def _migrate_legacy_data(root: str, new_dir: str):
+        """
+        Moves legacy data files/dirs from root to the new .shared_memory directory.
+        """
+        legacy_map = {
+            "shared_memory.db": "knowledge.db",
+            "thoughts.db": "thoughts.db",
+            "memory-bank": "bank",
+        }
+        migrated_any = False
+        for old_name, new_name in legacy_map.items():
+            old_path = os.path.join(root, old_name)
+            new_path = os.path.join(new_dir, new_name)
+
+            if os.path.exists(old_path) and not os.path.exists(new_path):
+                try:
+                    shutil.move(old_path, new_path)
+                    log_info(
+                        f"Migrated legacy data: {old_name} -> .shared_memory/{new_name}"
+                    )
+                    migrated_any = True
+                except Exception as e:
+                    log_error(f"Migration failed for {old_name}", e)
+
+        if migrated_any:
+            log_info("SharedMemoryServer legacy data migration completed.")
+
+
 def get_db_path():
-    return os.environ.get("MEMORY_DB_PATH", "shared_memory.db")
+    """
+    Returns the path to the SQLite knowledge database.
+    Priority: MEMORY_DB_PATH env > PathResolver.
+    """
+    env_val = os.environ.get("MEMORY_DB_PATH")
+    if env_val:
+        return env_val
+    return os.path.join(PathResolver.get_base_data_dir(), "knowledge.db")
 
 
 def get_thoughts_db_path():
-    return os.environ.get("THOUGHTS_DB_PATH", "thoughts.db")
+    """
+    Returns the path to the thoughts/sequential thinking database.
+    Priority: THOUGHTS_DB_PATH env > PathResolver.
+    """
+    env_val = os.environ.get("THOUGHTS_DB_PATH")
+    if env_val:
+        return env_val
+    return os.path.join(PathResolver.get_base_data_dir(), "thoughts.db")
 
 
 def get_bank_dir():
-    return os.environ.get("MEMORY_BANK_DIR", "memory-bank")
+    """
+    Returns the path to the Markdown memory bank directory.
+    Priority: MEMORY_BANK_DIR env > PathResolver.
+    """
+    env_val = os.environ.get("MEMORY_BANK_DIR")
+    if env_val:
+        return env_val
+    return os.path.join(PathResolver.get_base_data_dir(), "bank")
 
 
 def mask_sensitive_data(text: str) -> str:
@@ -132,11 +264,13 @@ def safe_path_join(base_dir: str, filename: str) -> str:
 class GlobalLock:
     """
     Expert-level cross-process locking using a lockfile.
-    Works by attempting to exclusively create a .lock file.
+    Placed in the project data directory to avoid pollution.
     """
 
     def __init__(self, lock_name: str, timeout: float = 10.0):
-        self.lock_path = os.path.join(os.getcwd(), f"{lock_name}.lock")
+        self.lock_path = os.path.join(
+            PathResolver.get_base_data_dir(), f"{lock_name}.lock"
+        )
         self.timeout = timeout
         self.locked = False
 
@@ -156,8 +290,12 @@ class GlobalLock:
                     mtime = os.path.getmtime(self.lock_path)
                     if time.time() - mtime > 30:
                         os.remove(self.lock_path)
+                        log_info(f"Removed stale lock file: {self.lock_path}")
                 except FileNotFoundError:
+                    # Lock was removed by another process just now, which is fine
                     pass
+                except Exception as e:
+                    log_error(f"Failed to remove stale lock {self.lock_path}", e)
                 await asyncio.sleep(0.1)
 
         raise TimeoutError(f"Could not acquire global lock for {self.lock_path}")
@@ -178,8 +316,8 @@ class GlobalLock:
 
 
 def batch_cosine_similarity(
-    query_vector: List[float], vectors: List[List[float]]
-) -> List[float]:
+    query_vector: list[float], vectors: list[list[float]]
+) -> list[float]:
     """
     Expert-level optimized batch cosine similarity.
     """
@@ -202,7 +340,7 @@ def batch_cosine_similarity(
     return similarities
 
 
-def cosine_similarity(v1: List[float], v2: List[float]) -> float:
+def cosine_similarity(v1: list[float], v2: list[float]) -> float:
     """
     Expert-level single cosine similarity.
     """
@@ -226,7 +364,7 @@ def calculate_importance(access_count: int, last_accessed_iso: str) -> float:
     # 2. Recency score (Exponential decay)
     try:
         last_accessed = datetime.fromisoformat(last_accessed_iso)
-        seconds_since = (datetime.now(timezone.utc) - last_accessed).total_seconds()
+        seconds_since = (datetime.now(UTC) - last_accessed).total_seconds()
         # Decay half-life: 24 hours (86400 seconds)
         recency_score = math.exp(-seconds_since / 86400.0)
     except Exception:

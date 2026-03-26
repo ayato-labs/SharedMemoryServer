@@ -21,7 +21,26 @@ test = [
 
 [project.scripts]
 shared-memory = "shared_memory.server:main"
-shared-memory-register = "shared_memory.register:main"
+shared-memory-register = "shared_memory.cli.register:main"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared_memory"]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,13 +1,13 @@
+import datetime
+import json
 import os
 import shutil
-import json
-import datetime
-from typing import Optional
+
 import numpy as np
 
 from shared_memory.database import get_connection
-from shared_memory.utils import get_db_path, log_error, calculate_importance
 from shared_memory.embeddings import get_gemini_client
+from shared_memory.utils import calculate_importance, get_db_path, log_error
 
 
 async def create_snapshot_logic(name: str, description: str = ""):
@@ -56,7 +56,7 @@ async def restore_snapshot_logic(snapshot_id: int):
         conn.close()
 
 
-async def get_audit_history_logic(limit: int = 20, table_name: Optional[str] = None):
+async def get_audit_history_logic(limit: int = 20, table_name: str | None = None):
     conn = get_connection()
     try:
         if table_name:

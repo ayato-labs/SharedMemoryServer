@@ -1,11 +1,12 @@
-import os
 import hashlib
 import json
+import os
 import sqlite3
-from typing import List, Optional
+
 from google import genai
-from shared_memory.utils import log_error, log_info
+
 from shared_memory.database import get_connection
+from shared_memory.utils import log_error
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 DIMENSIONALITY = 768
@@ -15,7 +16,7 @@ def _get_text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _get_cached_embedding(text_hash: str) -> Optional[List[float]]:
+def _get_cached_embedding(text_hash: str) -> list[float] | None:
     conn = get_connection()
     try:
         row = conn.execute(
@@ -31,7 +32,7 @@ def _get_cached_embedding(text_hash: str) -> Optional[List[float]]:
     return None
 
 
-def _save_to_cache(text_hash: str, vector: List[float]):
+def _save_to_cache(text_hash: str, vector: list[float]):
     conn = get_connection()
     try:
         vector_json = json.dumps(vector).encode("utf-8")
@@ -46,7 +47,7 @@ def _save_to_cache(text_hash: str, vector: List[float]):
         conn.close()
 
 
-def get_gemini_client() -> Optional[genai.Client]:
+def get_gemini_client() -> genai.Client | None:
     """
     Retrieves a Gemini API client using the best available API key.
     Prioritizes:
@@ -65,7 +66,10 @@ def get_gemini_client() -> Optional[genai.Client]:
             load_dotenv()
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         except ImportError:
+            # python-dotenv is an optional dependency
             pass
+        except Exception as e:
+            log_error("Error loading .env file", e)
 
     # 3. Try loading from global settings.json
     if not api_key:
@@ -73,7 +77,7 @@ def get_gemini_client() -> Optional[genai.Client]:
         global_settings_path = os.path.join(home, ".gemini", "settings.json")
         if os.path.exists(global_settings_path):
             try:
-                with open(global_settings_path, "r", encoding="utf-8") as f:
+                with open(global_settings_path, encoding="utf-8") as f:
                     settings = json.load(f)
 
                     # Targeted: settings.json -> mcpServers -> SharedMemoryServer -> env
@@ -104,7 +108,7 @@ def get_gemini_client() -> Optional[genai.Client]:
         return None
 
 
-async def compute_embedding(text: str) -> Optional[List[float]]:
+async def compute_embedding(text: str) -> list[float] | None:
     """Computes embedding with local caching."""
     text_hash = _get_text_hash(text)
     cached = _get_cached_embedding(text_hash)
@@ -130,7 +134,7 @@ async def compute_embedding(text: str) -> Optional[List[float]]:
         return None
 
 
-async def compute_bulk_embeddings(texts: List[str]) -> List[Optional[List[float]]]:
+async def compute_embeddings_bulk(texts: list[str]) -> list[list[float] | None]:
     """Computes multiple embeddings in parallel with caching."""
     results = []
     to_compute = []

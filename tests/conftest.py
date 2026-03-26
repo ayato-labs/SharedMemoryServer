@@ -43,8 +43,10 @@ def mock_env(temp_db, temp_bank):
 
 @pytest.fixture(autouse=True)
 def mock_gemini():
-    """Mocks the Gemini client across all modular components by default."""
-    # We patch all potential entry points for get_gemini_client
+    """
+    Mocks the Gemini client by default. 
+    Use the returned mock to configure specific failures in tests.
+    """
     patches = [
         patch("shared_memory.embeddings.get_gemini_client"),
         patch("shared_memory.graph.get_gemini_client"),
@@ -54,21 +56,28 @@ def mock_gemini():
     ]
 
     mock_client = MagicMock()
-    # Mock for embeddings: client.models.embed_content(...).embeddings[0].values
+    
+    # Default success behavior
     mock_embedding_result = MagicMock()
     mock_embedding_result.embeddings = [MagicMock(values=[0.1] * 768)]
     mock_client.models.embed_content.return_value = mock_embedding_result
 
     mock_client.models.generate_content.return_value = MagicMock(
-        text='{"conflict": false, "reason": ""}'
+        text='{"conflict": false, "reason": "No issues found.", "synthesis": "Project Omega is healthy.", "entities": [], "relations": [], "observations": []}'
     )
-    mock_client.models.list.return_value = [type('Model', (), {'name': 'models/gemini-pro'})]
+    
+    # Models list mock
+    mock_client.models.list.return_value = [
+        type('Model', (), {'name': 'models/gemini-pro'})
+    ]
 
-    handlers = [p.start() for p in patches]
-    for h in handlers:
+    handlers = []
+    for p in patches:
+        h = p.start()
         h.return_value = mock_client
+        handlers.append(p)
 
     yield mock_client
 
-    for p in patches:
+    for p in handlers:
         p.stop()

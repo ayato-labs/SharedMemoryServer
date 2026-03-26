@@ -1,12 +1,12 @@
 import json
-import os
-from typing import List, Dict, Any, Optional
+from typing import Any
+
+from shared_memory import logic
 from shared_memory.embeddings import get_gemini_client
 from shared_memory.utils import log_error, log_info
-from shared_memory import logic
 
 
-async def auto_distill_knowledge(session_id: str, thought_history: List[Dict[str, Any]]):
+async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str, Any]]):
     """
     Analyzes thought history using Gemini to extract structured knowledge.
     """

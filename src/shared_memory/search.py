@@ -1,16 +1,15 @@
-import json
 import datetime
-from typing import List
+import json
 
+from shared_memory.bank import read_bank_data
 from shared_memory.database import get_connection
-from shared_memory.utils import log_error, batch_cosine_similarity, calculate_importance
 from shared_memory.embeddings import (
-    get_gemini_client,
-    compute_embedding,
     EMBEDDING_MODEL,
+    compute_embedding,
+    get_gemini_client,
 )
 from shared_memory.graph import get_graph_data
-from shared_memory.bank import read_bank_data
+from shared_memory.utils import batch_cosine_similarity, calculate_importance, log_error
 
 
 async def perform_search(query: str, limit: int = 10):
@@ -74,7 +73,7 @@ async def perform_search(query: str, limit: int = 10):
         conn.close()
 
 
-async def get_graph_data_by_cids(cids: List[str], conn):
+async def get_graph_data_by_cids(cids: list[str], conn):
     if not cids:
         return {"entities": [], "relations": [], "observations": []}
     placeholders = ",".join(["?"] * len(cids))
@@ -105,7 +104,7 @@ async def get_graph_data_by_cids(cids: List[str], conn):
     }
 
 
-async def get_bank_data_by_cids(cids: List[str], conn):
+async def get_bank_data_by_cids(cids: list[str], conn):
     if not cids:
         return {}
     placeholders = ",".join(["?"] * len(cids))

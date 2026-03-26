@@ -1,19 +1,19 @@
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from fastmcp import FastMCP
 
+from shared_memory import logic, thought_logic
 from shared_memory.database import init_db
-from shared_memory import logic
-from shared_memory import thought_logic
 
 mcp = FastMCP("SharedMemoryServer")
 
 
 @mcp.tool()
 async def save_memory(
-    entities: List[Dict[str, Any]] = [],
-    relations: List[Dict[str, Any]] = [],
-    observations: List[Dict[str, Any]] = [],
-    bank_files: Dict[str, str] = {},
+    entities: list[dict[str, Any]] | None = None,
+    relations: list[dict[str, Any]] | None = None,
+    observations: list[dict[str, Any]] | None = None,
+    bank_files: dict[str, str] | None = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -26,7 +26,7 @@ async def save_memory(
 
 
 @mcp.tool()
-async def get_graph_data(query: str = None) -> Dict[str, Any]:
+async def get_graph_data(query: str = None) -> dict[str, Any]:
     """
     Retrieves knowledge from the graph database.
     Optionally filters graph data based on a query.
@@ -35,7 +35,7 @@ async def get_graph_data(query: str = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def read_memory(query: Optional[str] = None):
+async def read_memory(query: str | None = None):
     """
     Retrieves knowledge from the graph and memory bank.
     Uses hybrid search (Semantic + Keyword) if a query is provided.
@@ -44,7 +44,7 @@ async def read_memory(query: Optional[str] = None):
 
 
 @mcp.tool()
-async def get_audit_history(limit: int = 20, table_name: Optional[str] = None):
+async def get_audit_history(limit: int = 20, table_name: str | None = None):
     """Returns recent changes to the knowledge base."""
     return await logic.get_audit_history_core(limit, table_name)
 
@@ -78,7 +78,7 @@ async def troubleshooting_record(
     problem_description: str,
     solution: str,
     env_metadata_json: str,
-    tags: List[str] = [],
+    tags: list[str] = [],
 ):
     """
     Records a troubleshooting session for future reference.
@@ -113,10 +113,10 @@ async def sequential_thinking(
     thought_number: int,
     total_thoughts: int,
     next_thought_needed: bool,
-    is_revision: Optional[bool] = False,
-    revises_thought: Optional[int] = None,
-    branch_from_thought: Optional[int] = None,
-    branch_id: Optional[str] = None,
+    is_revision: bool | None = False,
+    revises_thought: int | None = None,
+    branch_from_thought: int | None = None,
+    branch_id: str | None = None,
     session_id: str = "default_session",
 ):
     """

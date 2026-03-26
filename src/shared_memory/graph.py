@@ -1,11 +1,11 @@
 import json
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 from shared_memory.database import get_connection, update_access
 from shared_memory.embeddings import (
-    get_gemini_client,
-    compute_embeddings_bulk,
     EMBEDDING_MODEL,
+    compute_embeddings_bulk,
+    get_gemini_client,
 )
 from shared_memory.utils import mask_sensitive_data
 
@@ -67,7 +67,7 @@ async def check_conflict(entity_name: str, new_content: str, agent_id: str, conn
             conn.close()
 
 
-async def save_entities(entities: List[Dict[str, Any]], agent_id: str, conn):
+async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn):
     results = []
     success_count = 0
     # 1. Pre-process and collect texts for bulk embedding
@@ -155,7 +155,7 @@ async def save_entities(entities: List[Dict[str, Any]], agent_id: str, conn):
     return msg
 
 
-async def save_relations(relations: List[Dict[str, Any]], agent_id: str, conn):
+async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
     valid_relations = []
     errors = []
     for r in relations:
@@ -180,7 +180,7 @@ async def save_relations(relations: List[Dict[str, Any]], agent_id: str, conn):
     return msg
 
 
-async def save_observations(observations: List[Dict[str, Any]], agent_id: str, conn):
+async def save_observations(observations: list[dict[str, Any]], agent_id: str, conn):
     conflicts_found = []
     errors = []
     for o in observations:
@@ -220,7 +220,7 @@ async def save_observations(observations: List[Dict[str, Any]], agent_id: str, c
     return f"Saved {len(observations)} observations", conflicts_found
 
 
-async def get_graph_data(query: Optional[str] = None):
+async def get_graph_data(query: str | None = None):
     conn = get_connection()
     try:
         cursor = conn.cursor()

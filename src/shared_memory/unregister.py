@@ -1,7 +1,7 @@
-import os
-import json
 import argparse
 import hashlib
+import json
+import os
 from pathlib import Path
 
 
@@ -59,7 +59,7 @@ def unregister_mcp(dry_run=False, isolate=False):
         if not path.exists():
             continue
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 config = json.load(f)
 
             updated = False

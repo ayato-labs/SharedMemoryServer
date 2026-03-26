@@ -1,10 +1,9 @@
-import os
-import json
-import sys
 import argparse
 import hashlib
+import json
+import os
+import sys
 from pathlib import Path
-from typing import List
 
 
 def get_config_paths():
@@ -37,7 +36,7 @@ def get_config_paths():
     }
 
 
-def get_prompt_files() -> List[Path]:
+def get_prompt_files() -> list[Path]:
     """Identify system prompt files to inject instructions into."""
     cwd = Path.cwd()
     home = Path.home()
@@ -98,7 +97,7 @@ def register_single_mcp(config_paths, server_name, mcp_config, dry_run=False):
             config = {}
             if path.exists():
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         config = json.load(f)
                 except json.JSONDecodeError:
                     print(f"  [WARN] {name}: Failed to parse {path}. Skipping.")
@@ -150,16 +149,13 @@ def register_mcp(dry_run=False, isolate=False):
     config_paths = get_config_paths()
     cwd = os.getcwd()
 
-    # 1. SharedMemoryServer Config (Use uv run for consistency)
+    # 1. SharedMemoryServer Config (Zero-Config Approach)
+    # The server will now automatically resolve paths based on current project root.
     server_name = "SharedMemoryServer"
-    db_name = "shared_memory.db"
-    bank_dir_name = "memory-bank"
 
     if isolate:
         path_hash = hashlib.md5(cwd.encode("utf-8")).hexdigest()[:8]
         server_name = f"SharedMemoryServer_{path_hash}"
-        db_name = f"shared_memory.{path_hash}.db"
-        bank_dir_name = f"memory-bank-{path_hash}"
 
     sm_path_str = str(Path(cwd)).replace("\\", "/")
     sm_mcp_config = {
@@ -173,8 +169,7 @@ def register_mcp(dry_run=False, isolate=False):
             f"{sm_path_str}/src/shared_memory/server.py",
         ],
         "env": {
-            "MEMORY_DB_PATH": os.path.join(cwd, db_name).replace("\\", "/"),
-            "MEMORY_BANK_DIR": os.path.join(cwd, bank_dir_name).replace("\\", "/"),
+            # Zero-Config: Paths are resolved autonomously by the server logic
         },
     }
 
@@ -222,7 +217,7 @@ def register_mcp(dry_run=False, isolate=False):
         try:
             content = ""
             if p.exists():
-                with open(p, "r", encoding="utf-8") as f:
+                with open(p, encoding="utf-8") as f:
                     content = f.read()
 
             if "SHARED_MEMORY_SERVER_INSTRUCTION" in content:

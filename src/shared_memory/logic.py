@@ -1,22 +1,27 @@
-from typing import List, Optional, Dict, Any
 import json
 import sqlite3
-from shared_memory.utils import log_error
+from typing import Any
+
+from shared_memory import bank, graph, health, management, search, troubleshooting
 from shared_memory.database import get_connection
-from shared_memory import graph, bank, search, management, troubleshooting, health
-from shared_memory.exceptions import SharedMemoryError, DatabaseError
+from shared_memory.exceptions import DatabaseError, SharedMemoryError
+from shared_memory.utils import log_error
 
 
 async def save_memory_core(
-    entities: List[Dict[str, Any]] = [],
-    relations: List[Dict[str, Any]] = [],
-    observations: List[Dict[str, Any]] = [],
-    bank_files: Dict[str, str] = {},
+    entities: list[dict[str, Any]] | None = None,
+    relations: list[dict[str, Any]] | None = None,
+    observations: list[dict[str, Any]] | None = None,
+    bank_files: dict[str, str] | None = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
     Core logic for saving memory. Orchestrates graph and bank updates within a transaction.
     """
+    entities = entities or []
+    relations = relations or []
+    observations = observations or []
+    bank_files = bank_files or {}
     conn = get_connection()
     results = []
     try:
@@ -46,7 +51,7 @@ async def save_memory_core(
     return " | ".join(results)
 
 
-async def read_memory_core(query: Optional[str] = None) -> Dict[str, Any]:
+async def read_memory_core(query: str | None = None) -> dict[str, Any]:
     """
     Core logic for reading memory.
     """
@@ -63,7 +68,7 @@ async def read_memory_core(query: Optional[str] = None) -> Dict[str, Any]:
 
 
 # Delegation proxies for management tools to keep server.py clean
-async def get_audit_history_core(limit: int = 20, table_name: Optional[str] = None):
+async def get_audit_history_core(limit: int = 20, table_name: str | None = None):
     return await management.get_audit_history_logic(limit, table_name)
 
 

@@ -1,10 +1,9 @@
 import sqlite3
-import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
-from shared_memory.utils import get_thoughts_db_path, log_error, mask_sensitive_data
+from typing import Any
+
 from shared_memory.database import retry_on_db_lock
 from shared_memory.exceptions import DatabaseError
+from shared_memory.utils import get_thoughts_db_path, log_error, mask_sensitive_data
 
 
 @retry_on_db_lock()
@@ -54,11 +53,11 @@ async def process_thought_core(
     total_thoughts: int,
     next_thought_needed: bool,
     is_revision: bool = False,
-    revises_thought: Optional[int] = None,
-    branch_from_thought: Optional[int] = None,
-    branch_id: Optional[str] = None,
+    revises_thought: int | None = None,
+    branch_from_thought: int | None = None,
+    branch_id: str | None = None,
     session_id: str = "default_session",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Implements the core logic for sequential thinking with security, validation, and persistence.
     """
@@ -143,7 +142,7 @@ async def process_thought_core(
 
 async def get_thought_history(
     session_id: str = "default_session",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Retrieves the thought history for a specific session."""
     try:
         conn = get_connection()

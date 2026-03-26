@@ -1,17 +1,17 @@
-import os
-import aiofiles
 import json
-from typing import Dict, Optional
+import os
+
+import aiofiles
 
 from shared_memory.database import get_connection, update_access
+from shared_memory.embeddings import EMBEDDING_MODEL, compute_embeddings_bulk
 from shared_memory.utils import (
-    get_bank_dir,
-    mask_sensitive_data,
-    log_error,
-    safe_path_join,
     GlobalLock,
+    get_bank_dir,
+    log_error,
+    mask_sensitive_data,
+    safe_path_join,
 )
-from shared_memory.embeddings import compute_embeddings_bulk, EMBEDDING_MODEL
 
 BANK_FILES = {
     "projectBrief.md": "Core requirements and goals.",
@@ -43,7 +43,7 @@ async def initialize_bank():
             log_error(f"Initialization skipped for invalid filename: {filename}", e)
 
 
-async def save_bank_files(bank_files: Dict[str, str], agent_id: str, conn):
+async def save_bank_files(bank_files: dict[str, str], agent_id: str, conn):
     async with GlobalLock(BANK_LOCK_NAME):
         existing_entities = [
             r[0] for r in conn.execute("SELECT name FROM entities").fetchall()
@@ -126,7 +126,7 @@ async def save_bank_files(bank_files: Dict[str, str], agent_id: str, conn):
         return f"Updated {len(items_to_process)} bank files"
 
 
-async def read_bank_data(query: Optional[str] = None):
+async def read_bank_data(query: str | None = None):
     async with GlobalLock(BANK_LOCK_NAME):
         bank_dir = get_bank_dir()
         bank_data = {}
@@ -137,7 +137,7 @@ async def read_bank_data(query: Optional[str] = None):
                 if filename.endswith(".md"):
                     try:
                         path = safe_path_join(bank_dir, filename)
-                        async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
+                        async with aiofiles.open(path, encoding="utf-8") as f:
                             content = await f.read()
                             if not query or query.lower() in content.lower():
                                 bank_data[filename] = content

@@ -1,13 +1,15 @@
 import os
-import time
-import sqlite3
 import shutil
-from typing import Dict, Any
+import sqlite3
+import time
+from datetime import UTC
+from typing import Any
+
 from shared_memory.database import get_connection
-from shared_memory.utils import get_db_path, get_bank_dir, log_error
+from shared_memory.utils import get_bank_dir, get_db_path, log_error
 
 
-async def check_db_health() -> Dict[str, Any]:
+async def check_db_health() -> dict[str, Any]:
     """
     Checks the physical health and fragmentation of the SQLite database.
     """
@@ -53,7 +55,7 @@ async def check_db_health() -> Dict[str, Any]:
     return stats
 
 
-async def check_disk_usage() -> Dict[str, Any]:
+async def check_disk_usage() -> dict[str, Any]:
     """
     Checks available disk space for the memory bank.
     """
@@ -71,7 +73,7 @@ async def check_disk_usage() -> Dict[str, Any]:
     }
 
 
-async def check_api_connectivity() -> Dict[str, Any]:
+async def check_api_connectivity() -> dict[str, Any]:
     """
     Verifies connectivity to the embedding service.
     """
@@ -99,7 +101,7 @@ async def check_api_connectivity() -> Dict[str, Any]:
     }
 
 
-async def get_comprehensive_diagnostics() -> Dict[str, Any]:
+async def get_comprehensive_diagnostics() -> dict[str, Any]:
     """
     Aggregates all health checks into a single report.
     """
@@ -114,15 +116,15 @@ async def get_comprehensive_diagnostics() -> Dict[str, Any]:
         issues.append("High DB fragmentation detected. VACUUM recommended.")
     if disk["percent_free"] < 10:
         overall_status = "warning"
-        issues.append("Low disk space in memory-bank.")
+        issues.append("Low disk space in data storage directory.")
     if api["status"] != "healthy":
         overall_status = "unhealthy"
         issues.append(f"Gemini API connectivity issue: {api['error']}")
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "status": overall_status,
         "issues": issues,
         "components": {"database": db, "storage": disk, "api": api},

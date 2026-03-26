@@ -106,3 +106,29 @@ async def test_db_lock_failure_raises_custom_exception(mock_gemini):
     with pytest.raises(DatabaseLockedError):
         fail_func()
     assert mock_op.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_api_failure_resilience(mock_gemini):
+    """
+    Verify that if the Gemini API is completely down (raises exception),
+    the system still saves the core data and doesn't crash the entire flow.
+    """
+    # Simulate a complete API failure (e.g. Connection Error)
+    mock_gemini.models.embed_content.side_effect = Exception("API Connection Failed")
+    mock_gemini.models.generate_content.side_effect = Exception("API Connection Failed")
+
+    entities = [{"name": "ResilientEntity", "entity_type": "Testing"}]
+    observations = [{"entity_name": "ResilientEntity", "content": "Critical info"}]
+
+    # The save should still succeed for the DB part, even if embeddings/distillation fail
+    res = await save_memory_core(entities=entities, observations=observations)
+    assert "Saved" in res
+
+    # Verify data is in DB despite API failure
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM entities WHERE name = 'ResilientEntity'"
+    ).fetchone()
+    assert row is not None
+    conn.close()

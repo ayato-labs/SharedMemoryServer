@@ -1,9 +1,9 @@
+import random
 import sqlite3
 import time
-import random
 
+from shared_memory.exceptions import DatabaseError, DatabaseLockedError
 from shared_memory.utils import get_db_path, log_error
-from shared_memory.exceptions import DatabaseLockedError, DatabaseError
 
 
 def retry_on_db_lock(max_retries=15, initial_delay=0.1):

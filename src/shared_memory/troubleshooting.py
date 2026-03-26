@@ -1,11 +1,11 @@
 import json
-from datetime import datetime
 import math
-from typing import List, Dict, Any, Optional
+from datetime import datetime
+from typing import Any
 
 from shared_memory.database import get_connection, retry_on_db_lock
 from shared_memory.embeddings import compute_embedding
-from shared_memory.utils import log_error, cosine_similarity
+from shared_memory.utils import cosine_similarity, log_error
 
 # Scoring Hyper-parameters
 DECAY_RATE = 0.0001  # Penalty per minute
@@ -16,8 +16,8 @@ USAGE_BOOST = 0.2  # Boost per log(1 + access_count)
 async def save_troubleshooting_record(
     title: str,
     solution: str,
-    affected_functions: Optional[str] = None,
-    env_metadata: Optional[Dict[str, Any]] = None,
+    affected_functions: str | None = None,
+    env_metadata: dict[str, Any] | None = None,
 ) -> int:
     """
     Saves a troubleshooting record and its embedding.
@@ -69,7 +69,7 @@ async def save_troubleshooting_record(
 @retry_on_db_lock()
 async def search_troubleshooting_history(
     query: str, limit: int = 5
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Searches troubleshooting history using Semantic Search + Time Decay + Usage Boost.
     """
