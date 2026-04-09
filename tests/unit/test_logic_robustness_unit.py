@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from shared_memory.logic import save_memory_core
 from tests.unit.fake_client import FakeGeminiClient, FakeGeminiResponse
+
 
 @pytest.mark.asyncio
 async def test_logic_handles_malformed_llm_json_unit(mock_env):
