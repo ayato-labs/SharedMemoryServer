@@ -60,10 +60,8 @@ jobs:
   build_assets:
     name: Build Windows Assets
     needs: release
-    # We want to build if we are on master, even if semantic-release didn't create a NEW tag (optional)
-    # OR we can restrict it to only when a new release is published.
-    # Given the user wants visibility, let's run it on master push.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # Only run when a new release is actually published
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.release.outputs.new_release_published == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
