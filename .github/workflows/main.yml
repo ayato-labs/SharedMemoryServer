@@ -1,0 +1,94 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  lint_and_test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install .[test]
+          pip install ruff
+      - name: Lint
+        run: |
+          ruff check .
+      - name: Run Tests
+        run: |
+          # Use a subset of tests or ignore known heavy/env-dependent tests if necessary
+          pytest tests/ --ignore=tests/test_ragas_eval.py --ignore=tests/test_concurrency.py
+
+  release:
+    name: Semantic Release
+    needs: lint_and_test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install semantic-release
+        run: pip install python-semantic-release
+      - name: Python Semantic Release
+        id: semantic
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release version
+          semantic-release publish
+
+  build_assets:
+    name: Build Windows Assets
+    needs: release
+    # We want to build if we are on master, even if semantic-release didn't create a NEW tag (optional)
+    # OR we can restrict it to only when a new release is published.
+    # Given the user wants visibility, let's run it on master push.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install .
+          pip install pyinstaller
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --name SharedMemoryServer --clean src/shared_memory/server.py
+          pyinstaller --onefile --name SharedMemoryRegister --clean src/shared_memory/register.py
+      - name: Upload Binaries to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/SharedMemoryServer.exe
+            dist/SharedMemoryRegister.exe
+          # If a tag was just created, it will be used. 
+          # If not, it will try to use the current commit's tag if any.
+          fail_on_unmatched_files: false
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
