@@ -93,22 +93,25 @@ async def cleanup_tasks():
     # Disable logging during cleanup to avoid noise
     logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task()]
     if not tasks:
         return
 
     for t in tasks:
         t.cancel()
 
-    # Use a timeout for gathering cancelled tasks to prevent teardown itself
-    # from hanging
+    # Use a minimal timeout. If it still hangs, we force exit by finishing the fixture.
     try:
         await asyncio.wait_for(
             asyncio.gather(*tasks, return_exceptions=True),
-            timeout=2.0
+            timeout=0.5
         )
     except (TimeoutError, Exception):
-        # Force progress even if cleanup hangs
         pass
 
 
