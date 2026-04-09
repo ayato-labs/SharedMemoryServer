@@ -1,12 +1,11 @@
-import sqlite3
-
+import aiosqlite
 import pytest
 
 from shared_memory import database, search, thought_logic
 
 
 @pytest.fixture
-def test_db_setup(tmp_path):
+async def test_db_setup(tmp_path, monkeypatch):
     """
     実データ（に近い構造）を使用したテスト用DBのセットアップ。
     """
@@ -14,36 +13,33 @@ def test_db_setup(tmp_path):
     thoughts_db_path = str(tmp_path / "test_thoughts.db")
 
     # 環境変数のモック
-    with pytest.MonkeyPatch().context() as m:
-        m.setenv("MEMORY_DB_PATH", db_path)
-        m.setenv("THOUGHTS_DB_PATH", thoughts_db_path)
+    monkeypatch.setenv("MEMORY_DB_PATH", db_path)
+    monkeypatch.setenv("THOUGHTS_DB_PATH", thoughts_db_path)
 
-        # 初期化
-        database.init_db()
-        thought_logic.init_thoughts_db()
+    # 初期化
+    await database.init_db()
+    await thought_logic.init_thoughts_db()
 
-        # データの注入
-        conn = sqlite3.connect(db_path)
-        conn.execute(
+    # データの注入
+    async with aiosqlite.connect(db_path) as conn:
+        await conn.execute(
             "INSERT INTO entities (name, entity_type, description) VALUES ('Rust', 'Language', 'A systems programming language focusing on safety.')"
         )
-        conn.execute(
+        await conn.execute(
             "INSERT INTO observations (entity_name, content) VALUES ('Rust', 'Rust prevents data races at compile time.')"
         )
-        conn.execute(
+        await conn.execute(
             "INSERT INTO bank_files (filename, content) VALUES ('rust_guide.md', 'Rust uses Cargo for package management.')"
         )
-        conn.commit()
-        conn.close()
+        await conn.commit()
 
-        t_conn = sqlite3.connect(thoughts_db_path)
-        t_conn.execute(
+    async with aiosqlite.connect(thoughts_db_path) as conn:
+        await conn.execute(
             "INSERT INTO thought_history (session_id, thought_number, total_thoughts, thought, next_thought_needed) VALUES ('sess_old', 1, 1, 'I think Rust is great for CLI tools.', 0)"
         )
-        t_conn.commit()
-        t_conn.close()
+        await conn.commit()
 
-        yield {"db_path": db_path, "thoughts_db_path": thoughts_db_path}
+    yield {"db_path": db_path, "thoughts_db_path": thoughts_db_path}
 
 
 @pytest.mark.asyncio
@@ -87,7 +83,6 @@ async def test_sequential_thinking_integration(test_db_setup):
     assert "Rust" in ids
 
     # 現在のセッション(sess_new)が除外されているか確認
-    # (sess_new の情報はまだ1件目なので、他のセッション sess_old のみがヒットするはず)
     for item in knowledge:
         if item["source"] == "thought_history":
             assert "sess_new" not in item["id"]

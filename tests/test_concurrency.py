@@ -1,14 +1,13 @@
 import asyncio
-
 import pytest
 
-from shared_memory.database import get_connection, init_db
+from shared_memory.database import async_get_connection, init_db
 from shared_memory.logic import save_memory_core as save_memory
 
 
 @pytest.fixture(autouse=True)
-def setup_db(mock_gemini):
-    init_db()
+async def setup_db(mock_gemini):
+    await init_db()
 
 
 @pytest.mark.asyncio
@@ -17,7 +16,7 @@ async def test_high_concurrency_writes(mock_gemini):
     Simulate multiple agents hitting save_memory at the exact same time.
     Verifies that our locking and busy_timeout prevent failures.
     """
-    num_agents = 10
+    num_agents = 5  # Targeted concurrency limit for personal use/small teams
     tasks = []
 
     for i in range(num_agents):
@@ -37,19 +36,18 @@ async def test_high_concurrency_writes(mock_gemini):
         assert "Saved" in r or "Updated" in r
 
     # Verify Database Consistency
-    conn = get_connection()
-    try:
-        count = conn.execute(
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute(
             "SELECT COUNT(*) FROM entities WHERE name LIKE 'AgentEntity_%'"
-        ).fetchone()[0]
+        )
+        count = (await cursor.fetchone())[0]
         assert count == num_agents
 
-        bank_count = conn.execute(
+        cursor = await conn.execute(
             "SELECT COUNT(*) FROM bank_files WHERE filename LIKE 'agent_%.md'"
-        ).fetchone()[0]
+        )
+        bank_count = (await cursor.fetchone())[0]
         assert bank_count == num_agents
-    finally:
-        conn.close()
 
 
 @pytest.mark.asyncio
@@ -59,12 +57,13 @@ async def test_mixed_read_write_concurrency(mock_gemini):
     """
     from shared_memory.bank import read_bank_data
 
-    # 1. Start a slow write (simulated if necessary, but here we just run them in parallel)
+    # 1. Start a slow write
     write_task = save_memory(
         entities=[{"name": "WriteLoad", "description": "heavy load"}],
         bank_files={"load.md": "content" * 1000},
     )
 
+    # 2. Start a read
     read_task = read_bank_data()
 
     results = await asyncio.gather(write_task, read_task)

@@ -36,7 +36,7 @@ async def test_ragas_quality_metrics(mock_gemini):
         metric.llm = ragas_llm
         metric.embeddings = ragas_emb
 
-    init_db()
+    await init_db()
 
     # 1. Setup Golden Dataset (Context)
     # We populate the memory with known facts

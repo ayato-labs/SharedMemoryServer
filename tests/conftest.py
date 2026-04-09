@@ -8,34 +8,45 @@ import pytest
 
 @pytest.fixture
 def temp_db():
-    """Provides a temporary database path and ensures it's cleaned up."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     yield path
     if os.path.exists(path):
-        os.remove(path)
-    # Also cleanup WAL files if any
+        try:
+            os.remove(path)
+        except:
+            pass
     for ext in ["-wal", "-shm"]:
         if os.path.exists(path + ext):
-            os.remove(path + ext)
+            try:
+                os.remove(path + ext)
+            except:
+                pass
 
 
 @pytest.fixture
 def temp_bank():
-    """Provides a temporary memory bank directory."""
+    dir_path = tempfile.mkdtemp()
+    yield dir_path
+    shutil.rmtree(dir_path)
+
+
+@pytest.fixture
+def temp_home():
     dir_path = tempfile.mkdtemp()
     yield dir_path
     shutil.rmtree(dir_path)
 
 
 @pytest.fixture(autouse=True)
-def mock_env(temp_db, temp_bank):
-    """Mocks environment variables for testing."""
+def mock_env(temp_db, temp_bank, temp_home):
+    """Mocks environment variables for testing with strict isolation."""
     env_vars = {
         "MEMORY_DB_PATH": temp_db,
         "MEMORY_BANK_DIR": temp_bank,
+        "THOUGHTS_DB_PATH": temp_db.replace(".db", "_thoughts.db"),
+        "SHARED_MEMORY_HOME": temp_home,
     }
-    # Preserves actual API key if provided via environment or .env
     if "GOOGLE_API_KEY" not in os.environ:
         env_vars["GOOGLE_API_KEY"] = "mock_key"
 
@@ -44,41 +55,44 @@ def mock_env(temp_db, temp_bank):
 
 
 @pytest.fixture(autouse=True)
+async def setup_teardown_db():
+    from shared_memory.database import init_db
+    from shared_memory.thought_logic import init_thoughts_db
+    await init_db()
+    await init_thoughts_db()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def mock_gemini():
-    """
-    Mocks the Gemini client by default.
-    Patching at the source (embeddings.py) and entry points that still use direct imports.
-    """
     patches = [
         patch("shared_memory.embeddings.get_gemini_client"),
         patch("shared_memory.search.get_gemini_client"),
         patch("shared_memory.management.get_gemini_client"),
         patch("shared_memory.distiller.get_gemini_client"),
+        patch("shared_memory.graph.get_gemini_client"),
     ]
-
     mock_client = MagicMock()
-
-    # Default success behavior
     mock_embedding_result = MagicMock()
     mock_embedding_result.embeddings = [MagicMock(values=[0.1] * 768)]
     mock_client.models.embed_content.return_value = mock_embedding_result
-
     mock_client.models.generate_content.return_value = MagicMock(
-        text='{"conflict": false, "reason": "No issues found.", "synthesis": "Project Omega is healthy.", "entities": [], "relations": [], "observations": []}'
+        text='{"conflict": true, "reason": "Conflict detected.", "synthesis": "Synthesis result."}'
     )
-
-    # Models list mock
-    mock_client.models.list.return_value = [
-        type("Model", (), {"name": "models/gemini-pro"})
-    ]
-
+    mock_client.models.list.return_value = [type("Model", (), {"name": "models/gemini-pro"})]
     handlers = []
     for p in patches:
         h = p.start()
         h.return_value = mock_client
         handlers.append(p)
-
     yield mock_client
-
     for p in handlers:
         p.stop()
+
+
+@pytest.fixture
+async def async_db(temp_db):
+    from shared_memory.database import async_get_connection, init_db
+    await init_db()
+    async with await async_get_connection() as conn:
+        yield conn

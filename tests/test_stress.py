@@ -1,17 +1,16 @@
 import asyncio
 import os
-
 import pytest
 
-from shared_memory.database import get_connection, init_db
+from shared_memory.database import async_get_connection, init_db
 from shared_memory.exceptions import SecurityError
 from shared_memory.logic import save_memory_core as save_memory
 from shared_memory.utils import get_bank_dir
 
 
 @pytest.fixture(autouse=True)
-def setup_db(mock_gemini):
-    init_db()
+async def setup_db(mock_gemini):
+    await init_db()
 
 
 @pytest.mark.asyncio
@@ -52,12 +51,12 @@ async def test_extreme_stress_100_agents(mock_gemini):
     assert success_count == num_agents
 
     # Verify DB consistency
-    conn = get_connection()
-    count = conn.execute(
-        "SELECT COUNT(*) FROM entities WHERE name LIKE 'StressEntity_%'"
-    ).fetchone()[0]
-    assert count == num_agents
-    conn.close()
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM entities WHERE name LIKE 'StressEntity_%'"
+        )
+        row = await cursor.fetchone()
+        assert row[0] == num_agents
 
 
 @pytest.mark.asyncio
@@ -83,7 +82,6 @@ async def test_path_traversal_protection(mock_gemini):
     assert os.path.exists(os.path.join(bank_dir, "file.md"))
 
     # Verify NO file was created outside bank_dir
-    # (Checking for evil.txt two levels up from bank_dir)
     parent_of_bank = os.path.dirname(bank_dir)
     grandparent = os.path.dirname(parent_of_bank)
     evil_path = os.path.join(grandparent, "evil.txt")

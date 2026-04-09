@@ -120,8 +120,7 @@ def main():
         "recover-thoughts": run_recover_thoughts,
     }
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(cmd_map[args.command](args))
+    asyncio.run(cmd_map[args.command](args))
 
 
 if __name__ == "__main__":

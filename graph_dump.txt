@@ -1,8 +1,8 @@
-import json
+﻿import json
 from typing import Any
 
 from shared_memory.database import async_get_connection
-from shared_memory.embeddings import EMBEDDING_MODEL, compute_embeddings_bulk, get_gemini_client
+from shared_memory.embeddings import EMBEDDING_MODEL, compute_embeddings_bulk
 from shared_memory.utils import log_error, mask_sensitive_data
 
 
@@ -11,6 +11,8 @@ async def check_conflict(entity_name: str, new_content: str, agent_id: str, conn
     Checks if a new observation contradicts existing knowledge using Gemini.
     """
     try:
+        from shared_memory.embeddings import get_gemini_client
+
         client = get_gemini_client()
         if not client:
             return False, None
@@ -64,20 +66,16 @@ async def _check_conflict_internal(
             "INSERT INTO conflicts (entity_name, existing_content, new_content, reason, agent_id) VALUES (?, ?, ?, ?, ?)",
             (entity_name, existing_text, new_content, data.get("reason"), agent_id),
         )
+        await conn.commit()
         return True, data.get("reason")
 
     return False, None
 
 
-async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn, precomputed_vectors: list[list[float]] | None = None):
-    """
-    Saves entities to the database. 
-    Accepts precomputed_vectors to support 'Compute-then-Write' architecture.
-    """
+async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn):
     results = []
     success_count = 0
-    
-    # 1. Prepare data
+    # 1. Pre-process and collect texts for bulk embedding
     items_to_process = []
     for e in entities:
         name = e.get("name", "").strip()
@@ -89,6 +87,7 @@ async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn, pre
         desc = e.get("description", "")
         importance = e.get("importance", 5)
 
+        # Basic range check
         try:
             importance = max(1, min(10, int(importance)))
         except (ValueError, TypeError):
@@ -105,24 +104,24 @@ async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn, pre
         )
 
     if not items_to_process:
-        return f"Saved 0 entities (Errors: {len(results)})" if results else "Saved 0 entities"
+        msg = "Saved 0 entities"
+        if results:
+            msg += f" (Errors: {len(results)})"
+        return msg
 
-    # 2. Assign Vectors (Precomputed or Fresh)
-    if precomputed_vectors is not None:
-        vectors = precomputed_vectors
-    else:
-        embedding_texts = [item["embedding_text"] for item in items_to_process]
-        vectors = await compute_embeddings_bulk(embedding_texts)
+    # 2. Bulk Compute Embeddings
+    embedding_texts = [item["embedding_text"] for item in items_to_process]
+    vectors = await compute_embeddings_bulk(embedding_texts)
 
-    # 3. Fast Database Sync
+    # 3. Synchronize DB
     for i, item in enumerate(items_to_process):
         name = item["name"]
         e_type = item["type"]
         desc = item["desc"]
         importance = item["importance"]
-        vector = vectors[i] if i < len(vectors) else None
+        vector = vectors[i]
 
-        # Fetch old state for audit
+        # Audit: Fetch old state
         cursor = await conn.execute(
             "SELECT entity_type, description FROM entities WHERE name = ?", (name,)
         )
@@ -130,6 +129,7 @@ async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn, pre
         old_data = json.dumps(dict(old_row)) if old_row else None
         action = "UPDATE" if old_row else "INSERT"
 
+        # INSERT OR REPLACE
         await conn.execute(
             "INSERT OR REPLACE INTO entities (name, entity_type, description, importance, updated_by) VALUES (?, ?, ?, ?, ?)",
             (name, e_type, desc, importance, agent_id),
@@ -142,6 +142,7 @@ async def save_entities(entities: list[dict[str, Any]], agent_id: str, conn, pre
             ("entities", name, action, old_data, new_data, agent_id),
         )
 
+        # Vector Sync
         if vector:
             await conn.execute(
                 "INSERT OR REPLACE INTO embeddings (content_id, vector, model_name) VALUES (?, ?, ?)",
@@ -180,16 +181,11 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
     return msg
 
 
-async def save_observations(observations: list[dict[str, Any]], agent_id: str, conn, precomputed_conflicts: list[dict[str, Any]] | None = None):
-    """
-    Saves observations. 
-    Accepts precomputed_conflicts to minimize transaction duration.
-    """
-    conflicts_to_report = []
+async def save_observations(observations: list[dict[str, Any]], agent_id: str, conn):
+    conflicts_found = []
     errors = []
     success_count = 0
-    
-    for i, o in enumerate(observations):
+    for o in observations:
         entity_name = o.get("entity_name", "").strip()
         content = o.get("content", "").strip()
 
@@ -199,16 +195,11 @@ async def save_observations(observations: list[dict[str, Any]], agent_id: str, c
 
         content = mask_sensitive_data(content)
 
-        # Conflict check
-        if precomputed_conflicts is not None:
-            # Match conflict from precomputed results if available
-            conflict_info = next((c for c in precomputed_conflicts if c["index"] == i), None)
-            if conflict_info and conflict_info.get("is_conflict"):
-                conflicts_to_report.append({"entity": entity_name, "reason": conflict_info.get("reason")})
-        else:
-            is_conflict, reason = await check_conflict(entity_name, content, agent_id, conn=conn)
-            if is_conflict:
-                conflicts_to_report.append({"entity": entity_name, "reason": reason})
+        is_conflict, reason = await check_conflict(
+            entity_name, content, agent_id, conn=conn
+        )
+        if is_conflict:
+            conflicts_found.append({"entity": entity_name, "reason": reason})
 
         await conn.execute(
             "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
@@ -220,19 +211,26 @@ async def save_observations(observations: list[dict[str, Any]], agent_id: str, c
         )
         await conn.execute(
             "INSERT INTO audit_logs (table_name, content_id, action, new_data, agent_id) VALUES (?, ?, ?, ?, ?)",
-            ("observations", entity_name, "INSERT", json.dumps({"content": content}), agent_id),
+            (
+                "observations",
+                entity_name,
+                "INSERT",
+                json.dumps({"content": content}),
+                agent_id,
+            ),
         )
         success_count += 1
 
     msg = f"Saved {success_count} observations"
     if errors:
         msg += f" (Errors: {len(errors)})"
-    return msg, conflicts_to_report
+    return msg, conflicts_found
 
 
 async def get_graph_data(query: str | None = None):
     async with await async_get_connection() as conn:
         if query:
+            # Semantic search or simple like? For now, simple LIKE for name matching
             cursor = await conn.execute(
                 "SELECT * FROM entities WHERE name LIKE ? OR description LIKE ?",
                 (f"%{query}%", f"%{query}%"),
@@ -243,6 +241,7 @@ async def get_graph_data(query: str | None = None):
             if not matched_names:
                 return {"entities": [], "relations": [], "observations": []}
 
+            # Fetch relations involving matched entities
             placeholders = ",".join(["?"] * len(matched_names))
             cursor = await conn.execute(
                 f"SELECT * FROM relations WHERE source IN ({placeholders}) OR target IN ({placeholders})",
@@ -273,3 +272,4 @@ async def get_graph_data(query: str | None = None):
                 "relations": [dict(r) for r in relations],
                 "observations": [dict(o) for o in observations],
             }
+

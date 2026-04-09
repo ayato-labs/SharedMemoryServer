@@ -1,21 +1,19 @@
-
 import pytest
+from unittest.mock import patch
 
-from shared_memory.database import get_connection, init_db
+from shared_memory.database import async_get_connection, init_db
 from shared_memory.embeddings import compute_embedding, compute_embeddings_bulk
 from shared_memory.health import get_comprehensive_diagnostics
 from shared_memory.logic import get_memory_health_core
 
 
 @pytest.fixture(autouse=True)
-def setup_db(mock_gemini):
-    init_db()
+async def setup_db(mock_gemini):
+    await init_db()
 
 
 @pytest.mark.asyncio
 async def test_comprehensive_diagnostics(mock_gemini):
-    from unittest.mock import patch
-
     with patch(
         "shared_memory.health.check_disk_usage",
         return_value={
@@ -66,10 +64,10 @@ async def test_embedding_cache_integrity(mock_gemini):
     assert mock_gemini.models.embed_content.call_count == 1  # Still 1
 
     # 3. Verify in DB
-    conn = get_connection()
-    row = conn.execute("SELECT count(*) FROM embedding_cache").fetchone()
-    assert row[0] == 1
-    conn.close()
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute("SELECT count(*) FROM embedding_cache")
+        row = await cursor.fetchone()
+        assert row[0] == 1
 
 
 @pytest.mark.asyncio
@@ -99,7 +97,6 @@ async def test_bulk_embedding_optimization(mock_gemini):
 
     assert len(results) == 3
     # Check if API was called with ONLY the missing 2 texts
-    # In my implementation, contents=to_fetch_texts
     call_args = mock_gemini.models.embed_content.call_args
     assert len(call_args.kwargs["contents"]) == 2
     assert "Bulk 1" in call_args.kwargs["contents"]
@@ -109,8 +106,6 @@ async def test_bulk_embedding_optimization(mock_gemini):
 
 @pytest.mark.asyncio
 async def test_logic_health_integration(mock_gemini):
-    from unittest.mock import patch
-
     mock_gemini.models.list.return_value = [
         type("Model", (), {"name": "models/gemini-pro"})
     ]

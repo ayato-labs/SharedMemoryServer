@@ -1,4 +1,3 @@
-
 import pytest
 
 from shared_memory import database, server, thought_logic
@@ -6,11 +5,10 @@ from shared_memory.thought_logic import get_thought_history
 
 
 @pytest.fixture(autouse=True)
-def init_test_dbs(mock_env):
+async def init_test_dbs(mock_env):
     """Initializes both knowledge and thoughts databases for each test."""
-    database.init_db()
-    thought_logic.init_thoughts_db()
-    yield
+    await database.init_db()
+    await thought_logic.init_thoughts_db()
 
 
 @pytest.mark.asyncio
@@ -20,7 +18,6 @@ async def test_sequential_thinking_tool_integration():
     Ensures that the tool is registered and can be called.
     """
     # Simulate tool call via the mcp instance
-    # Note: FastMCP tools are async functions
     result = await server.sequential_thinking(
         thought="Thinking about adding a new entity",
         thought_number=1,
@@ -52,8 +49,7 @@ async def test_thought_and_memory_coexistence():
         session_id="coexist_session",
     )
 
-    # 2. Save memory (using existing stable logic)
-    # We use logic.save_memory_core directly or via server tool
+    # 2. Save memory
     await server.save_memory(
         entities=[
             {

@@ -1,8 +1,8 @@
 import os
-
+import json
 import pytest
 
-from shared_memory.database import get_connection, init_db
+from shared_memory.database import async_get_connection, init_db
 from shared_memory.logic import (
     create_snapshot_core as create_snapshot_logic,
 )
@@ -22,8 +22,8 @@ from shared_memory.utils import get_db_path
 
 
 @pytest.fixture(autouse=True)
-def setup_db():
-    init_db()
+async def setup_db():
+    await init_db()
 
 
 @pytest.mark.asyncio
@@ -46,25 +46,22 @@ async def test_snapshot_lifecycle():
 
 @pytest.mark.asyncio
 async def test_audit_and_rollback():
-    conn = get_connection()
-    conn.execute(
-        "INSERT INTO entities (name, entity_type, description) VALUES ('X', 'concept', 'Old Dev')"
-    )
-    # Manually add audit log
-    import json
-
-    conn.execute(
-        "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data) VALUES (?, ?, ?, ?, ?)",
-        (
-            "entities",
-            "X",
-            "UPDATE",
-            json.dumps({"name": "X", "type": "concept", "desc": "Very Old"}),
-            json.dumps({"desc": "Old Dev"}),
-        ),
-    )
-    conn.commit()
-    conn.close()
+    async with await async_get_connection() as conn:
+        await conn.execute(
+            "INSERT INTO entities (name, entity_type, description) VALUES ('X', 'concept', 'Old Dev')"
+        )
+        # Manually add audit log
+        await conn.execute(
+            "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data) VALUES (?, ?, ?, ?, ?)",
+            (
+                "entities",
+                "X",
+                "UPDATE",
+                json.dumps({"name": "X", "type": "concept", "desc": "Very Old"}),
+                json.dumps({"desc": "Old Dev"}),
+            ),
+        )
+        await conn.commit()
 
     # Check history
     history = await get_audit_history_logic(limit=1)
@@ -76,18 +73,17 @@ async def test_audit_and_rollback():
     assert "Successfully rolled back" in res
 
     # Verify DB state
-    conn = get_connection()
-    row = conn.execute("SELECT description FROM entities WHERE name = 'X'").fetchone()
-    assert row[0] == "Very Old"
-    conn.close()
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute("SELECT description FROM entities WHERE name = 'X'")
+        row = await cursor.fetchone()
+        assert row[0] == "Very Old"
 
 
 @pytest.mark.asyncio
 async def test_memory_health(mock_gemini):
-    conn = get_connection()
-    conn.execute("INSERT INTO entities (name) VALUES ('E1'), ('E2')")
-    conn.commit()
-    conn.close()
+    async with await async_get_connection() as conn:
+        await conn.execute("INSERT INTO entities (name) VALUES ('E1'), ('E2')")
+        await conn.commit()
 
     health = await get_memory_health_logic()
     assert health["management_stats"]["entities_count"] == 2

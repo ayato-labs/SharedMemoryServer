@@ -1,11 +1,11 @@
 import os
 import shutil
-import sqlite3
+import aiosqlite
 import time
 from datetime import UTC
 from typing import Any
 
-from shared_memory.database import get_connection
+from shared_memory.database import async_get_connection
 from shared_memory.utils import get_bank_dir, get_db_path, log_error
 
 
@@ -28,29 +28,26 @@ async def check_db_health() -> dict[str, Any]:
 
     stats["size_bytes"] = os.path.getsize(db_path)
 
-    conn = get_connection()
-    try:
-        # Get page stats
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA page_count")
-        stats["page_count"] = cursor.fetchone()[0]
-        cursor.execute("PRAGMA page_size")
-        stats["page_size"] = cursor.fetchone()[0]
+    async with await async_get_connection() as conn:
+        try:
+            # Get page stats
+            cursor = await conn.execute("PRAGMA page_count")
+            stats["page_count"] = (await cursor.fetchone())[0]
+            cursor = await conn.execute("PRAGMA page_size")
+            stats["page_size"] = (await cursor.fetchone())[0]
 
-        # Check WAL mode
-        cursor.execute("PRAGMA journal_mode")
-        stats["wal_mode"] = cursor.fetchone()[0].lower() == "wal"
+            # Check WAL mode
+            cursor = await conn.execute("PRAGMA journal_mode")
+            stats["wal_mode"] = (await cursor.fetchone())[0].lower() == "wal"
 
-        # Check fragmentation (freelist pages)
-        cursor.execute("PRAGMA freelist_count")
-        freelist_count = cursor.fetchone()[0]
-        if stats["page_count"] > 0:
-            stats["fragmentation_ratio"] = freelist_count / stats["page_count"]
+            # Check fragmentation (freelist pages)
+            cursor = await conn.execute("PRAGMA freelist_count")
+            freelist_count = (await cursor.fetchone())[0]
+            if stats["page_count"] > 0:
+                stats["fragmentation_ratio"] = freelist_count / stats["page_count"]
 
-    except sqlite3.Error as e:
-        log_error("Failed to check DB health", e)
-    finally:
-        conn.close()
+        except aiosqlite.Error as e:
+            log_error("Failed to check DB health", e)
 
     return stats
 

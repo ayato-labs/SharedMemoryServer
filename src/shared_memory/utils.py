@@ -263,53 +263,72 @@ class GlobalLock:
     Expert-level cross-process locking using a lockfile.
     Placed in the project data directory to avoid pollution.
     """
+    # Intra-process lock cache to minimize file system contention
+    _locks: dict[str, asyncio.Lock] = {}
 
-    def __init__(self, lock_name: str, timeout: float = 10.0):
+    def __init__(self, lock_name: str, timeout: float = 30.0):
+        self.lock_name = lock_name
         self.lock_path = os.path.join(
             PathResolver.get_base_data_dir(), f"{lock_name}.lock"
         )
         self.timeout = timeout
-        self.locked = False
+        self.file_locked = False
+        self.intra_lock = None
 
     async def __aenter__(self):
+        # 1. Acquire intra-process lock first
+        if self.lock_name not in self._locks:
+            self._locks[self.lock_name] = asyncio.Lock()
+        self.intra_lock = self._locks[self.lock_name]
+        
+        # We wait for the intra-process lock indefinitely since it's in-memory and fast
+        await self.intra_lock.acquire()
+
+        # 2. Acquire cross-process file lock
         start_time = time.time()
         while time.time() - start_time < self.timeout:
             try:
                 # Exclusive creation - atomic at OS level
                 fd = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                with os.fdopen(fd, "w") as f:
-                    f.write(str(os.getpid()))
-                self.locked = True
+                try:
+                    os.write(fd, str(os.getpid()).encode())
+                finally:
+                    os.close(fd)
+                self.file_locked = True
                 return self
             except FileExistsError:
-                # Check for stale lock (older than 30s)
+                # Check for stale lock (older than 10s)
                 try:
                     mtime = os.path.getmtime(self.lock_path)
-                    if time.time() - mtime > 30:
+                    if time.time() - mtime > 10:
                         os.remove(self.lock_path)
                         log_info(f"Removed stale lock file: {self.lock_path}")
                 except FileNotFoundError:
-                    # Lock was removed by another process just now, which is fine
                     pass
                 except Exception as e:
                     log_error(f"Failed to remove stale lock {self.lock_path}", e)
                 await asyncio.sleep(0.1)
 
+        # Cleanup intra-lock if file lock fails
+        self.intra_lock.release()
         raise TimeoutError(f"Could not acquire global lock for {self.lock_path}")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.locked:
-            # Give the OS a tiny moment to release handles if needed (especially on Windows)
-            for _ in range(5):
-                try:
-                    if os.path.exists(self.lock_path):
-                        os.remove(self.lock_path)
-                    break
-                except PermissionError:
-                    await asyncio.sleep(0.05)
-                except FileNotFoundError:
-                    break
-            self.locked = False
+        try:
+            if self.file_locked:
+                for _ in range(5):
+                    try:
+                        if os.path.exists(self.lock_path):
+                            os.remove(self.lock_path)
+                        break
+                    except PermissionError:
+                        await asyncio.sleep(0.05)
+                    except FileNotFoundError:
+                        break
+                self.file_locked = False
+        finally:
+            if self.intra_lock and self.intra_lock.locked():
+                self.intra_lock.release()
 
 
 def batch_cosine_similarity(

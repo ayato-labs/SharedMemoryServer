@@ -1,5 +1,4 @@
-import sqlite3
-
+import aiosqlite
 import pytest
 
 from shared_memory import thought_logic
@@ -8,16 +7,14 @@ from shared_memory.utils import get_thoughts_db_path
 
 
 @pytest.fixture(autouse=True)
-def init_hardened_db(mock_env):
+async def init_hardened_db(mock_env):
     """Initializes the thoughts database and clears history for isolation."""
-    thought_logic.init_thoughts_db()
+    await thought_logic.init_thoughts_db()
 
     # Clear history to ensure test isolation
-    conn = sqlite3.connect(get_thoughts_db_path())
-    conn.execute("DELETE FROM thought_history")
-    conn.commit()
-    conn.close()
-    yield
+    async with aiosqlite.connect(get_thoughts_db_path()) as conn:
+        await conn.execute("DELETE FROM thought_history")
+        await conn.commit()
 
 
 @pytest.mark.asyncio

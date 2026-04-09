@@ -5,7 +5,24 @@ from fastmcp import FastMCP
 from shared_memory import logic, thought_logic
 from shared_memory.database import init_db
 
+# Create MCP server instance (Agent Data Plane)
 mcp = FastMCP("SharedMemoryServer")
+
+
+# ==========================================
+# LIFESPAN & INITIALIZATION
+# ==========================================
+
+@mcp.lifespan()
+async def lifespan(mcp_instance: FastMCP):
+    """
+    Handles server startup and shutdown.
+    Ensures databases are initialized before tools are called.
+    """
+    await init_db()
+    await thought_logic.init_thoughts_db()
+    
+    yield
 
 
 # ==========================================
@@ -54,6 +71,11 @@ async def synthesize_entity(entity_name: str):
     return await logic.synthesize_entity(entity_name)
 
 
+# ==========================================
+# THOUGHT & REASONING TOOLS
+# ==========================================
+
+
 @mcp.tool()
 async def sequential_thinking(
     thought: str,
@@ -84,7 +106,10 @@ async def sequential_thinking(
     )
 
 
-if __name__ == "__main__":
-    init_db()
-    thought_logic.init_thoughts_db()
+def main():
+    """Entry point for the MCP server."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

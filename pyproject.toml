@@ -10,6 +10,7 @@ dependencies = [
     "google-genai",
     "numpy",
     "ruff",
+    "aiosqlite",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,7 @@ shared-memory = "shared_memory.server:main"
 shared-memory-register = "shared_memory.register:main"
 shared-memory-unregister = "shared_memory.unregister:main"
 shared-memory-admin = "shared_memory.admin_cli:main"
+shared-memory-admin-server = "shared_memory.admin_server:main"
 
 [tool.ruff]
 line-length = 88

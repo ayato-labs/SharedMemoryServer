@@ -13,8 +13,8 @@ from shared_memory.server import (
 
 
 @pytest.fixture(autouse=True)
-def setup_db(mock_gemini):
-    init_db()
+async def setup_db(mock_gemini):
+    await init_db()
 
 
 @pytest.mark.asyncio
@@ -31,7 +31,6 @@ async def test_full_save_read_flow(mock_gemini):
         observations=[{"entity_name": "Project Omega", "content": "Started in 2024"}],
         bank_files={"omega_manual.md": "# Omega Manual"},
     )
-    print(f"DEBUG: res='{res}'")
     assert "Saved 2 entities" in res
     assert "Saved 1 relations" in res
     assert "Saved 1 observations" in res
@@ -77,8 +76,6 @@ async def test_full_save_read_flow(mock_gemini):
     )
 
     # Check if knowledge was distilled into the graph
-    # (Since LLM is mocked, we expect some interaction or at least no crash)
     data = await read_memory(query="budget")
-    # Even if mock doesn't return exactly "budget", we check synthesis
     synth_result = await synthesize_entity("Project Omega")
     assert synth_result is not None

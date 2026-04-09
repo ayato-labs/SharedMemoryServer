@@ -1,7 +1,7 @@
 import os
-import sqlite3
-
+import aiosqlite
 import pytest
+import tempfile
 
 from shared_memory.thought_logic import (
     get_thought_history,
@@ -11,16 +11,13 @@ from shared_memory.thought_logic import (
 
 
 @pytest.fixture
-def temp_thoughts_db():
+async def temp_thoughts_db(monkeypatch):
     """Provides a temporary thoughts database path."""
-    import tempfile
-
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
-    with pytest.MonkeyPatch().context() as mp:
-        mp.setenv("THOUGHTS_DB_PATH", path)
-        init_thoughts_db()
-        yield path
+    monkeypatch.setenv("THOUGHTS_DB_PATH", path)
+    await init_thoughts_db()
+    yield path
 
     if os.path.exists(path):
         os.remove(path)
@@ -36,13 +33,11 @@ def temp_thoughts_db():
 async def test_init_thoughts_db(temp_thoughts_db):
     """Verifies that the thoughts database and table are created correctly."""
     assert os.path.exists(temp_thoughts_db)
-    conn = sqlite3.connect(temp_thoughts_db)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='thought_history'"
-    )
-    assert cursor.fetchone() is not None
-    conn.close()
+    async with aiosqlite.connect(temp_thoughts_db) as conn:
+        cursor = await conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='thought_history'"
+        )
+        assert await cursor.fetchone() is not None
 
 
 @pytest.mark.asyncio
