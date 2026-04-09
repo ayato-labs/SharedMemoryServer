@@ -5,6 +5,7 @@ import sys
 # Add src to sys.path
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
+import shared_memory.database
 from shared_memory.database import init_db
 
 async def run_init():
