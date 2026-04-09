@@ -15,7 +15,9 @@ from ragas.metrics import (
 )
 
 from shared_memory.database import init_db
-from shared_memory.server import read_memory, save_memory, synthesize_entity
+from shared_memory.logic import read_memory_core as read_memory
+from shared_memory.logic import save_memory_core as save_memory
+from shared_memory.logic import synthesize_entity
 
 # Load real environment variables before conftest mocks them
 load_dotenv()

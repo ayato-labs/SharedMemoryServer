@@ -159,7 +159,7 @@ async def rollback_memory_core(audit_id: int):
     return await management.rollback_memory_logic(audit_id)
 
 
-async def create_snapshot_core(name: str, description: str):
+async def create_snapshot_core(name: str, description: str = ""):
     return await management.create_snapshot_logic(name, description)
 
 

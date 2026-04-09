@@ -73,9 +73,17 @@ def mock_gemini():
         patch("shared_memory.graph.get_gemini_client"),
     ]
     mock_client = MagicMock()
-    mock_embedding_result = MagicMock()
-    mock_embedding_result.embeddings = [MagicMock(values=[0.1] * 768)]
-    mock_client.models.embed_content.return_value = mock_embedding_result
+
+    def mock_embed_content(model, contents, config=None):
+        if isinstance(contents, str):
+            n = 1
+        else:
+            n = len(contents)
+        res = MagicMock()
+        res.embeddings = [MagicMock(values=[0.1] * 768) for _ in range(n)]
+        return res
+
+    mock_client.models.embed_content.side_effect = mock_embed_content
     mock_client.models.generate_content.return_value = MagicMock(
         text=(
             '{"conflict": true, "reason": "Conflict detected.", '
@@ -83,7 +91,7 @@ def mock_gemini():
         )
     )
     mock_client.models.list.return_value = [
-        type("Model", (), {"name": "models/gemini-pro"})
+        type("Model", (), {"name": "models/gemini-2.0-flash-exp"})
     ]
     handlers = []
     for p in patches:

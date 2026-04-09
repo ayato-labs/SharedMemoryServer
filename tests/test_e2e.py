@@ -1,20 +1,12 @@
 import pytest
 
-from shared_memory.database import init_db
-from shared_memory.server import (
-    admin_create_snapshot,
-    admin_get_audit_history,
-    admin_repair_memory,
-    read_memory,
-    save_memory,
-    sequential_thinking,
-    synthesize_entity,
-)
-
-
-@pytest.fixture(autouse=True)
-async def setup_db(mock_gemini):
-    await init_db()
+from shared_memory.logic import create_snapshot_core as admin_create_snapshot
+from shared_memory.logic import get_audit_history_core as admin_get_audit_history
+from shared_memory.logic import read_memory_core as read_memory
+from shared_memory.logic import repair_memory_core as admin_repair_memory
+from shared_memory.logic import save_memory_core as save_memory
+from shared_memory.logic import synthesize_entity
+from shared_memory.thought_logic import process_thought_core as sequential_thinking
 
 
 @pytest.mark.asyncio
