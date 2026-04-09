@@ -143,7 +143,7 @@ async def save_bank_files(
                 if entity_name.lower() in content.lower():
                     await conn.execute(
                         "INSERT OR REPLACE INTO relations "
-                        "(source, target, relation_type, created_by) "
+                        "(subject, object, predicate, created_by) "
                         "VALUES (?, ?, ?, ?)",
                         (filename, entity_name, "mentions", agent_id),
                     )

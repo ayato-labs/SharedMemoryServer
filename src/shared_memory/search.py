@@ -169,7 +169,7 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     if matched_names:
         p2 = ",".join(["?"] * len(matched_names))
         cursor = await conn.execute(
-            f"SELECT * FROM relations WHERE source IN ({p2}) OR target IN ({p2})",
+            f"SELECT * FROM relations WHERE subject IN ({p2}) OR object IN ({p2})",
             matched_names + matched_names,
         )
         relations = await cursor.fetchall()
@@ -179,7 +179,7 @@ async def get_graph_data_by_cids(cids: list[str], conn):
             {"name": r[0], "type": r[1], "description": r[2]} for r in entities
         ],
         "relations": [
-            {"source": r[0], "target": r[1], "type": r[2]} for r in relations
+            {"subject": r[0], "object": r[1], "predicate": r[2]} for r in relations
         ],
         "observations": [{"entity": o[1], "content": o[2], "at": o[3]} for o in obs],
     }
@@ -217,7 +217,7 @@ async def synthesize_knowledge(entity_name: str):
             )
             obs = await cursor.fetchall()
             cursor = await conn.execute(
-                "SELECT * FROM relations WHERE source = ? OR target = ?",
+                "SELECT * FROM relations WHERE subject = ? OR object = ?",
                 (entity_name, entity_name),
             )
             rels = await cursor.fetchall()

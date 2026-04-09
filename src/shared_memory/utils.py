@@ -142,7 +142,6 @@ class PathResolver:
         Moves legacy data files/dirs from root to the new .shared_memory directory.
         """
         legacy_map = {
-            "shared_memory.db": "knowledge.db",
             "thoughts.db": "thoughts.db",
             "memory-bank": "bank",
         }

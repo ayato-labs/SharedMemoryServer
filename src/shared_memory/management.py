@@ -161,8 +161,8 @@ async def get_memory_health_logic():
             # Gaps & Bias
             cursor = await conn.execute("""
                 SELECT name FROM entities
-                WHERE name NOT IN (SELECT source FROM relations)
-                AND name NOT IN (SELECT target FROM relations)
+                WHERE name NOT IN (SELECT subject FROM relations)
+                AND name NOT IN (SELECT object FROM relations)
             """)
             isolated = await cursor.fetchall()
             health["gaps_analysis"] = {

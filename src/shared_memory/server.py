@@ -40,7 +40,12 @@ async def save_memory(
 ) -> str:
     """
     Saves multiple pieces of knowledge in one transaction.
-    Highly recommended for complex updates to maintain consistency.
+
+    - entities: List of entities with 'name' (required), 'entity_type', 'description'.
+    - relations: Knowledge Graph Triples. Each dict MUST have:
+        'subject' (source entity), 'object' (target entity), 'predicate' (relation type).
+    - observations: List of factual statements linked to an entity.
+    - bank_files: Markdown documentation to be saved in the memory bank.
     """
     return await logic.save_memory_core(
         entities, relations, observations, bank_files, agent_id

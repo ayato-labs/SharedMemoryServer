@@ -177,19 +177,22 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
     valid_relations = []
     errors = []
     for r in relations:
-        source = r.get("source", "").strip()
-        target = r.get("target", "").strip()
-        r_type = r.get("relation_type", "").strip()
+        # Standard terminology: Subject-Predicate-Object
+        # Fallback to source/target/relation_type for migration period
+        subject = (r.get("subject") or r.get("source") or "").strip()
+        obj = (r.get("object") or r.get("target") or "").strip()
+        predicate = (r.get("predicate") or r.get("relation_type") or "").strip()
 
-        if not all([source, target, r_type]):
-            errors.append(f"Error: Relation requires source, target, and type: {r}")
+        if not all([subject, obj, predicate]):
+            errors.append(f"Error: Relation requires subject, object, and predicate: {r}")
             continue
-        valid_relations.append((source, target, r_type, agent_id))
+        valid_relations.append((subject, obj, predicate, agent_id))
 
     if valid_relations:
+        # DB schema was updated to use subject, object, predicate
         await conn.executemany(
             "INSERT OR REPLACE INTO relations "
-            "(source, target, relation_type, created_by) VALUES (?, ?, ?, ?)",
+            "(subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
             valid_relations,
         )
 
@@ -288,8 +291,8 @@ async def get_graph_data(query: str | None = None):
 
             placeholders = ",".join(["?"] * len(matched_names))
             cursor = await conn.execute(
-                f"SELECT * FROM relations WHERE source IN ({placeholders}) "
-                f"OR target IN ({placeholders})",
+                f"SELECT * FROM relations WHERE subject IN ({placeholders}) "
+                f"OR object IN ({placeholders})",
                 matched_names + matched_names,
             )
             relations = await cursor.fetchall()

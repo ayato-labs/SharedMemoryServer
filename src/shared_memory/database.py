@@ -132,15 +132,15 @@ async def init_db():
         """)
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS relations (
-                source TEXT,
-                target TEXT,
-                relation_type TEXT,
+                subject TEXT,
+                object TEXT,
+                predicate TEXT,
                 justification TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
-                PRIMARY KEY (source, target, relation_type),
-                FOREIGN KEY (source) REFERENCES entities (name) ON DELETE CASCADE,
-                FOREIGN KEY (target) REFERENCES entities (name) ON DELETE CASCADE
+                PRIMARY KEY (subject, object, predicate),
+                FOREIGN KEY (subject) REFERENCES entities (name) ON DELETE CASCADE,
+                FOREIGN KEY (object) REFERENCES entities (name) ON DELETE CASCADE
             )
         """)
         await cursor.execute("""
@@ -153,7 +153,7 @@ async def init_db():
                 FOREIGN KEY (entity_name) REFERENCES entities (name) ON DELETE CASCADE
             )
         """)
-        # Embedding Cache (Phase 11 Optimization)
+        # Explicit consistency check for critical tables
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS embedding_cache (
                 content_hash TEXT PRIMARY KEY,
