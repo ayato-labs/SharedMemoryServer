@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from shared_memory.database import async_get_connection, init_db
 from shared_memory.embeddings import compute_embedding, compute_embeddings_bulk

@@ -20,7 +20,8 @@ async def init_hardened_db(mock_env):
 @pytest.mark.asyncio
 async def test_sensitive_data_masking_in_thoughts():
     """
-    Ensures that sensitive data like API keys are masked BEFORE being saved to the thoughts database.
+    Ensures that sensitive data like API keys are masked BEFORE being
+    saved to the thoughts database.
     """
     secret_key = "sk-ant-api03-1234567890abcdef1234567890abcdef-12345"
     thought_content = f"I am using the API key {secret_key} to perform a task."

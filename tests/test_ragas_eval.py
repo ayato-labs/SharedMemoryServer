@@ -3,12 +3,8 @@ import os
 import pytest
 from datasets import Dataset
 from dotenv import load_dotenv
-from ragas import evaluate
-
-# Load real environment variables before conftest mocks them
-load_dotenv()
-
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from ragas import evaluate
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -20,6 +16,9 @@ from ragas.metrics import (
 
 from shared_memory.database import init_db
 from shared_memory.server import read_memory, save_memory, synthesize_entity
+
+# Load real environment variables before conftest mocks them
+load_dotenv()
 
 
 # ...
@@ -108,7 +107,8 @@ async def test_ragas_quality_metrics(mock_gemini):
     # we would normally skip this or use a mock evaluator.
     if os.environ.get("GOOGLE_API_KEY") == "mock_key":
         pytest.skip(
-            "Ragas evaluation requires a REAL GOOGLE_API_KEY. Skipping in mock CI environment."
+            "Ragas evaluation requires a REAL GOOGLE_API_KEY. "
+            "Skipping in mock CI environment."
         )
 
     result = evaluate(

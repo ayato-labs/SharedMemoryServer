@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
-import pytest
+
 import aiosqlite
+import pytest
 
 from shared_memory.database import async_get_connection, init_db
 from shared_memory.exceptions import DatabaseLockedError, SharedMemoryError

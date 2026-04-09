@@ -34,7 +34,8 @@ async def test_update_access_and_stability(temp_db):
         await update_access("test_node")
 
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = 'test_node'"
+            "SELECT access_count, stability FROM knowledge_metadata "
+            "WHERE content_id = 'test_node'"
         )
         row = await cursor.fetchone()
         assert row[0] == 1
@@ -43,7 +44,8 @@ async def test_update_access_and_stability(temp_db):
         # Second access (stability should increase)
         await update_access("test_node")
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = 'test_node'"
+            "SELECT access_count, stability FROM knowledge_metadata "
+            "WHERE content_id = 'test_node'"
         )
         row = await cursor.fetchone()
         assert row[0] == 2
@@ -66,7 +68,8 @@ async def test_migration_from_partial_schema(temp_db):
         )
         # Add only one of the migration columns to trigger the original bug
         await conn.execute(
-            "ALTER TABLE entities ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            "ALTER TABLE entities ADD COLUMN created_at "
+            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         )
         await conn.commit()
 
@@ -111,7 +114,8 @@ async def test_migration_relations_partial(temp_db):
         """
         )
         await conn.execute(
-            "ALTER TABLE relations ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            "ALTER TABLE relations ADD COLUMN created_at "
+            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         )
         await conn.commit()
 

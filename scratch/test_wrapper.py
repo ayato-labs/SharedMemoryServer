@@ -1,5 +1,7 @@
 import asyncio
+
 import aiosqlite
+
 
 class ConfiguredConnection:
     def __init__(self, db_path):

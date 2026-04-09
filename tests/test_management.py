@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 import pytest
 
 from shared_memory.database import async_get_connection, init_db
@@ -48,11 +49,14 @@ async def test_snapshot_lifecycle():
 async def test_audit_and_rollback():
     async with await async_get_connection() as conn:
         await conn.execute(
-            "INSERT INTO entities (name, entity_type, description) VALUES ('X', 'concept', 'Old Dev')"
+            "INSERT INTO entities (name, entity_type, description) "
+            "VALUES ('X', 'concept', 'Old Dev')"
         )
         # Manually add audit log
         await conn.execute(
-            "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO audit_logs "
+            "(table_name, content_id, action, old_data, new_data) "
+            "VALUES (?, ?, ?, ?, ?)",
             (
                 "entities",
                 "X",

@@ -1,7 +1,8 @@
 import os
+import tempfile
+
 import aiosqlite
 import pytest
-import tempfile
 
 from shared_memory.thought_logic import (
     get_thought_history,
@@ -35,7 +36,8 @@ async def test_init_thoughts_db(temp_thoughts_db):
     assert os.path.exists(temp_thoughts_db)
     async with aiosqlite.connect(temp_thoughts_db) as conn:
         cursor = await conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='thought_history'"
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='thought_history'"
         )
         assert await cursor.fetchone() is not None
 

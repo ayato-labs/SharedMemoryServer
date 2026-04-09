@@ -1,6 +1,8 @@
 import asyncio
-import aiosqlite
 import threading
+
+import aiosqlite
+
 
 async def test():
     conn = await aiosqlite.connect("test.db")
@@ -9,7 +11,7 @@ async def test():
     # Find aiosqlite threads
     count = sum(1 for t in threading.enumerate() if "sqlite" in t.name.lower())
     print(f"SQLite threads count: {count}")
-    
+
     try:
         async with conn:
             print("Entered context manager")

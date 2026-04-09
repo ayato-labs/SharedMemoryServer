@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from shared_memory.database import async_get_connection, init_db
 from shared_memory.exceptions import DatabaseError, SharedMemoryError
 from shared_memory.logic import save_memory_core
-from shared_memory.utils import get_bank_dir, get_db_path
+from shared_memory.utils import get_db_path
 
 
 @pytest.fixture(autouse=True)

@@ -35,7 +35,8 @@ async def test_access_stability():
     async with await async_get_connection() as conn:
         # Insert a dummy knowledge metadata entry for testing
         await conn.execute(
-            "INSERT INTO knowledge_metadata (content_id, access_count, stability) VALUES ('test_node', 0, 0.5)"
+            "INSERT INTO knowledge_metadata (content_id, access_count, "
+            "stability) VALUES ('test_node', 0, 0.5)"
         )
         await conn.commit()
 
@@ -43,7 +44,8 @@ async def test_access_stability():
         await update_access("test_node", conn)
 
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = 'test_node'"
+            "SELECT access_count, stability FROM knowledge_metadata "
+            "WHERE content_id = 'test_node'"
         )
         row = await cursor.fetchone()
         assert row[0] == 1
@@ -52,7 +54,8 @@ async def test_access_stability():
         # Second access (stability should increase)
         await update_access("test_node", conn)
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = 'test_node'"
+            "SELECT access_count, stability FROM knowledge_metadata "
+            "WHERE content_id = 'test_node'"
         )
         row = await cursor.fetchone()
         assert row[0] == 2
@@ -106,7 +109,8 @@ async def test_conflict_detection(mock_gemini):
     async with await async_get_connection() as conn:
         await conn.execute("INSERT INTO entities (name) VALUES ('Alice')")
         await conn.execute(
-            "INSERT INTO observations (entity_name, content) VALUES ('Alice', 'Alice is in Tokyo')"
+            "INSERT INTO observations (entity_name, content) "
+            "VALUES ('Alice', 'Alice is in Tokyo')"
         )
 
         obs = [{"entity_name": "Alice", "content": "Alice is in London"}]
@@ -121,13 +125,19 @@ async def test_conflict_detection(mock_gemini):
 async def test_get_graph_data():
     await init_db()
     async with await async_get_connection() as conn:
-        await conn.execute("INSERT INTO entities (name, entity_type) VALUES ('Alice', 'person')")
-        await conn.execute("INSERT INTO entities (name, entity_type) VALUES ('Bob', 'person')")
         await conn.execute(
-            "INSERT INTO relations (source, target, relation_type) VALUES ('Alice', 'Bob', 'knows')"
+            "INSERT INTO entities (name, entity_type) VALUES ('Alice', 'person')"
         )
         await conn.execute(
-            "INSERT INTO observations (entity_name, content) VALUES ('Alice', 'Works hard')"
+            "INSERT INTO entities (name, entity_type) VALUES ('Bob', 'person')"
+        )
+        await conn.execute(
+            "INSERT INTO relations (source, target, relation_type) "
+            "VALUES ('Alice', 'Bob', 'knows')"
+        )
+        await conn.execute(
+            "INSERT INTO observations (entity_name, content) "
+            "VALUES ('Alice', 'Works hard')"
         )
         await conn.commit()
 
@@ -142,7 +152,9 @@ async def test_save_entities_invalid_input(mock_gemini):
         assert "Error" in res
 
         # 2. Out of range importance (should be clamped/defaulted)
-        await save_entities([{"name": "ClampMe", "importance": 100}], "test_agent", conn)
+        await save_entities(
+            [{"name": "ClampMe", "importance": 100}], "test_agent", conn
+        )
         cursor = await conn.execute(
             "SELECT importance FROM entities WHERE name = 'ClampMe'"
         )
@@ -161,7 +173,9 @@ async def test_save_relations_invalid_input():
 @pytest.mark.asyncio
 async def test_save_observations_side_effects(mock_gemini):
     async with await async_get_connection() as conn:
-        await conn.execute("INSERT INTO entities (name, importance) VALUES ('Alice', 5)")
+        await conn.execute(
+            "INSERT INTO entities (name, importance) VALUES ('Alice', 5)"
+        )
         await conn.commit()
 
         # Saving an observation should increment importance

@@ -1,8 +1,13 @@
 import os
+
 import aiofiles
 import pytest
 
-from shared_memory.bank import initialize_bank, read_bank_data, save_bank_files
+from shared_memory.bank import (
+    initialize_bank,
+    read_bank_data,
+    save_bank_files,
+)
 from shared_memory.database import async_get_connection, init_db
 from shared_memory.logic import repair_memory_core as repair_memory_logic
 from shared_memory.utils import get_bank_dir
@@ -66,7 +71,8 @@ async def test_read_bank_data(mock_gemini):
 async def test_repair_memory():
     async with await async_get_connection() as conn:
         await conn.execute(
-            "INSERT INTO bank_files (filename, content) VALUES ('missing.md', 'I should be on disk')"
+            "INSERT INTO bank_files (filename, content) "
+            "VALUES ('missing.md', 'I should be on disk')"
         )
         await conn.commit()
 

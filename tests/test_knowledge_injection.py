@@ -23,19 +23,26 @@ async def test_db_setup(tmp_path, monkeypatch):
     # データの注入
     async with aiosqlite.connect(db_path) as conn:
         await conn.execute(
-            "INSERT INTO entities (name, entity_type, description) VALUES ('Rust', 'Language', 'A systems programming language focusing on safety.')"
+            "INSERT INTO entities (name, entity_type, description) "
+            "VALUES ('Rust', 'Language', "
+            "'A systems programming language focusing on safety.')"
         )
         await conn.execute(
-            "INSERT INTO observations (entity_name, content) VALUES ('Rust', 'Rust prevents data races at compile time.')"
+            "INSERT INTO observations (entity_name, content) "
+            "VALUES ('Rust', 'Rust prevents data races at compile time.')"
         )
         await conn.execute(
-            "INSERT INTO bank_files (filename, content) VALUES ('rust_guide.md', 'Rust uses Cargo for package management.')"
+            "INSERT INTO bank_files (filename, content) "
+            "VALUES ('rust_guide.md', 'Rust uses Cargo for package management.')"
         )
         await conn.commit()
 
     async with aiosqlite.connect(thoughts_db_path) as conn:
         await conn.execute(
-            "INSERT INTO thought_history (session_id, thought_number, total_thoughts, thought, next_thought_needed) VALUES ('sess_old', 1, 1, 'I think Rust is great for CLI tools.', 0)"
+            "INSERT INTO thought_history "
+            "(session_id, thought_number, total_thoughts, thought, "
+            "next_thought_needed) VALUES ('sess_old', 1, 1, "
+            "'I think Rust is great for CLI tools.', 0)"
         )
         await conn.commit()
 

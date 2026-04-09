@@ -1,11 +1,12 @@
 import asyncio
+
 import aiosqlite
-import os
+
 
 async def test():
     try:
         # This is what database.py does
-        conn = await aiosqlite.connect("test.db")
+        await aiosqlite.connect("test.db")
         print("Awaited successfully")
     except TypeError as e:
         print(f"Caught expected TypeError: {e}")

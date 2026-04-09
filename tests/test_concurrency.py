@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from shared_memory.database import async_get_connection, init_db

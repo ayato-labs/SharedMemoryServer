@@ -14,13 +14,13 @@ def temp_db():
     if os.path.exists(path):
         try:
             os.remove(path)
-        except:
+        except Exception:
             pass
     for ext in ["-wal", "-shm"]:
         if os.path.exists(path + ext):
             try:
                 os.remove(path + ext)
-            except:
+            except Exception:
                 pass
 
 
@@ -77,9 +77,14 @@ def mock_gemini():
     mock_embedding_result.embeddings = [MagicMock(values=[0.1] * 768)]
     mock_client.models.embed_content.return_value = mock_embedding_result
     mock_client.models.generate_content.return_value = MagicMock(
-        text='{"conflict": true, "reason": "Conflict detected.", "synthesis": "Synthesis result."}'
+        text=(
+            '{"conflict": true, "reason": "Conflict detected.", '
+            '"synthesis": "Synthesis result."}'
+        )
     )
-    mock_client.models.list.return_value = [type("Model", (), {"name": "models/gemini-pro"})]
+    mock_client.models.list.return_value = [
+        type("Model", (), {"name": "models/gemini-pro"})
+    ]
     handlers = []
     for p in patches:
         h = p.start()
