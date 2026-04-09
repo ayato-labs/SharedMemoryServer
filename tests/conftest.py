@@ -107,7 +107,8 @@ async def cleanup_tasks():
             asyncio.gather(*tasks, return_exceptions=True),
             timeout=2.0
         )
-    except TimeoutError:
+    except (asyncio.TimeoutError, Exception):
+        # Force progress even if cleanup hangs
         pass
 
 
