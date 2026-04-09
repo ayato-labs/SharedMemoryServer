@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.1 (2026-04-09)
+
+### Bug Fixes
+
+- **ci**: Only build assets when a new release is published to avoid tag missing error
+  ([`2c13060`](https://github.com/Ayato-AI-for-Auto/SharedMemoryServer/commit/2c130609bad46d5ecc4546dcc30317e3237280c6))
+
+
 ## v1.1.0 (2026-04-09)
 
 ### Bug Fixes
