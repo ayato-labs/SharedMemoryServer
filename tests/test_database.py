@@ -59,7 +59,7 @@ async def test_migration_from_partial_schema(temp_db):
     async with aiosqlite.connect(temp_db) as conn:
         await conn.execute(
             """
-            CREATE TABLE entities (
+            CREATE TABLE IF NOT EXISTS entities (
                 name TEXT PRIMARY KEY,
                 entity_type TEXT,
                 description TEXT
@@ -100,10 +100,12 @@ async def test_migration_relations_partial(temp_db):
     """Verifies that relations table is correctly migrated if columns are missing."""
     # Setup partial relations table
     async with aiosqlite.connect(temp_db) as conn:
-        await conn.execute("CREATE TABLE entities (name TEXT PRIMARY KEY)")
+        await conn.execute(
+            "CREATE TABLE IF NOT EXISTS entities (name TEXT PRIMARY KEY)"
+        )
         await conn.execute(
             """
-            CREATE TABLE relations (
+            CREATE TABLE IF NOT EXISTS relations (
                 source TEXT,
                 target TEXT,
                 relation_type TEXT,

@@ -53,6 +53,7 @@ async def test_embedding_cache_integrity(mock_gemini):
             self.embeddings = embs
 
     mock_gemini.models.embed_content.return_value = MockResp([MockEmb(mock_vec)])
+    mock_gemini.models.embed_content.side_effect = None
 
     # 1. First call (API)
     vec1 = await compute_embedding(text)

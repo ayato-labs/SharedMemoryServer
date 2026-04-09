@@ -49,17 +49,20 @@ class AsyncSQLiteConnection:
         self.conn = None
 
     async def __aenter__(self):
-        # connect() returns a Connection object. Awaiting it starts it.
-        # We use a context manager internally to manage the thread lifecycle.
-        self.conn = await aiosqlite.connect(self.db_path, timeout=self.timeout)
-        self.conn.row_factory = aiosqlite.Row
+        import sqlite3
+        try:
+            self.conn = await aiosqlite.connect(self.db_path, timeout=self.timeout)
+            self.conn.row_factory = aiosqlite.Row
 
-        # Apply global PRAGMAs
-        if not self.is_thoughts:
-            await self.conn.execute("PRAGMA foreign_keys = ON")
-        await self.conn.execute("PRAGMA journal_mode = WAL")
-        await self.conn.execute("PRAGMA synchronous = NORMAL")
-        return self.conn
+            # Apply global PRAGMAs
+            if not self.is_thoughts:
+                await self.conn.execute("PRAGMA foreign_keys = ON")
+            await self.conn.execute("PRAGMA journal_mode = WAL")
+            await self.conn.execute("PRAGMA synchronous = NORMAL")
+            return self.conn
+        except (aiosqlite.Error, sqlite3.Error) as e:
+            log_error(f"Failed to connect to database at {self.db_path}", e)
+            raise DatabaseError(f"Database connection failed: {e}") from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.conn:

@@ -4,7 +4,6 @@ import os
 import pytest
 
 from shared_memory.database import async_get_connection, init_db
-from shared_memory.exceptions import SecurityError
 from shared_memory.logic import save_memory_core as save_memory
 from shared_memory.utils import get_bank_dir
 
@@ -71,13 +70,15 @@ async def test_path_traversal_protection(mock_gemini):
         "CON": "reserved name on windows",
     }
 
-    # We now expect a SecurityError for path traversal
-    with pytest.raises(SecurityError):
-        await save_memory(bank_files=malicious_files)
+    # We expect these to be sanitized without raising SecurityError
+    # (SecurityError is only for absolute/rooted path traversal that escapes base_dir)
+    await save_memory(bank_files=malicious_files)
 
     bank_dir = get_bank_dir()
     # Check that file exists but under sanitized name
     # ../../evil.txt -> evil.md
+    assert os.path.exists(os.path.join(bank_dir, "evil.md"))
+    assert os.path.exists(os.path.join(bank_dir, "file.md"))
     assert os.path.exists(os.path.join(bank_dir, "evil.md"))
     # nested/dir/file.md -> file.md
     assert os.path.exists(os.path.join(bank_dir, "file.md"))

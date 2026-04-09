@@ -55,9 +55,15 @@ def mock_env(temp_db, temp_bank, temp_home):
 
 
 @pytest.fixture(autouse=True)
-async def setup_teardown_db():
+async def setup_teardown_db(request):
     from shared_memory.database import init_db
     from shared_memory.thought_logic import init_thoughts_db
+
+    # Skip auto-initialization for migration tests in test_database.py
+    if "test_database.py" in str(request.node.fspath):
+        yield
+        return
+
     await init_db()
     await init_thoughts_db()
     yield

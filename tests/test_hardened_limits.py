@@ -50,7 +50,7 @@ async def test_database_corruption_resilience(mock_gemini):
     # Attempting to save should raise a DatabaseError
     with pytest.raises(DatabaseError) as exc:
         await save_memory_core(entities=[{"name": "Fail", "entity_type": "Test"}])
-    assert "Transaction failed" in str(exc.value)
+    assert "Database connection failed" in str(exc.value)
 
 
 @pytest.mark.asyncio
