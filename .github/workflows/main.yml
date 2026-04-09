@@ -29,7 +29,8 @@ jobs:
       - name: Run Tests
         run: |
           # Use a subset of tests or ignore known heavy/env-dependent tests if necessary
-          pytest tests/ --ignore=tests/test_ragas_eval.py --ignore=tests/test_concurrency.py
+          # Wrapped in timeout to prevent GHA hang, with durations to identify slow tests
+          timeout 600 pytest tests/ -v --durations=10 --ignore=tests/test_ragas_eval.py --ignore=tests/test_concurrency.py
 
   release:
     name: Semantic Release

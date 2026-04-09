@@ -67,6 +67,24 @@ async def setup_teardown_db(request):
     await init_db()
     await init_thoughts_db()
     yield
+    # Explicitly close connections after each test to prevent locks/hangs
+    from shared_memory.database import async_get_connection, async_get_thoughts_connection
+    async with await async_get_connection() as conn:
+        await conn.close()
+    async with await async_get_thoughts_connection() as conn:
+        await conn.close()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_tasks():
+    """Cancel all pending tasks to prevent event loop hangs."""
+    yield
+    import asyncio
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    if tasks:
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @pytest.fixture(autouse=True)

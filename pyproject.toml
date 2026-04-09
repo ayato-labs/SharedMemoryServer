@@ -18,6 +18,7 @@ test = [
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
+    "pytest-timeout",
     "ragas>=0.1.0",
     "pandas",
     "datasets",
@@ -68,3 +69,17 @@ branch = "master"
 major_on_zero = false
 upload_to_repository = false
 upload_to_release = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+norecursedirs = [".*", "dist", "build"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "concurrency: marks tests that involve heavy concurrency",
+]
+timeout = 300
