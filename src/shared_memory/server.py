@@ -100,9 +100,9 @@ async def sequential_thinking(
     Automatically surfaces related past memories and thoughts to enrich the
     reasoning process.
 
-    COMMIT ADVISORY: After completing a significant reasoning milestone or 
-    making fundamental design decisions, you should promptly COMMIT your 
-    code changes to ensure traceability. Summarize your reasoning in the 
+    COMMIT ADVISORY: After completing a significant reasoning milestone or
+    making fundamental design decisions, you should promptly COMMIT your
+    code changes to ensure traceability. Summarize your reasoning in the
     commit message.
     """
     return await thought_logic.process_thought_core(
