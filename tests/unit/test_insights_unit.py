@@ -8,7 +8,7 @@ from shared_memory.insights import InsightEngine
 async def test_get_summary_metrics_facts():
     """
     Unit test for get_summary_metrics.
-    Verifies that the calculations for density, reuse, and hit rate are 
+    Verifies that the calculations for density, reuse, and hit rate are
     mathematically correct based on DB state.
     """
     async with await async_get_connection() as conn:

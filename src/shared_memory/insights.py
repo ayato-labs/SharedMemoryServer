@@ -31,17 +31,21 @@ class InsightEngine:
                 density = round((r_count / max_possible_relations) * 100, 2)
 
             # 2. 活用実績 (Utilization Facts)
-            cursor = await conn.execute("SELECT SUM(access_count), COUNT(*) FROM knowledge_metadata")
+            cursor = await conn.execute(
+                "SELECT SUM(access_count), COUNT(*) FROM knowledge_metadata"
+            )
             row = await cursor.fetchone()
             total_access = row[0] or 0
             accessed_units = row[1] or 0
 
-            reuse_multiplier = round(total_access / accessed_units, 2) if accessed_units > 0 else 0
+            reuse_multiplier = 0.0
+            if accessed_units > 0:
+                reuse_multiplier = round(total_access / accessed_units, 2)
 
             # 3. 検索ヒット率 (Search Hit Rate) - 新規計測事実
             cursor = await conn.execute(
                 """
-                SELECT COUNT(*), SUM(CASE WHEN results_count > 0 THEN 1 ELSE 0 END) 
+                SELECT COUNT(*), SUM(CASE WHEN results_count > 0 THEN 1 ELSE 0 END)
                 FROM search_stats
                 """
             )
@@ -49,13 +53,19 @@ class InsightEngine:
             total_searches = s_row[0] or 0
             total_hits = s_row[1] or 0
 
-            hit_rate = round((total_hits / total_searches) * 100, 1) if total_searches > 0 else 0.0
+            hit_rate = 0.0
+            if total_searches > 0:
+                hit_rate = round((total_hits / total_searches) * 100, 1)
 
         async with await async_get_thoughts_connection() as conn_t:
             # 4. 推論ログの観測 (Reasoning Observation)
-            cursor = await conn_t.execute("SELECT COUNT(*) FROM thought_history")
+            cursor = await conn_t.execute(
+                "SELECT COUNT(*) FROM thought_history"
+            )
             t_count = (await cursor.fetchone())[0]
-            cursor = await conn_t.execute("SELECT COUNT(DISTINCT session_id) FROM thought_history")
+            cursor = await conn_t.execute(
+                "SELECT COUNT(DISTINCT session_id) FROM thought_history"
+            )
             s_count = (await cursor.fetchone())[0] or 1
             avg_steps = round(t_count / s_count, 1)
 
@@ -108,11 +118,11 @@ Generated at: {metrics_data["timestamp"]}
 
 - **活用係数 (Reuse Multiplier)**: `{i['reuse_multiplier']}x`
   > [!TIP]
-  > 一度保存された知識は、平均して **{i['reuse_multiplier']}回** 
+  > 一度保存された知識は、平均して **{i['reuse_multiplier']}回**
   > 繰り返し再利用されています。
 
 ## 3. 推論プロセスの観測 (Reasoning Metrics)
-- **総思考ステップ数**: 
+- **総思考ステップ数**:
   `{(f['avg_thoughts_per_session'] * (f['stored_entities'] // 10 + 1)):.1f} steps`
 - **1セッションあたりの平均思考手数**: `{f['avg_thoughts_per_session']} steps`
 

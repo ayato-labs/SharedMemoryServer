@@ -7,12 +7,12 @@ from shared_memory.logic import read_memory_core, save_memory_core
 @pytest.mark.asyncio
 async def test_complete_knowledge_lifecycle_system():
     """
-    System Test: Verifies the entire lifecycle of knowledge and 
+    System Test: Verifies the entire lifecycle of knowledge and
     its value quantification.
     Scenario:
     1. Agent stores domain-specific patterns.
     2. Agent queries the patterns multiple times during a task.
-    3. Management retrieves the Insight Report to prove project 
+    3. Management retrieves the Insight Report to prove project
        understanding and efficiency.
     """
     # 1. Store complex knowledge (2 entities, 1 relation, 1 bank file)
