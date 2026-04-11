@@ -42,20 +42,71 @@ class InsightEngine:
             if accessed_units > 0:
                 reuse_multiplier = round(total_access / accessed_units, 2)
 
-            # 3. 検索ヒット率 (Search Hit Rate) - 新規計測事実
+            # 3. 検索精度と「知の熟成度」 (Precision & Knowledge Age)
             cursor = await conn.execute(
                 """
-                SELECT COUNT(*), SUM(CASE WHEN results_count > 0 THEN 1 ELSE 0 END)
+                SELECT results_count, hit_content_ids, avg_similarity, timestamp
                 FROM search_stats
+                WHERE results_count > 0
                 """
             )
-            s_row = await cursor.fetchone()
-            total_searches = s_row[0] or 0
-            total_hits = s_row[1] or 0
+            hit_rows = await cursor.fetchall()
+            total_searches_cursor = await conn.execute("SELECT COUNT(*) FROM search_stats")
+            total_searches = (await total_searches_cursor.fetchone())[0] or 0
+
+            precision_sum = 0.0
+            total_hits = len(hit_rows)
+            # 熟成度分類 (Knowledge Maturity Distribution)
+            maturity = {
+                "intra_session": 0,  # 1時間以内 (Working Memory)
+                "short_term": 0,    # 1〜24時間 (Next Day Transfer)
+                "long_term": 0,     # 24時間以上 (Strategic Asset)
+            }
+
+            if total_hits > 0:
+                import json
+                from datetime import datetime, timezone
+
+                for r_count, hit_ids_json, avg_sim, s_ts in hit_rows:
+                    precision_sum += avg_sim or 0.0
+                    try:
+                        hit_ids = json.loads(hit_ids_json or "[]")
+                        if not hit_ids:
+                            continue
+
+                        # 最初のヒットIDのみで代表的な「知の年齢」を計測
+                        target_id = hit_ids[0]
+                        c = await conn.execute(
+                            "SELECT created_at FROM entities WHERE name = ? "
+                            "UNION "
+                            "SELECT last_synced as created_at FROM bank_files WHERE filename = ?",
+                            (target_id, target_id),
+                        )
+                        created_row = await c.fetchone()
+                        if created_row:
+                            # タイムスタンプ比較
+                            s_dt = datetime.fromisoformat(s_ts.replace("Z", "+00:00"))
+                            c_dt = datetime.fromisoformat(
+                                created_row[0].replace(" ", "T").replace("Z", "+00:00")
+                            )
+                            age_hours = (s_dt - c_dt).total_seconds() / 3600
+
+                            if age_hours < 1:
+                                maturity["intra_session"] += 1
+                            elif age_hours < 24:
+                                maturity["short_term"] += 1
+                            else:
+                                maturity["long_term"] += 1
+                    except Exception:
+                        continue
 
             hit_rate = 0.0
             if total_searches > 0:
                 hit_rate = round((total_hits / total_searches) * 100, 1)
+
+            avg_precision = 0.0
+            if total_hits > 0:
+                avg_precision = round(precision_sum / total_hits, 2)
 
         async with await async_get_thoughts_connection() as conn_t:
             # 4. 推論ログの観測 (Reasoning Observation)
@@ -79,6 +130,8 @@ class InsightEngine:
                 "total_read_operations": total_access,
                 "total_search_queries": total_searches,
                 "search_hit_rate_percent": hit_rate,
+                "avg_search_precision": avg_precision,
+                "knowledge_maturity": maturity,
                 "avg_thoughts_per_session": avg_steps,
             },
             "efficiency_indicators": {
@@ -97,38 +150,36 @@ class InsightEngine:
         f = metrics_data["facts"]
         i = metrics_data["efficiency_indicators"]
 
-        report = f"""# SharedMemory Fact Report: 知識活用実績
+        report = f"""# SharedMemory Fact Report: 知識の「熟成」と「活用」
 Generated at: {metrics_data["timestamp"]}
 
-## 1. 知識の蓄積状況 (Knowledge Inventory)
-現在、システムは以下の情報を構造化して保持しています。
+## 1. 知識の熟成度と移転 (Knowledge Maturity & Transfer)
+単なる量ではなく、過去の蓄積がいかに時間に耐えて活用されているかを示す指標です。
 
-- **エンティティ数**: `{f['stored_entities']} items`
-- **リレーション数**: `{f['stored_relations']} links`
-- **バンクファイル数**: `{f['stored_bank_files']} files`
-- **知識密度 (Graph Density)**: `{f['knowledge_graph_density_percent']}%`
-
-## 2. 検索と再利用の実績 (Search & Reuse Performance)
-エージェントからの問い合わせに対し、メモリが提供した実績データです。
-
-- **検索ヒット率 (Hit Rate)**: `{f['search_hit_rate_percent']}%`
-  > [!NOTE]
-  > ヒット率は、全検索クエリ `{f['total_search_queries']} 回` のうち、
-  > 何らかの記憶が呼び出された割合です。
-
-- **活用係数 (Reuse Multiplier)**: `{i['reuse_multiplier']}x`
+- **知の移転 (Cross-Time Transfer)**:
+  > **長期 (24時間超)**: `{f['knowledge_maturity']['long_term']} hits`
+  > **中期 (1〜24時間)**: `{f['knowledge_maturity']['short_term']} hits`
   > [!TIP]
-  > 一度保存された知識は、平均して **{i['reuse_multiplier']}回**
-  > 繰り返し再利用されています。
+  > 長期ヒットは、過去の経験が現在の推論を助けている「資産」としての証拠です。
 
-## 3. 推論プロセスの観測 (Reasoning Metrics)
-- **総思考ステップ数**:
-  `{(f['avg_thoughts_per_session'] * (f['stored_entities'] // 10 + 1)):.1f} steps`
-- **1セッションあたりの平均思考手数**: `{f['avg_thoughts_per_session']} steps`
+- **検索精度 (Search Precision)**: `{f['avg_search_precision']} score`
+  > [!NOTE]
+  > ベクトル検索の平均確信度。核心を突いた情報提供ができているかを計測します。
+
+## 2. 検索と再利用の実績 (Utilization & Performance)
+- **検索ヒット率 (Hit Rate)**: `{f['search_hit_rate_percent']}%` (Total: {f['total_search_queries']} queries)
+- **活用係数 (Reuse Multiplier)**: `{i['reuse_multiplier']}x`
+
+## 3. 知識の蓄積状況 (Inventory Facts)
+- **エンティティ数**: `{f['stored_entities']} items`
+- **知識密度 (Graph Density)**: `{f['knowledge_graph_density_percent']}%`
+- **バンクファイル数**: `{f['stored_bank_files']} files`
+
+## 4. 推論プロセスの観測 (Reasoning Insights)
+- **1セッションあたりの平均思考手順**: `{f['avg_thoughts_per_session']} steps`
 
 ---
 **本レポートの性質について**:
-この報告書には推定値（例：コスト削減額など）は一切含まれていません。
 提示されている数値はすべて、データベースのアクセスログおよび検索履歴から抽出された
 **観測事実**です。価値の最終的な判断は、これらの実績に基づき
 ユーザー自身が行うものと定義されています。
