@@ -31,12 +31,12 @@ async def test_get_summary_metrics_facts():
         await conn.commit()
 
     metrics = await InsightEngine.get_summary_metrics()
-    f = metrics["facts"]
-    i = metrics["efficiency_indicators"]
 
     # Assertions
     assert metrics["facts"]["stored_entities"] == 2
     assert metrics["facts"]["stored_relations"] == 1
+    # Density for 2 entities: rels / (2 * (2-1)) = 1 / 2 = 50.0%
+    assert metrics["facts"]["knowledge_graph_density_percent"] == 50.0
     assert metrics["facts"]["search_hit_rate_percent"] == 50.0
     assert metrics["efficiency_indicators"]["reuse_multiplier"] == 2.0
 
@@ -69,7 +69,7 @@ async def test_generate_report_markdown_unit():
 
     assert "# SharedMemory Fact Report" in report
     assert "## 1. 知識の蓄積状況" in report
-    assert "## 2. 検索と利用の効率性" in report
+    assert "## 2. 検索と再利用の実績" in report
     assert "## 3. 推論プロセスの観測" in report
     assert "10 items" in report
     assert "5.0x" in report

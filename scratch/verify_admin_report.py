@@ -1,8 +1,10 @@
 import asyncio
 import json
+
 from shared_memory import logic
 from shared_memory.database import init_db
 from shared_memory.thought_logic import init_thoughts_db
+
 
 async def verify_admin_report():
     print("--- Initializing Databases ---")

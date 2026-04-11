@@ -1,10 +1,9 @@
 import pytest
 
-from shared_memory.insights import InsightEngine
 from shared_memory.logic import (
-    get_value_report_core, 
-    read_memory_core, 
-    save_memory_core
+    get_value_report_core,
+    read_memory_core,
+    save_memory_core,
 )
 
 
@@ -57,7 +56,7 @@ async def test_complete_knowledge_lifecycle_system():
     # 3. Request Value Report (Simulate Admin Tool Call)
     # 3.1 JSON Format (for Dashboards)
     metrics = await get_value_report_core(format_type="json")
-    
+
     # 3.2 Markdown Format (for Human Report)
     report = await get_value_report_core(format_type="markdown")
 
@@ -71,4 +70,4 @@ async def test_complete_knowledge_lifecycle_system():
     # Verify report narrative
     assert "検索ヒット率 (Hit Rate): 75.0%" in report
     assert "活用係数 (Reuse Multiplier)" in report
-    assert "嘘のない、事実のみの報告" in report or "観測事実" in report
+    assert "観測事実" in report

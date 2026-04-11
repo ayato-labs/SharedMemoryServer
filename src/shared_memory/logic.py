@@ -5,10 +5,10 @@ from typing import Any
 import aiosqlite
 
 from shared_memory import bank, graph, health, management, search
-from shared_memory.insights import InsightEngine
 from shared_memory.database import async_get_connection, retry_on_db_lock
 from shared_memory.embeddings import compute_embeddings_bulk
 from shared_memory.exceptions import DatabaseError, SharedMemoryError
+from shared_memory.insights import InsightEngine
 from shared_memory.utils import log_error
 
 
