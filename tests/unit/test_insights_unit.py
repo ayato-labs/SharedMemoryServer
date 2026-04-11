@@ -57,6 +57,12 @@ async def test_generate_report_markdown_unit():
             "total_read_operations": 50,
             "total_search_queries": 20,
             "search_hit_rate_percent": 75.0,
+            "avg_search_precision": 0.85,
+            "knowledge_maturity": {
+                "intra_session": 5,
+                "short_term": 10,
+                "long_term": 5
+            },
             "avg_thoughts_per_session": 4.5
         },
         "efficiency_indicators": {
@@ -68,9 +74,9 @@ async def test_generate_report_markdown_unit():
     report = InsightEngine.generate_report_markdown(metrics_data)
 
     assert "# SharedMemory Fact Report" in report
-    assert "## 1. 知識の蓄積状況" in report
+    assert "## 1. 知識の熟成度と移転" in report
     assert "## 2. 検索と再利用の実績" in report
-    assert "## 3. 推論プロセスの観測" in report
+    assert "## 3. 知識の蓄積状況" in report
     assert "10 items" in report
     assert "5.0x" in report
     assert "75.0%" in report
@@ -92,6 +98,12 @@ async def test_generate_report_markdown():
             "total_read_operations": 100,
             "total_search_queries": 20,
             "search_hit_rate_percent": 85.0,
+            "avg_search_precision": 0.9,
+            "knowledge_maturity": {
+                "intra_session": 5,
+                "short_term": 10,
+                "long_term": 2
+            },
             "avg_thoughts_per_session": 15.0
         },
         "efficiency_indicators": {

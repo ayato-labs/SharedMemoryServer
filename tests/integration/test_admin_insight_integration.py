@@ -24,3 +24,4 @@ async def test_admin_get_value_report_logic_flow():
     md_report = await logic.get_value_report_core(format_type="markdown")
     assert isinstance(md_report, str)
     assert "# SharedMemory Fact Report" in md_report
+    assert "知識の「熟成」と「活用」" in md_report

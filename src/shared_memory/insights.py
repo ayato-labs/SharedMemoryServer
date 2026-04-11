@@ -51,7 +51,8 @@ class InsightEngine:
                 """
             )
             hit_rows = await cursor.fetchall()
-            total_searches_cursor = await conn.execute("SELECT COUNT(*) FROM search_stats")
+            q_total = "SELECT COUNT(*) FROM search_stats"
+            total_searches_cursor = await conn.execute(q_total)
             total_searches = (await total_searches_cursor.fetchone())[0] or 0
 
             precision_sum = 0.0
@@ -65,9 +66,8 @@ class InsightEngine:
 
             if total_hits > 0:
                 import json
-                from datetime import datetime, timezone
 
-                for r_count, hit_ids_json, avg_sim, s_ts in hit_rows:
+                for _r_count, hit_ids_json, avg_sim, s_ts in hit_rows:
                     precision_sum += avg_sim or 0.0
                     try:
                         hit_ids = json.loads(hit_ids_json or "[]")
@@ -76,12 +76,13 @@ class InsightEngine:
 
                         # 最初のヒットIDのみで代表的な「知の年齢」を計測
                         target_id = hit_ids[0]
-                        c = await conn.execute(
+                        q_age = (
                             "SELECT created_at FROM entities WHERE name = ? "
                             "UNION "
-                            "SELECT last_synced as created_at FROM bank_files WHERE filename = ?",
-                            (target_id, target_id),
+                            "SELECT last_synced as created_at FROM bank_files "
+                            "WHERE filename = ?"
                         )
+                        c = await conn.execute(q_age, (target_id, target_id))
                         created_row = await c.fetchone()
                         if created_row:
                             # タイムスタンプ比較
@@ -167,7 +168,8 @@ Generated at: {metrics_data["timestamp"]}
   > ベクトル検索の平均確信度。核心を突いた情報提供ができているかを計測します。
 
 ## 2. 検索と再利用の実績 (Utilization & Performance)
-- **検索ヒット率 (Hit Rate)**: `{f['search_hit_rate_percent']}%` (Total: {f['total_search_queries']} queries)
+- **検索ヒット率 (Hit Rate)**: `{f['search_hit_rate_percent']}%`
+  (Total: {f['total_search_queries']} queries)
 - **活用係数 (Reuse Multiplier)**: `{i['reuse_multiplier']}x`
 
 ## 3. 知識の蓄積状況 (Inventory Facts)

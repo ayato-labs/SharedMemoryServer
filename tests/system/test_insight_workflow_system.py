@@ -68,6 +68,8 @@ async def test_complete_knowledge_lifecycle_system():
     assert f["search_hit_rate_percent"] == 75.0 # 3/4
 
     # Verify report narrative
+    # Verify report narrative
     assert "検索ヒット率 (Hit Rate): 75.0%" in report
     assert "活用係数 (Reuse Multiplier)" in report
+    assert "知識の熟成度と移転" in report
     assert "観測事実" in report
