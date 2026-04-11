@@ -92,8 +92,9 @@ async def perform_keyword_search(
                 {"source": source, "id": row_id, "score": round(score, 2)}
             )
 
-        # Log search statistics for ROI/Hit-rate calculation
-        await log_search_stat(query, len(formatted_results))
+        # Log search statistics for ROI/Hit-rate/Knowledge-Age calculation
+        hit_ids = [r["id"] for r in formatted_results]
+        await log_search_stat(query, len(formatted_results), hit_ids=hit_ids)
 
         return formatted_results
 
@@ -155,7 +156,9 @@ async def perform_search(query: str, limit: int = 10):
 
             # Log search statistics
             hit_count = len(graph_data["entities"]) + len(bank_data)
-            await log_search_stat(query, hit_count)
+            avg_sim = sum(r[1] for r in top_results) / max(1, hit_count)
+            hit_ids = top_cids
+            await log_search_stat(query, hit_count, hit_ids=hit_ids, avg_sim=avg_sim)
 
             return graph_data, bank_data
 
