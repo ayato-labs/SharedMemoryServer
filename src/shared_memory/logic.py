@@ -186,4 +186,6 @@ async def get_value_report_core(format_type: str = "markdown"):
     """
     if format_type == "json":
         return await InsightEngine.get_summary_metrics()
-    return await InsightEngine.generate_report_markdown()
+
+    metrics_data = await InsightEngine.get_summary_metrics()
+    return InsightEngine.generate_report_markdown(metrics_data)

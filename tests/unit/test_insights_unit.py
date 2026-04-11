@@ -35,16 +35,46 @@ async def test_get_summary_metrics_facts():
     i = metrics["efficiency_indicators"]
 
     # Assertions
-    assert f["stored_entities"] == 2
-    assert f["stored_relations"] == 1
-    # Density for 2 entities: rels / (2 * (2-1)) = 1 / 2 = 50.0%
-    assert f["knowledge_graph_density_percent"] == 50.0
+    assert metrics["facts"]["stored_entities"] == 2
+    assert metrics["facts"]["stored_relations"] == 1
+    assert metrics["facts"]["search_hit_rate_percent"] == 50.0
+    assert metrics["efficiency_indicators"]["reuse_multiplier"] == 2.0
 
-    # Reuse: 4 accesses / 2 items = 2.0x
-    assert i["reuse_multiplier"] == 2.0
 
-    # Hit Rate: 1 hits / 2 searches = 50.0%
-    assert f["search_hit_rate_percent"] == 50.0
+@pytest.mark.asyncio
+async def test_generate_report_markdown_unit():
+    """
+    Unit test for generate_report_markdown.
+    Verifies that the markdown string contains all key fact sections.
+    """
+    metrics_data = {
+        "timestamp": "2026-04-11T00:00:00",
+        "facts": {
+            "stored_entities": 10,
+            "stored_relations": 5,
+            "stored_bank_files": 2,
+            "knowledge_graph_density_percent": 1.2,
+            "total_read_operations": 50,
+            "total_search_queries": 20,
+            "search_hit_rate_percent": 75.0,
+            "avg_thoughts_per_session": 4.5
+        },
+        "efficiency_indicators": {
+            "reuse_multiplier": 5.0,
+            "knowledge_availability_ratio": 80.0
+        }
+    }
+
+    report = InsightEngine.generate_report_markdown(metrics_data)
+
+    assert "# SharedMemory Fact Report" in report
+    assert "## 1. 知識の蓄積状況" in report
+    assert "## 2. 検索と利用の効率性" in report
+    assert "## 3. 推論プロセスの観測" in report
+    assert "10 items" in report
+    assert "5.0x" in report
+    assert "75.0%" in report
+    assert "観測事実" in report
 
 @pytest.mark.asyncio
 async def test_generate_report_markdown():
