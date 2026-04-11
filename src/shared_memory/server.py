@@ -118,6 +118,20 @@ async def sequential_thinking(
     )
 
 
+@mcp.tool()
+async def get_insights(format: str = "markdown"):
+    """
+    SharedMemoryServerの導入効果（価値）を定量化したレポートを取得します。
+    - format: 'markdown' (人間向けレポート) または 'json' (プログラム用データ)
+    ビジネス上のROIやトークン削減量、知識の再利用率を確認するために使用します。
+    """
+    from shared_memory.insights import InsightEngine
+    metrics = await InsightEngine.get_summary_metrics()
+    if format == "json":
+        return metrics
+    return InsightEngine.generate_report_markdown(metrics)
+
+
 def main():
     """Entry point for the MCP server."""
     mcp.run()

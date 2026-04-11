@@ -221,6 +221,15 @@ async def init_db():
                 resolved INTEGER DEFAULT 0
             )
         """)
+        # Search Stats table for Hit Rate calculation
+        await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS search_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                query TEXT,
+                results_count INTEGER
+            )
+        """)
         # Troubleshooting Knowledge table (Decoupled Feature)
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS troubleshooting_knowledge (
@@ -289,3 +298,13 @@ async def update_access(content_id: str, conn=None):
         """,
             (content_id,),
         )
+
+@retry_on_db_lock()
+async def log_search_stat(query: str, results_count: int):
+    """Logs the result count of a search for hit rate calculation."""
+    async with await async_get_connection() as conn:
+        await conn.execute(
+            "INSERT INTO search_stats (query, results_count) VALUES (?, ?)",
+            (query, results_count),
+        )
+        await conn.commit()

@@ -15,6 +15,11 @@ from shared_memory.utils import (
     calculate_importance,
     log_error,
 )
+from shared_memory.database import (
+    async_get_connection,
+    async_get_thoughts_connection,
+    log_search_stat,
+)
 
 
 async def perform_keyword_search(
@@ -88,6 +93,9 @@ async def perform_keyword_search(
                 {"source": source, "id": row_id, "score": round(score, 2)}
             )
 
+        # Log search statistics for ROI/Hit-rate calculation
+        await log_search_stat(query, len(formatted_results))
+
         return formatted_results
 
 
@@ -138,11 +146,17 @@ async def perform_search(query: str, limit: int = 10):
 
             # 4. Sort and Filter
             results.sort(key=lambda x: x[1], reverse=True)
-            top_cids = [r[0] for r in results[:limit]]
+            # Apply a loose threshold to exclude obvious non-matches from "Hits"
+            top_results = [r for r in results[:limit] if r[1] > 0.4]
+            top_cids = [r[0] for r in top_results]
 
             # 5. Fetch Content for Top Results
             graph_data = await get_graph_data_by_cids(top_cids, conn)
             bank_data = await get_bank_data_by_cids(top_cids, conn)
+
+            # Log search statistics
+            hit_count = len(graph_data["entities"]) + len(bank_data)
+            await log_search_stat(query, hit_count)
 
             return graph_data, bank_data
 
@@ -163,6 +177,11 @@ async def get_graph_data_by_cids(cids: list[str], conn):
         f"SELECT * FROM observations WHERE entity_name IN ({placeholders})", cids
     )
     obs = await cursor.fetchall()
+
+    # Track usage (Reuse Fact)
+    for cid in cids:
+        from shared_memory.database import update_access
+        await update_access(cid, conn=conn)
 
     matched_names = [r[0] for r in entities]
     relations = []
@@ -194,6 +213,12 @@ async def get_bank_data_by_cids(cids: list[str], conn):
         cids,
     )
     files = await cursor.fetchall()
+    
+    # Track usage (Reuse Fact)
+    for cid in cids:
+        from shared_memory.database import update_access
+        await update_access(cid, conn=conn)
+
     return {f[0]: f[1] for f in files}
 
 

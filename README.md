@@ -79,6 +79,22 @@ Separated from the agent's main toolset to prevent accidental misuse.
    uv run shared-memory-register
    ```
 
+## 📈 Quantitative Proof of Value (事実による価値の証明)
+
+SharedMemoryServerは、ユーザーの主観や独自の推定ロジックに頼らず、データベースから抽出された**「観測された事実 (Facts)」**のみでその価値を証明します。
+
+### Fact-Based Report Sample
+`get_insights` ツールが提供するレポートの例です：
+
+| 指標 (Metric) | 意味・価値 |
+| :--- | :--- |
+| **Search Hit Rate (82.5%)** | AIエージェントの全クエリ中、82.5%でメモリから関連情報を提供。「知らない」と答えるリスクを最小化。 |
+| **Reuse Multiplier (4.2x)** | 保存された知識は平均4.2回再利用。一度の学習が数倍の効率を生んでいる客観的証拠。 |
+| **Knowledge Density** | 知識間の結合度。単なるデータの蓄積ではなく、AIにとっての「概念の地図」としての質を数値化。 |
+
+> [!TIP]
+> **No Speculation Policy**: 本システムは「XXドル節約」といった推定値を出しません。すべての数値は、DBのアクセスログに基づく検証可能な事実です。価値の最終的な判断は、これらの実績に基づき、ユーザー自身が行うものと定義しています。
+
 ## ⚙️ Advanced Features
 
 ### 1. Atomic Mirroring & Recovery
