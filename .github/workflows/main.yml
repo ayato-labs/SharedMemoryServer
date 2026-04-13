@@ -19,6 +19,7 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: |
+          uv venv
           uv pip install -e .[test]
           uv pip install ruff pytest-timeout
       - name: Lint
@@ -45,7 +46,9 @@ jobs:
         with:
           enable-cache: true
       - name: Install semantic-release
-        run: uv pip install python-semantic-release
+        run: |
+          uv venv
+          uv pip install python-semantic-release
       - name: Python Semantic Release
         id: semantic
         env:
@@ -69,6 +72,7 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: |
+          uv venv
           uv pip install -e .
           uv pip install pyinstaller
       - name: Build with PyInstaller
