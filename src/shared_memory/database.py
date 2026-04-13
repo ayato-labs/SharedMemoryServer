@@ -107,22 +107,33 @@ class AsyncSQLiteConnection:
         return _internal().__await__()
 
 
+async def _async_get_connection_raw(db_path: str, is_thoughts: bool = False):
+    """
+    INTERNAL USE ONLY. Returns a connection wrapper without triggering lazy initialization.
+    Prevents infinite recursion during 'init_db'.
+    """
+    return AsyncSQLiteConnection(db_path, is_thoughts=is_thoughts)
+
+
 async def async_get_connection():
     """
     Returns an AsyncSQLiteConnection wrapper for the main database.
+    Guarantees that init_db() has been called before returning the connection.
     Usage: async with await async_get_connection() as conn:
     """
-    return AsyncSQLiteConnection(get_db_path())
+    await init_db()
+    return await _async_get_connection_raw(get_db_path())
 
 
 async def async_get_thoughts_connection():
     """
     Returns an AsyncSQLiteConnection wrapper for the thoughts database.
-    Usage: async with await async_get_thoughts_connection() as conn:
+    Guarantees that init_thoughts_db() has been called.
     """
+    from shared_memory.thought_logic import init_thoughts_db
     from shared_memory.utils import get_thoughts_db_path
-
-    return AsyncSQLiteConnection(get_thoughts_db_path(), is_thoughts=True)
+    await init_thoughts_db()
+    return await _async_get_connection_raw(get_thoughts_db_path(), is_thoughts=True)
 
 
 async def _add_column_if_missing(cursor, table, col_def):
@@ -146,12 +157,12 @@ async def _add_column_if_missing(cursor, table, col_def):
 
 
 @retry_on_db_lock()
-async def init_db():
+async def init_db(force: bool = False):
     global _DB_INITIALIZED
-    if _DB_INITIALIZED:
+    if _DB_INITIALIZED and not force:
         return
 
-    async with await async_get_connection() as conn:
+    async with await _async_get_connection_raw(get_db_path()) as conn:
         cursor = await conn.cursor()
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS entities (

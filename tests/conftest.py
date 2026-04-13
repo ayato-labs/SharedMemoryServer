@@ -74,8 +74,8 @@ async def setup_teardown_db(request):
         yield
         return
 
-    await init_db()
-    await init_thoughts_db()
+    await init_db(force=True)
+    await init_thoughts_db(force=True)
     yield
     # Aggressively close ALL tracked connections to prevent hangs
     try:

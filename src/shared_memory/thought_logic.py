@@ -25,16 +25,15 @@ _THOUGHTS_INITIALIZED = False
 
 
 @retry_on_db_lock()
-async def init_thoughts_db():
+async def init_thoughts_db(force: bool = False):
     """Initializes the separate thoughts database with optimized indices."""
     global _THOUGHTS_INITIALIZED
-    if _THOUGHTS_INITIALIZED:
+    if _THOUGHTS_INITIALIZED and not force:
         return
-
     db_path = get_thoughts_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-    async with await async_get_thoughts_connection() as conn:
+    from shared_memory.database import _async_get_connection_raw
+    async with await _async_get_connection_raw(db_path, is_thoughts=True) as conn:
         # Tables for thoughts
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS thought_history (
