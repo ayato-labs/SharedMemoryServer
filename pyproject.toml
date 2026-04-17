@@ -35,6 +35,7 @@ shared-memory-admin-server = "shared_memory.admin_server:main"
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+exclude = ["archive"]
 
 [tool.ruff.lint]
 select = [

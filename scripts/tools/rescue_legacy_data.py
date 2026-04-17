@@ -9,7 +9,7 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from shared_memory.database import async_get_connection, init_db
+from shared_memory.database import async_get_connection, init_db  # noqa: E402
 
 
 async def rescue_data():
@@ -38,14 +38,29 @@ async def rescue_data():
                 meta = json.dumps({"source": "legacy_rescue", "original_data": e_dict})
 
                 await conn_new.execute(
-                    "INSERT OR IGNORE INTO entities (name, entity_type, description, importance, updated_by) "
+                    "INSERT OR IGNORE INTO entities "
+                    "(name, entity_type, description, importance, updated_by) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (e_dict["name"], e_dict.get("entity_type"), e_dict.get("description"), e_dict.get("importance", 5), "rescue_script")
+                    (
+                        e_dict["name"],
+                        e_dict.get("entity_type"),
+                        e_dict.get("description"),
+                        e_dict.get("importance", 5),
+                        "rescue_script",
+                    ),
                 )
                 await conn_new.execute(
-                    "INSERT INTO audit_logs (table_name, content_id, action, new_data, agent_id, meta_data) "
+                    "INSERT INTO audit_logs "
+                    "(table_name, content_id, action, new_data, agent_id, meta_data) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    ("entities", e_dict["name"], "RESCUE", json.dumps(e_dict), "rescue_script", meta)
+                    (
+                        "entities",
+                        e_dict["name"],
+                        "RESCUE",
+                        json.dumps(e_dict),
+                        "rescue_script",
+                        meta,
+                    ),
                 )
             await conn_new.commit()
             print("Entities merged into active DB.")
@@ -69,8 +84,10 @@ async def rescue_data():
 
                 if subj and obj and pred:
                     await conn_new.execute(
-                        "INSERT OR IGNORE INTO relations (subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
-                        (subj, obj, pred, "rescue_script")
+                        "INSERT OR IGNORE INTO relations "
+                        "(subject, object, predicate, created_by) "
+                        "VALUES (?, ?, ?, ?)",
+                        (subj, obj, pred, "rescue_script"),
                     )
             await conn_new.commit()
             print("Relations merged.")
@@ -87,8 +104,9 @@ async def rescue_data():
             for o in obs:
                 o_dict = dict(o)
                 await conn_new.execute(
-                    "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
-                    (o_dict["entity_name"], o_dict["content"], "rescue_script")
+                    "INSERT INTO observations "
+                    "(entity_name, content, created_by) VALUES (?, ?, ?)",
+                    (o_dict["entity_name"], o_dict["content"], "rescue_script"),
                 )
             await conn_new.commit()
             print("Observations merged.")

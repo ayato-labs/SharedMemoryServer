@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta
 from typing import Any
@@ -126,7 +127,7 @@ async def process_thought_core(
                         "totalThoughts": total_thoughts,
                     }
 
-            # 3. Persistence: Insert thought with metadata (empty for now, filled post-search)
+            # 3. Persistence: Insert thought with metadata (filled post-search)
             await conn.execute(
                 """
                 INSERT INTO thought_history (
@@ -145,7 +146,9 @@ async def process_thought_core(
                     revises_thought,
                     branch_from_thought,
                     branch_id,
-                    json.dumps({"env": "development", "timestamp": datetime.now().isoformat()})
+                    json.dumps(
+                        {"env": "development", "timestamp": datetime.now().isoformat()}
+                    ),
                 ),
             )
             await conn.commit()

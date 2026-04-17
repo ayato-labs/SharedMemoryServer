@@ -261,7 +261,9 @@ async def save_observations(
             (entity_name,),
         )
         # Log Audit
-        conflict_meta = next((c for c in conflicts_to_report if c["entity"] == entity_name), None)
+        conflict_meta = next(
+            (c for c in conflicts_to_report if c["entity"] == entity_name), None
+        )
         meta = json.dumps({
             "agent_context": "development_trace",
             "conflict_info": conflict_meta,
