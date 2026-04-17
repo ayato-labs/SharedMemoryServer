@@ -50,6 +50,7 @@ async def init_thoughts_db(force: bool = False):
                 branch_from_thought INTEGER,
                 branch_id TEXT,
                 distilled BOOLEAN DEFAULT 0,
+                meta_data TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -57,6 +58,9 @@ async def init_thoughts_db(force: bool = False):
         cursor = await conn.cursor()
         await _add_column_if_missing(
             cursor, "thought_history", "distilled BOOLEAN DEFAULT 0"
+        )
+        await _add_column_if_missing(
+            cursor, "thought_history", "meta_data TEXT"
         )
 
         # Indices for performance and efficient sequence lookups
@@ -122,14 +126,14 @@ async def process_thought_core(
                         "totalThoughts": total_thoughts,
                     }
 
-            # 3. Persistence: Insert thought
+            # 3. Persistence: Insert thought with metadata (empty for now, filled post-search)
             await conn.execute(
                 """
                 INSERT INTO thought_history (
                     session_id, thought_number, total_thoughts, thought,
                     next_thought_needed, is_revision, revises_thought,
-                    branch_from_thought, branch_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    branch_from_thought, branch_id, meta_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     session_id,
@@ -141,6 +145,7 @@ async def process_thought_core(
                     revises_thought,
                     branch_from_thought,
                     branch_id,
+                    json.dumps({"env": "development", "timestamp": datetime.now().isoformat()})
                 ),
             )
             await conn.commit()
@@ -176,6 +181,21 @@ async def process_thought_core(
         related_knowledge = await perform_keyword_search(
             thought, limit=3, exclude_session_id=session_id
         )
+
+        # 6.1 Traceability: Record search results in metadata
+        async with await async_get_thoughts_connection() as conn:
+            search_meta = {
+                "hits_count": len(related_knowledge),
+                "hit_ids": [k["id"] for k in related_knowledge],
+                "env": "development",
+                "timestamp": datetime.now().isoformat()
+            }
+            await conn.execute(
+                "UPDATE thought_history SET meta_data = ? "
+                "WHERE session_id = ? AND thought_number = ?",
+                (json.dumps(search_meta), session_id, thought_number)
+            )
+            await conn.commit()
 
         # 7. Opportunistic Recovery: Disabled during tests to prevent GHA hangs
         if "PYTEST_CURRENT_TEST" not in os.environ:

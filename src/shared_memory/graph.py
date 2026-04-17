@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Any
 
 from shared_memory.database import async_get_connection
@@ -153,10 +154,15 @@ async def save_entities(
 
         # Log Audit
         new_data = json.dumps({"name": name, "type": e_type, "desc": desc})
+        meta = json.dumps({
+            "model": EMBEDDING_MODEL if vector else None,
+            "has_vector": bool(vector),
+            "timestamp": datetime.now().isoformat()
+        })
         await conn.execute(
             "INSERT INTO audit_logs (table_name, content_id, action, "
-            "old_data, new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
-            ("entities", name, action, old_data, new_data, agent_id),
+            "old_data, new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("entities", name, action, old_data, new_data, agent_id, meta),
         )
 
         if vector:
@@ -254,15 +260,23 @@ async def save_observations(
             "updated_at = CURRENT_TIMESTAMP WHERE name = ?",
             (entity_name,),
         )
+        # Log Audit
+        conflict_meta = next((c for c in conflicts_to_report if c["entity"] == entity_name), None)
+        meta = json.dumps({
+            "agent_context": "development_trace",
+            "conflict_info": conflict_meta,
+            "timestamp": datetime.now().isoformat()
+        })
         await conn.execute(
             "INSERT INTO audit_logs (table_name, content_id, action, "
-            "new_data, agent_id) VALUES (?, ?, ?, ?, ?)",
+            "new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 "observations",
                 entity_name,
                 "INSERT",
                 json.dumps({"content": content}),
                 agent_id,
+                meta
             ),
         )
         success_count += 1
