@@ -63,9 +63,9 @@ async def perform_keyword_search(
                         score += content_lower.count(word) * 1.5
 
                 if score > 0:
-                    scored_results[(table, row_id)] = (
-                        scored_results.get((table, row_id), 0.0) + score
-                    )
+                    key = (table, row_id)
+                    current_score, _ = scored_results.get(key, (0.0, ""))
+                    scored_results[key] = (current_score + score, str(content))
 
         # 2. Search Thoughts DB
         async with await async_get_thoughts_connection() as t_conn:
@@ -83,15 +83,23 @@ async def perform_keyword_search(
 
                 if score > 0:
                     key = ("thought_history", f"{sess_id}#{t_num}")
-                    scored_results[key] = scored_results.get(key, 0.0) + score
+                    current_score, _ = scored_results.get(key, (0.0, ""))
+                    scored_results[key] = (current_score + score, str(thought))
 
         # Sort and format
-        sorted_items = sorted(scored_results.items(), key=lambda x: x[1], reverse=True)
+        sorted_items = sorted(
+            scored_results.items(), key=lambda x: x[1][0], reverse=True
+        )
 
         formatted_results = []
-        for (source, row_id), score in sorted_items[:limit]:
+        for (source, row_id), (score, content) in sorted_items[:limit]:
             formatted_results.append(
-                {"source": source, "id": row_id, "score": round(score, 2)}
+                {
+                    "source": source,
+                    "id": row_id,
+                    "score": round(score, 2),
+                    "content": content,
+                }
             )
 
         # Log search statistics for ROI/Hit-rate/Knowledge-Age calculation
