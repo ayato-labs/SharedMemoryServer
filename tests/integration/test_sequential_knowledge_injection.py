@@ -29,7 +29,7 @@ async def test_sequential_knowledge_injection_integration():
     )
 
     # 2. Trigger sequential thinking with a query that should match
-    # Sequential thinking automatically searches for related knowledge based on the 'thought'
+    # Searches for related knowledge based on the 'thought'
     res = await sequential_thinking(
         thought="I am starting to analyze ProjectX architecture.",
         thought_number=1,

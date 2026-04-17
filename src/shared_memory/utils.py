@@ -301,7 +301,8 @@ class GlobalLock:
                 except FileNotFoundError:
                     # Stale lock was already removed by another process, which is fine.
                     log_info(
-                        f"Stale lock {self.lock_path} was already removed by another process."
+                        f"Stale lock {self.lock_path} was "
+                        "already removed by another process."
                     )
                 except Exception as e:
                     log_error(f"Failed to remove stale lock {self.lock_path}", e)

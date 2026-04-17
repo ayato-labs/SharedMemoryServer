@@ -5,7 +5,7 @@ import os
 from google import genai
 
 from shared_memory.database import async_get_connection, retry_on_db_lock
-from shared_memory.utils import get_logger, log_error
+from shared_memory.utils import get_logger, log_error, log_info
 
 logger = get_logger("embeddings")
 
