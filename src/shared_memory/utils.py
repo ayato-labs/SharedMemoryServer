@@ -300,7 +300,9 @@ class GlobalLock:
                         log_info(f"Removed stale lock file: {self.lock_path}")
                 except FileNotFoundError:
                     # Stale lock was already removed by another process, which is fine.
-                    log_info(f"Stale lock {self.lock_path} was already removed by another process.")
+                    log_info(
+                        f"Stale lock {self.lock_path} was already removed by another process."
+                    )
                 except Exception as e:
                     log_error(f"Failed to remove stale lock {self.lock_path}", e)
                 await asyncio.sleep(0.1)
@@ -378,7 +380,7 @@ def calculate_importance(access_count: int, last_accessed_iso: str) -> float:
         last_accessed = datetime.fromisoformat(last_accessed_iso)
         if last_accessed.tzinfo is None:
             last_accessed = last_accessed.replace(tzinfo=UTC)
-            
+
         seconds_since = (datetime.now(UTC) - last_accessed).total_seconds()
         # Decay half-life: 24 hours (86400 seconds)
         recency_score = math.exp(-seconds_since / 86400.0)

@@ -1,17 +1,16 @@
 import pytest
+
 from shared_memory.thought_logic import (
-    process_thought_core,
     get_thought_history,
     init_thoughts_db,
+    process_thought_core,
 )
-from shared_memory.database import async_get_thoughts_connection
-from .fake_client import FakeGeminiClient
-from unittest.mock import patch, MagicMock
-import os
+
 
 @pytest.fixture(autouse=True)
 async def setup_thoughts_db():
     await init_thoughts_db(force=True)
+
 
 @pytest.mark.asyncio
 async def test_process_thought_unit():
@@ -23,10 +22,11 @@ async def test_process_thought_unit():
         next_thought_needed=True,
     )
     assert res["thoughtNumber"] == 1
-    
+
     history = await get_thought_history()
     assert len(history) == 1
     assert history[0]["thought"] == "Test thought contents"
+
 
 @pytest.mark.asyncio
 async def test_thought_sequence_continuity_unit():
@@ -35,23 +35,24 @@ async def test_thought_sequence_continuity_unit():
     await process_thought_core("Step 1", 1, 3, True)
     # 2. Second thought
     await process_thought_core("Step 2", 2, 3, True)
-    
+
     history = await get_thought_history()
     assert len(history) == 2
     assert history[0]["thought_number"] == 1
     assert history[1]["thought_number"] == 2
 
+
 @pytest.mark.asyncio
 async def test_invalid_thought_handling_unit():
     """Severe test: invalid sequence parameters."""
     # Note: process_thought_core doesn't currently raise ValueError for thought_number,
-    # it just processes it. But if we want it to be "tough", we should probably 
+    # it just processes it. But if we want it to be "tough", we should probably
     # add these validations or just test its current behavior with weird inputs.
-    
+
     # Large numbers
     res = await process_thought_core("Huge", 999999, 1, False)
     assert res["thoughtNumber"] == 999999
-    
+
     # Missing revision
     res = await process_thought_core(
         "Revision", 2, 2, False, is_revision=True, revises_thought=1

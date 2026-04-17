@@ -62,7 +62,7 @@ def mock_gemini_globally(request):
     if "no_global_mock" in request.keywords:
         yield None
         return
-        
+
     fake_client = FakeGeminiClient()
     with patch("google.genai.Client", return_value=fake_client):
         with patch(
