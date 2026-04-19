@@ -2,6 +2,71 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-04-19)
+
+### Chores
+
+- Add diagnostic scripts for database migration verification and code validation
+  ([`3198b4b`](https://github.com/ayato-labs/SharedMemoryServer/commit/3198b4b3228910aaec8964e0d974b8db1f5ce8a3))
+
+### Code Style
+
+- Fix ruff linting errors (import sort, line length, whitespace)
+  ([`69c5f95`](https://github.com/ayato-labs/SharedMemoryServer/commit/69c5f95ef94119bca099167a2232d6563943ef5c))
+
+### Documentation
+
+- Rebrand README to emphasize state governance, architectural determinism, and intelligence
+  provenance
+  ([`0b71716`](https://github.com/ayato-labs/SharedMemoryServer/commit/0b71716cec4170a678d47282411a0410d8872a50))
+
+### Features
+
+- Enhance system observability and improve memory saving robustness
+  ([`36ccd77`](https://github.com/ayato-labs/SharedMemoryServer/commit/36ccd77841b435b89441b38a1f51a2bad6dfe119))
+
+- Implement core memory logic, database connection management, and comprehensive unit test suite
+  ([`f310537`](https://github.com/ayato-labs/SharedMemoryServer/commit/f310537ff8f646263b7ec5314fbb42778dbc2c19))
+
+- Implement graph-based entity, relation, and observation management with conflict detection and
+  audit logging
+  ([`a94a82e`](https://github.com/ayato-labs/SharedMemoryServer/commit/a94a82e861a4d4b71cf1da6a1d7d2ff854ed2687))
+
+- Implement knowledge lifecycle management with activation, deactivation, and garbage collection
+  modules and tests
+  ([`409b6f4`](https://github.com/ayato-labs/SharedMemoryServer/commit/409b6f40fe31eda150eb6550e7e6a3007bf07a02))
+
+- Implement memory logic normalization, database migration system, and robustness testing for bank
+  file handling.
+  ([`eb70bc3`](https://github.com/ayato-labs/SharedMemoryServer/commit/eb70bc3251766b091f639635868198db525849c3))
+
+- Implement robust async SQLite connection management with retry logic and schema initialization
+  ([`a23734a`](https://github.com/ayato-labs/SharedMemoryServer/commit/a23734ab0fdaa3570ce818e31ae844c0c9f354be))
+
+- Implement robust database connection management with retry logic and add chaos testing suite
+  ([`2d46568`](https://github.com/ayato-labs/SharedMemoryServer/commit/2d4656855adef878322d89378a91e69f0abdcf14))
+
+- Implement shared memory bank system with cascading lifecycle management and search filtering
+  ([`a7b4ede`](https://github.com/ayato-labs/SharedMemoryServer/commit/a7b4ede2ee12d4e54a4b026b5871bd8e13375a4b))
+
+- Implement singleton database connection management with WAL mode and add migration infrastructure
+  ([`08f39a7`](https://github.com/ayato-labs/SharedMemoryServer/commit/08f39a701e1d6b8469049f4d697215263b58aa27))
+
+### Refactoring
+
+- Harden error handling and optimize resource diagnostics
+  ([`96c453d`](https://github.com/ayato-labs/SharedMemoryServer/commit/96c453dc5f3245533864d421cb68b6a5f7eedf75))
+
+### Testing
+
+- Add normalization logic tests and error handling verification scripts
+  ([`f5e4ab6`](https://github.com/ayato-labs/SharedMemoryServer/commit/f5e4ab6d168064df23b2e391fc3690e61f7c0b5b))
+
+- Implement comprehensive unit, integration, and system test suites with automated database
+  lifecycle management and LLM mocking.
+  ([`51002f3`](https://github.com/ayato-labs/SharedMemoryServer/commit/51002f361bf3a6c03cb64a80a1cf445589f81150))
+
+
 ## v1.6.0 (2026-04-19)
 
 ### Features
