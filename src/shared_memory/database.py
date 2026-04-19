@@ -185,7 +185,8 @@ async def init_db(force: bool = False):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
-                updated_by TEXT
+                updated_by TEXT,
+                status TEXT DEFAULT 'active'
             )
         """)
         await cursor.execute("""
@@ -196,6 +197,7 @@ async def init_db(force: bool = False):
                 justification TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
+                status TEXT DEFAULT 'active',
                 PRIMARY KEY (subject, object, predicate),
                 FOREIGN KEY (subject) REFERENCES entities (name) ON DELETE CASCADE,
                 FOREIGN KEY (object) REFERENCES entities (name) ON DELETE CASCADE
@@ -208,6 +210,7 @@ async def init_db(force: bool = False):
                 content TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
+                status TEXT DEFAULT 'active',
                 FOREIGN KEY (entity_name) REFERENCES entities (name) ON DELETE CASCADE
             )
         """)
@@ -225,7 +228,8 @@ async def init_db(force: bool = False):
                 filename TEXT PRIMARY KEY,
                 content TEXT,
                 last_synced DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_by TEXT
+                updated_by TEXT,
+                status TEXT DEFAULT 'active'
             )
         """)
         await cursor.execute("""
@@ -319,6 +323,11 @@ async def init_db(force: bool = False):
         await _add_column_if_missing(cursor, "observations", "created_by TEXT")
 
         await _add_column_if_missing(cursor, "bank_files", "updated_by TEXT")
+        await _add_column_if_missing(cursor, "entities", "status TEXT DEFAULT 'active'")
+        await _add_column_if_missing(cursor, "relations", "status TEXT DEFAULT 'active'")
+        await _add_column_if_missing(cursor, "observations", "status TEXT DEFAULT 'active'")
+        await _add_column_if_missing(cursor, "bank_files", "status TEXT DEFAULT 'active'")
+
         await _add_column_if_missing(cursor, "snapshots", "description TEXT")
         await _add_column_if_missing(cursor, "snapshots", "file_path TEXT")
         await _add_column_if_missing(

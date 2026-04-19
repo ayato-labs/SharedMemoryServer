@@ -324,7 +324,7 @@ async def get_graph_data(query: str | None = None):
     async with await async_get_connection() as conn:
         if query:
             cursor = await conn.execute(
-                "SELECT * FROM entities WHERE name LIKE ? OR description LIKE ?",
+                "SELECT * FROM entities WHERE (name LIKE ? OR description LIKE ?) AND status = 'active'",
                 (f"%{query}%", f"%{query}%"),
             )
             matched_entities = await cursor.fetchall()
@@ -335,14 +335,14 @@ async def get_graph_data(query: str | None = None):
 
             placeholders = ",".join(["?"] * len(matched_names))
             cursor = await conn.execute(
-                f"SELECT * FROM relations WHERE subject IN ({placeholders}) "
-                f"OR object IN ({placeholders})",
+                f"SELECT * FROM relations WHERE (subject IN ({placeholders}) "
+                f"OR object IN ({placeholders})) AND status = 'active'",
                 matched_names + matched_names,
             )
             relations = await cursor.fetchall()
 
             cursor = await conn.execute(
-                f"SELECT * FROM observations WHERE entity_name IN ({placeholders})",
+                f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
                 matched_names,
             )
             observations = await cursor.fetchall()
@@ -360,11 +360,11 @@ async def get_graph_data(query: str | None = None):
                 ],
             }
         else:
-            cursor = await conn.execute("SELECT * FROM entities")
+            cursor = await conn.execute("SELECT * FROM entities WHERE status = 'active'")
             entities = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM relations")
+            cursor = await conn.execute("SELECT * FROM relations WHERE status = 'active'")
             relations = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM observations")
+            cursor = await conn.execute("SELECT * FROM observations WHERE status = 'active'")
             observations = await cursor.fetchall()
             return {
                 "entities": [dict(e) for e in entities],

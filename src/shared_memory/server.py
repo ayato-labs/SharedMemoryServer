@@ -82,6 +82,25 @@ async def synthesize_entity(entity_name: str):
     return await logic.synthesize_entity(entity_name)
 
 
+@mcp.tool()
+async def manage_knowledge_activation(ids: list[str], status: str):
+    """
+    Manages the activation state of knowledge items (entities, bank files, etc.).
+    - status: 'active' (default/searchable), 'inactive' (hidden), or 'archived' (legacy).
+    Use this to toggle knowledge OFF/ON without destructive deletion.
+    """
+    return await logic.manage_knowledge_activation_core(ids, status)
+
+
+@mcp.tool()
+async def list_inactive_knowledge():
+    """
+    Lists all knowledge assets that are currently inactive or archived.
+    Useful for reviewing what information has been sidelined or for potential reactivation.
+    """
+    return await logic.list_inactive_knowledge_core()
+
+
 # ==========================================
 # THOUGHT & REASONING TOOLS
 # ==========================================

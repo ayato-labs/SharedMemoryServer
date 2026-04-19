@@ -4,7 +4,7 @@ from typing import Any
 
 import aiosqlite
 
-from shared_memory import bank, graph, health, management, search
+from shared_memory import bank, graph, health, management, search, lifecycle
 from shared_memory.database import async_get_connection, init_db, retry_on_db_lock
 from shared_memory.embeddings import compute_embeddings_bulk
 from shared_memory.exceptions import DatabaseError, SharedMemoryError
@@ -199,3 +199,12 @@ async def get_value_report_core(format_type: str = "markdown"):
 
     metrics_data = await InsightEngine.get_summary_metrics()
     return InsightEngine.generate_report_markdown(metrics_data)
+
+async def manage_knowledge_activation_core(ids: list[str], status: str):
+    return await lifecycle.manage_knowledge_activation_logic(ids, status)
+
+async def list_inactive_knowledge_core():
+    return await lifecycle.list_inactive_knowledge_logic()
+
+async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
+    return await lifecycle.run_knowledge_gc_logic(age_days, dry_run)

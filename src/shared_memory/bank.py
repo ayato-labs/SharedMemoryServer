@@ -161,9 +161,15 @@ async def read_bank_data(query: str | None = None):
         bank_data = {}
         found_files = set()
 
+        # Step 1: Get list of ACTIVE files from DB
+        active_files = []
+        async with await async_get_connection() as conn:
+            cursor = await conn.execute("SELECT filename FROM bank_files WHERE status = 'active'")
+            active_files = [r[0] for r in await cursor.fetchall()]
+
         if os.path.exists(bank_dir):
             for filename in os.listdir(bank_dir):
-                if filename.endswith(".md"):
+                if filename.endswith(".md") and filename in active_files:
                     try:
                         path = safe_path_join(bank_dir, filename)
                         async with aiofiles.open(path, encoding="utf-8") as f:
@@ -176,9 +182,9 @@ async def read_bank_data(query: str | None = None):
                     except (Exception, ValueError) as e:
                         log_error(f"Failed to read bank file {filename}", e)
 
-        # Merge with recovering data from DB
+        # Step 2: Merge with recovering data from DB (only active ones)
         async with await async_get_connection() as conn:
-            cursor = await conn.execute("SELECT filename, content FROM bank_files")
+            cursor = await conn.execute("SELECT filename, content FROM bank_files WHERE status = 'active'")
             db_files = await cursor.fetchall()
             for filename, content in db_files:
                 if filename not in found_files:

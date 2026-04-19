@@ -47,7 +47,7 @@ async def perform_keyword_search(
         ]
 
         for table, id_col, content_col in data_sources:
-            cursor = await conn.execute(f"SELECT {id_col}, {content_col} FROM {table}")
+            cursor = await conn.execute(f"SELECT {id_col}, {content_col} FROM {table} WHERE status = 'active'")
             for row_id, content in await cursor.fetchall():
                 content_lower = str(content).lower()
                 row_id_lower = str(row_id).lower()
@@ -127,8 +127,14 @@ async def perform_search(query: str, limit: int = 10):
                 return await get_graph_data(query), await read_bank_data(query)
             logger.debug(f"query_vector COMPUTED query={query}")
 
-            # 1. Fetch Candidates (Entities & Bank Files)
-            cursor = await conn.execute("SELECT content_id, vector FROM embeddings")
+            # 1. Fetch Candidates (Entities & Bank Files) - Filter by Active status
+            cursor = await conn.execute("""
+                SELECT e.content_id, e.vector 
+                FROM embeddings e
+                LEFT JOIN entities ent ON e.content_id = ent.name
+                LEFT JOIN bank_files bf ON e.content_id = bf.filename
+                WHERE (ent.status = 'active' OR bf.status = 'active')
+            """)
             all_rows = await cursor.fetchall()
             logger.debug(f"candidates FETCHED count={len(all_rows)}")
 

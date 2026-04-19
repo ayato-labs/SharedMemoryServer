@@ -74,6 +74,15 @@ async def admin_get_value_report(format_type: str = "markdown"):
     return await logic.get_value_report_core(format_type)
 
 
+@mcp.tool()
+async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False):
+    """
+    Manually triggers the Knowledge Garbage Collection (GC) logic.
+    Moves 'active' items that are stale (low importance and old) to 'inactive'.
+    """
+    return await logic.admin_run_knowledge_gc_core(age_days, dry_run)
+
+
 def main():
     """Entry point for the Admin MCP server."""
     mcp.run()
