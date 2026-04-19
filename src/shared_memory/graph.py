@@ -72,6 +72,7 @@ async def _check_conflict_internal(
             "VALUES (?, ?, ?, ?, ?)",
             (entity_name, existing_text, new_content, data.get("reason"), agent_id),
         )
+        await conn.commit()
         return True, data.get("reason")
 
     return False, None
@@ -157,6 +158,7 @@ async def save_entities(
         meta = json.dumps({
             "model": EMBEDDING_MODEL if vector else None,
             "has_vector": bool(vector),
+            "conflict_info": None,
             "timestamp": datetime.now().isoformat()
         })
         await conn.execute(
@@ -202,6 +204,25 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
             "(subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
             valid_relations,
         )
+
+        # Log Audit for each relation
+        for subject, obj, predicate, creator in valid_relations:
+            await conn.execute(
+                "INSERT INTO audit_logs (table_name, content_id, action, new_data, agent_id, meta_data) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    "relations",
+                    f"{subject}->{predicate}->{obj}",
+                    "INSERT",
+                    json.dumps({"subject": subject, "object": obj, "predicate": predicate}),
+                    creator,
+                    json.dumps({
+                        "agent_context": "relation_mapping",
+                        "conflict_info": None,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                )
+            )
 
     msg = f"Saved {len(valid_relations)} relations"
     if errors:

@@ -68,7 +68,8 @@ async def auto_distill_knowledge(
     try:
         # DYNAMIC MODEL DISCOVERY: Find the correct model name automatically
         try:
-            available_models = [m.name for m in client.models.list()]
+            # ASYNC TRANSITION: Use client.aio for non-blocking list (Await the coroutine)
+            available_models = [m.name for m in await client.aio.models.list()]
         except Exception as e:
             log_error(
                 f"Failed to list models for session {session_id} "
@@ -79,8 +80,9 @@ async def auto_distill_knowledge(
 
         # Prefer gemini-3.1-flash-lite-preview if exists, else find any flash-lite
         model_name = "gemini-3.1-flash-lite-preview"
-        if f"models/{model_name}" in available_models:
-            model_name = f"models/{model_name}"
+        target_model = f"models/{model_name}"
+        if target_model in available_models:
+            model_name = target_model
         elif model_name not in available_models:
             # Fallback search
             fallback = [
@@ -90,7 +92,8 @@ async def auto_distill_knowledge(
             ]
             model_name = fallback[0] if fallback else "models/gemini-2.0-flash"
 
-        response = client.models.generate_content(
+        # ASYNC TRANSITION: Use client.aio for non-blocking generation
+        response = await client.aio.models.generate_content(
             model=model_name,
             contents=prompt,
             config={

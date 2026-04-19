@@ -3,7 +3,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from shared_memory import logic, thought_logic
-from shared_memory.database import init_db
+from shared_memory.database import close_all_connections, init_db
 
 # Create MCP server instance (Agent Data Plane)
 mcp = FastMCP("SharedMemoryServer")
@@ -24,6 +24,9 @@ async def lifespan(mcp_instance: FastMCP):
     await thought_logic.init_thoughts_db()
 
     yield
+
+    # CLEANUP: Close persistent singleton connections on shutdown
+    await close_all_connections()
 
 
 # ==========================================

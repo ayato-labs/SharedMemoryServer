@@ -11,10 +11,10 @@ from typing import Any
 
 from shared_memory.exceptions import SecurityError
 
-# Global flag for structured logging
-ENABLE_STRUCTURED_LOGGING = (
-    os.environ.get("ENABLE_STRUCTURED_LOGGING", "true").lower() == "true"
-)
+# Global flag for structured logging (defined in config)
+def is_structured_logging_enabled() -> bool:
+    from shared_memory.config import settings
+    return settings.enable_structured_logging
 
 
 # Basic configuration for standard logging
@@ -160,34 +160,28 @@ class PathResolver:
 def get_db_path():
     """
     Returns the path to the SQLite knowledge database.
-    Priority: MEMORY_DB_PATH env > PathResolver.
+    Migrated to centralized config.
     """
-    env_val = os.environ.get("MEMORY_DB_PATH")
-    if env_val:
-        return env_val
-    return os.path.join(PathResolver.get_base_data_dir(), "knowledge.db")
+    from shared_memory.config import settings
+    return str(settings.db_path)
 
 
 def get_thoughts_db_path():
     """
     Returns the path to the thoughts/sequential thinking database.
-    Priority: THOUGHTS_DB_PATH env > PathResolver.
+    Migrated to centralized config.
     """
-    env_val = os.environ.get("THOUGHTS_DB_PATH")
-    if env_val:
-        return env_val
-    return os.path.join(PathResolver.get_base_data_dir(), "thoughts.db")
+    from shared_memory.config import settings
+    return str(settings.thoughts_db_path)
 
 
 def get_bank_dir():
     """
     Returns the path to the Markdown memory bank directory.
-    Priority: MEMORY_BANK_DIR env > PathResolver.
+    Migrated to centralized config.
     """
-    env_val = os.environ.get("MEMORY_BANK_DIR")
-    if env_val:
-        return env_val
-    return os.path.join(PathResolver.get_base_data_dir(), "bank")
+    from shared_memory.config import settings
+    return str(settings.bank_dir)
 
 
 def mask_sensitive_data(text: str) -> str:

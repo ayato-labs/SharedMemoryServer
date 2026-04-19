@@ -7,10 +7,12 @@ from google import genai
 from shared_memory.database import async_get_connection, retry_on_db_lock
 from shared_memory.utils import get_logger, log_error, log_info
 
+from shared_memory.config import settings
+
 logger = get_logger("embeddings")
 
-EMBEDDING_MODEL = "gemini-embedding-001"
-DIMENSIONALITY = 768
+EMBEDDING_MODEL = settings.embedding_model
+DIMENSIONALITY = settings.dimensionality
 
 
 def _get_text_hash(text: str) -> str:
@@ -65,50 +67,14 @@ async def _save_to_cache(text_hash: str, vector: list[float], conn=None):
 
 def get_gemini_client() -> genai.Client | None:
     """
-    Retrieves a Gemini API client using the best available API key.
+    Retrieves a Gemini API client using the centralized config.
     """
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-
-    if not api_key:
-        try:
-            from dotenv import load_dotenv
-
-            load_dotenv()
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get(
-                "GEMINI_API_KEY"
-            )
-        except ImportError:
-            log_info("python-dotenv not found, skipping .env loading")
-        except Exception as e:
-            log_error("Error loading .env file", e)
-
-    if not api_key:
-        home = os.path.expanduser("~")
-        global_settings_path = os.path.join(home, ".gemini", "settings.json")
-        if os.path.exists(global_settings_path):
-            try:
-                with open(global_settings_path, encoding="utf-8") as f:
-                    settings = json.load(f)
-                    mcp_env = (
-                        settings.get("mcpServers", {})
-                        .get("SharedMemoryServer", {})
-                        .get("env", {})
-                    )
-                    api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get(
-                        "GEMINI_API_KEY"
-                    )
-                    if not api_key:
-                        api_key = settings.get("GOOGLE_API_KEY") or settings.get(
-                            "GEMINI_API_KEY"
-                        )
-            except Exception as e:
-                log_error(f"Failed to read settings from {global_settings_path}", e)
-
+    api_key = settings.api_key
     if not api_key:
         return None
 
     try:
-        return genai.Client(api_key=api_key.strip())
+        return genai.Client(api_key=api_key)
     except Exception as e:
         log_error("Failed to initialize Gemini client", e)
         return None
@@ -129,7 +95,8 @@ async def compute_embedding(text: str, conn=None) -> list[float] | None:
         return None
 
     try:
-        response = client.models.embed_content(
+        # ASYNC TRANSITION: Use client.aio for non-blocking I/O
+        response = await client.aio.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=text,
             config={"output_dimensionality": DIMENSIONALITY},
@@ -166,7 +133,8 @@ async def compute_embeddings_bulk(texts: list[str]) -> list[list[float] | None]:
         return results
 
     try:
-        response = client.models.embed_content(
+        # ASYNC TRANSITION: Use client.aio for non-blocking I/O
+        response = await client.aio.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=to_compute,
             config={"output_dimensionality": DIMENSIONALITY},

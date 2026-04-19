@@ -2,11 +2,19 @@ import asyncio
 import json
 import os
 import random
+from typing import Optional, Any
 
 import aiosqlite
 
 from shared_memory.exceptions import DatabaseError, DatabaseLockedError
 from shared_memory.utils import get_db_path, log_error
+
+# Global singletons for persistent connections
+_MAIN_CONNECTION: Optional[aiosqlite.Connection] = None
+_THOUGHTS_CONNECTION: Optional[aiosqlite.Connection] = None
+
+# Global lock to prevent race conditions during singleton initialization
+_INIT_LOCK = asyncio.Lock()
 
 # Global flag to track if the main database has been initialized in the current session.
 _DB_INITIALIZED = False
@@ -43,76 +51,68 @@ def retry_on_db_lock(max_retries=15, initial_delay=0.1):
 
 class AsyncSQLiteConnection:
     """
-    A wrapper for aiosqlite.Connection that ensures exactly one 'start()' call
-    even when used with the 'async with await' pattern.
+    A context manager that returns the Singleton connection for the database.
+    Does NOT close the connection on exit (managed by server lifespan).
     """
 
-    _active_connections = set()
-
-    def __init__(self, db_path: str, timeout: float = 30.0, is_thoughts: bool = False):
+    def __init__(self, db_path: str, is_thoughts: bool = False):
         self.db_path = db_path
-        self.timeout = timeout
         self.is_thoughts = is_thoughts
         self.conn = None
 
-    @classmethod
-    def get_active_count(cls):
-        return len(cls._active_connections)
-
-    @classmethod
-    async def close_all_active(cls):
-        """Force close all tracked connections (Testing helper)."""
-        import copy
-
-        conns = copy.copy(cls._active_connections)
-        for c in conns:
-            try:
-                await c.close()
-            except Exception as e:
-                log_error("Failed to force close a connection during cleanup", e)
-        cls._active_connections.clear()
-
     async def __aenter__(self):
-        import sqlite3
+        global _MAIN_CONNECTION, _THOUGHTS_CONNECTION
 
-        try:
-            self.conn = await aiosqlite.connect(self.db_path, timeout=self.timeout)
-            self.conn.row_factory = aiosqlite.Row
-
-            # Apply global PRAGMAs
-            if not self.is_thoughts:
-                await self.conn.execute("PRAGMA foreign_keys = ON")
-            await self.conn.execute("PRAGMA journal_mode = WAL")
-            await self.conn.execute("PRAGMA synchronous = NORMAL")
-
-            # Track connection for cleanup
-            if "PYTEST_CURRENT_TEST" in os.environ:
-                self._active_connections.add(self.conn)
-
-            return self.conn
-        except (aiosqlite.Error, sqlite3.Error) as e:
-            log_error(f"Failed to connect to database at {self.db_path}", e)
-            raise DatabaseError(f"Database connection failed: {e}") from e
+        async with _INIT_LOCK:
+            if self.is_thoughts:
+                if _THOUGHTS_CONNECTION is None:
+                    _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                    _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
+                    await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                    await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                self.conn = _THOUGHTS_CONNECTION
+            else:
+                if _MAIN_CONNECTION is None:
+                    _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                    _MAIN_CONNECTION.row_factory = aiosqlite.Row
+                    await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
+                    await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                    await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                self.conn = _MAIN_CONNECTION
+        
+        return self.conn
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.conn:
-            if self.conn in self._active_connections:
-                self._active_connections.discard(self.conn)
-            await self.conn.close()
-            self.conn = None
+        # We DO NOT close the singleton connection here.
+        # It is closed by close_all_connections() at shutdown.
+        pass
 
     def __await__(self):
-        # This allows 'await async_get_connection()' to return 'self'
         async def _internal():
             return self
-
         return _internal().__await__()
+
+
+async def close_all_connections():
+    """
+    Closes all singleton connections. Should be called during server shutdown
+    or between tests to ensure isolation.
+    """
+    global _MAIN_CONNECTION, _THOUGHTS_CONNECTION, _DB_INITIALIZED
+    async with _INIT_LOCK:
+        if _MAIN_CONNECTION:
+            await _MAIN_CONNECTION.close()
+            _MAIN_CONNECTION = None
+        if _THOUGHTS_CONNECTION:
+            await _THOUGHTS_CONNECTION.close()
+            _THOUGHTS_CONNECTION = None
+        _DB_INITIALIZED = False
 
 
 async def _async_get_connection_raw(db_path: str, is_thoughts: bool = False):
     """
     INTERNAL USE ONLY. Returns a connection wrapper without triggering
-    lazy initialization. Prevents infinite recursion during 'init_db'.
+    lazy initialization.
     """
     return AsyncSQLiteConnection(db_path, is_thoughts=is_thoughts)
 
@@ -120,7 +120,6 @@ async def _async_get_connection_raw(db_path: str, is_thoughts: bool = False):
 async def async_get_connection():
     """
     Returns an AsyncSQLiteConnection wrapper for the main database.
-    Guarantees that init_db() has been called before returning the connection.
     Usage: async with await async_get_connection() as conn:
     """
     await init_db()

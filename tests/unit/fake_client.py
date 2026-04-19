@@ -12,6 +12,10 @@ class FakeEmbedding:
 class FakeModels:
     def __init__(self):
         self._errors = {}
+        self._responses = {}
+
+    def set_response(self, method_name, text):
+        self._responses[method_name] = text
 
     def set_error(self, method_name, exception):
         self._errors[method_name] = exception
@@ -41,10 +45,31 @@ class FakeModels:
     def generate_content(self, model, contents, config=None):
         if "generate_content" in self._errors:
             raise self._errors["generate_content"]
+        if "generate_content" in self._responses:
+            return FakeGeminiResponse(text=self._responses["generate_content"])
         # Default behavior: No conflict
         return FakeGeminiResponse(text='{"conflict": false, "reason": "No conflict"}')
+
+    def list(self):
+        return [type("Model", (), {"name": "models/gemini-2.0-flash-exp"})]
+
+
+class FakeAsyncModels:
+    def __init__(self, models: FakeModels):
+        self.models = models
+
+    async def list(self):
+        return self.models.list()
+
+    async def embed_content(self, **kwargs):
+        # Delegate to sync version, it just does mathematical/mock logic
+        return self.models.embed_content(**kwargs)
+
+    async def generate_content(self, **kwargs):
+        return self.models.generate_content(**kwargs)
 
 
 class FakeGeminiClient:
     def __init__(self, api_key="fake_key"):
         self.models = FakeModels()
+        self.aio = type("FakeAio", (), {"models": FakeAsyncModels(self.models)})

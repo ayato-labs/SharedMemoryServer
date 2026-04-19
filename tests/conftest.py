@@ -87,9 +87,10 @@ async def setup_teardown_db(request):
     await init_db(force=True)
     await init_thoughts_db(force=True)
     yield
-    # Aggressively close ALL tracked connections to prevent hangs
+    # CLEANUP: Close persistent singleton connections between tests to ensure isolation
+    from shared_memory.database import close_all_connections
     try:
-        await AsyncSQLiteConnection.close_all_active()
+        await close_all_connections()
     except Exception:
         pass
 
@@ -127,12 +128,25 @@ async def cleanup_tasks():
         pass
 
 
+@pytest.fixture
+def mock_llm(request):
+    """MagicMock-based LLM fixture for INTEGRATION/CHAOS tests."""
+    with _setup_mock_llm_context() as mock_client:
+        yield mock_client
+
 @pytest.fixture(autouse=True)
 def mock_gemini(request):
+    """Backward compatible alias for global LLM mocking."""
     if "no_global_mock" in request.keywords:
         yield None
-        return
+    else:
+        with _setup_mock_llm_context() as mock_client:
+            yield mock_client
 
+from contextlib import contextmanager
+
+@contextmanager
+def _setup_mock_llm_context():
     patches = [
         patch("shared_memory.embeddings.get_gemini_client"),
         patch("shared_memory.search.get_gemini_client"),
@@ -140,8 +154,10 @@ def mock_gemini(request):
         patch("shared_memory.distiller.get_gemini_client"),
         patch("shared_memory.graph.get_gemini_client"),
     ]
+    from unittest.mock import AsyncMock
     mock_client = MagicMock()
-
+    
+    # Sync Models
     def mock_embed_content(model, contents, config=None):
         if isinstance(contents, str):
             n = 1
@@ -153,22 +169,35 @@ def mock_gemini(request):
 
     mock_client.models.embed_content.side_effect = mock_embed_content
     mock_client.models.generate_content.return_value = MagicMock(
-        text=(
-            '{"conflict": true, "reason": "Conflict detected.", '
-            '"synthesis": "Synthesis result."}'
-        )
+        text='{"conflict": false, "reason": "Mocked response."}'
     )
     mock_client.models.list.return_value = [
         type("Model", (), {"name": "models/gemini-2.0-flash-exp"})
     ]
+
+    # ASYNC Models (aio)
+    mock_aio_models = AsyncMock()
+    mock_aio_models.embed_content.side_effect = mock_embed_content
+    mock_aio_models.generate_content.return_value = MagicMock(
+        text='{"conflict": false, "reason": "Mocked response."}'
+    )
+    mock_aio_models.list.return_value = [
+        type("Model", (), {"name": "models/gemini-2.0-flash-exp"})
+    ]
+    mock_client.aio = MagicMock()
+    mock_client.aio.models = mock_aio_models
+    
     handlers = []
     for p in patches:
         h = p.start()
         h.return_value = mock_client
         handlers.append(p)
-    yield mock_client
-    for p in handlers:
-        p.stop()
+    
+    try:
+        yield mock_client
+    finally:
+        for p in handlers:
+            p.stop()
 
 
 @pytest.fixture
