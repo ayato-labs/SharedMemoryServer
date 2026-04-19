@@ -64,7 +64,7 @@ def mock_llm(request):
     client.models.generate_content.return_value.text = json.dumps({
         "conflict": False, "reason": "No conflict detected in mock."
     })
-    
+
     def set_response(method, text):
         if method == "generate_content":
             client.models.generate_content.return_value.text = text

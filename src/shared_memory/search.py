@@ -219,11 +219,19 @@ async def get_graph_data_by_cids(cids: list[str], conn):
 
     return {
         "entities": [
-            {"name": r["name"], "type": r["entity_type"], "description": r["description"]}
+            {
+                "name": r["name"],
+                "type": r["entity_type"],
+                "description": r["description"],
+            }
             for r in entities
         ],
         "relations": [
-            {"subject": r["subject"], "object": r["object"], "predicate": r["predicate"]}
+            {
+                "subject": r["subject"],
+                "object": r["object"],
+                "predicate": r["predicate"],
+            }
             for r in relations
         ],
         "observations": [
