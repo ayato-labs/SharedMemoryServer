@@ -22,15 +22,16 @@ async def test_full_lifecycle_system(mock_llm):
     # 1. Start with a Thought (Lazy init triggered)
     print("Recording Thought process...")
     # Mock search hit for previous principle
-    mock_llm.models.generate_content.return_value.text = json.dumps({
-        "conflict": False,
-        "reason": "Aligned with architecture."
-    })
+    mock_llm.models.generate_content.return_value.text = json.dumps(
+        {"conflict": False, "reason": "Aligned with architecture."}
+    )
 
     await thought_logic.process_thought_core(
         thought="Designing mapping_audit table for traceability.duckdb.",
-        thought_number=1, total_thoughts=1, next_thought_needed=False,
-        session_id="session_lifecycle_test"
+        thought_number=1,
+        total_thoughts=1,
+        next_thought_needed=False,
+        session_id="session_lifecycle_test",
     )
 
     # 2. Save Memory based on thought result
@@ -56,9 +57,7 @@ async def test_full_lifecycle_system(mock_llm):
 
     # 4. Verify Final Consistency
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT name FROM entities WHERE name='mapping_audit'"
-        )
+        cursor = await conn.execute("SELECT name FROM entities WHERE name='mapping_audit'")
         row = await cursor.fetchone()
         assert row is not None
         assert row[0] == "mapping_audit"

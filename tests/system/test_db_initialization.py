@@ -60,10 +60,7 @@ async def test_robust_initialization_from_scratch(request):
 
                 # 5. Deep Inspection: Verify search_stats table exists
                 async with aiosqlite.connect(db_path) as conn:
-                    q = (
-                        "SELECT name FROM sqlite_master "
-                        "WHERE type='table' AND name='search_stats'"
-                    )
+                    q = "SELECT name FROM sqlite_master WHERE type='table' AND name='search_stats'"
                     cursor = await conn.execute(q)
                     assert await cursor.fetchone() is not None
         finally:

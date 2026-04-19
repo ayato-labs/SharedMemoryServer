@@ -61,9 +61,7 @@ async def test_logic_bank_files_normalization_unit(mock_env):
     """
     Unit test: Verify that bank_files in list-of-objects format are normalized and saved.
     """
-    bank_files = [
-        {"filename": "list_test.md", "content": "Content from list"}
-    ]
+    bank_files = [{"filename": "list_test.md", "content": "Content from list"}]
     # Should not crash and should report updated files
     res = await save_memory_core(bank_files=bank_files)
     assert "Updated 1 bank files" in res
@@ -74,9 +72,7 @@ async def test_logic_bank_files_robustness_unit(mock_env):
     """
     Unit test: Verify that bank_files without filenames are handled gracefully.
     """
-    bank_files = [
-        {"content": "Content only, no filename"}
-    ]
+    bank_files = [{"content": "Content only, no filename"}]
     # Should use derived_knowledge_0.md and return success
     res = await save_memory_core(bank_files=bank_files)
     assert "Updated 1 bank files" in res

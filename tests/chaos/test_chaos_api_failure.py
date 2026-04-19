@@ -10,9 +10,7 @@ async def test_chaos_api_timeout_handling(mock_llm):
     simulate a network timeout or API failure.
     """
     # Simulate timeout in the mock
-    mock_llm.models.generate_content.side_effect = Exception(
-        "Deadline Exceeded (Simulation)"
-    )
+    mock_llm.models.generate_content.side_effect = Exception("Deadline Exceeded (Simulation)")
 
     # We test conflict check which uses generate_content
     is_conflict, reason = await graph.check_conflict(

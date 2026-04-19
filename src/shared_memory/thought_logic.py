@@ -57,25 +57,19 @@ async def init_thoughts_db(force: bool = False):
         """)
         # Migration for existing databases
         cursor = await conn.cursor()
-        await _add_column_if_missing(
-            cursor, "thought_history", "distilled BOOLEAN DEFAULT 0"
-        )
-        await _add_column_if_missing(
-            cursor, "thought_history", "meta_data TEXT"
-        )
+        await _add_column_if_missing(cursor, "thought_history", "distilled BOOLEAN DEFAULT 0")
+        await _add_column_if_missing(cursor, "thought_history", "meta_data TEXT")
 
         # Indices for performance and efficient sequence lookups
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_thought_session "
-            "ON thought_history (session_id)"
+            "CREATE INDEX IF NOT EXISTS idx_thought_session ON thought_history (session_id)"
         )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thought_number "
             "ON thought_history (session_id, thought_number)"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_thought_timestamp "
-            "ON thought_history (timestamp)"
+            "CREATE INDEX IF NOT EXISTS idx_thought_timestamp ON thought_history (timestamp)"
         )
         await conn.commit()
         _THOUGHTS_INITIALIZED = True
@@ -112,8 +106,7 @@ async def process_thought_core(
             # 2. Validation: Check sequence integrity
             if is_revision and revises_thought:
                 cursor = await conn.execute(
-                    "SELECT id FROM thought_history "
-                    "WHERE session_id = ? AND thought_number = ?",
+                    "SELECT id FROM thought_history WHERE session_id = ? AND thought_number = ?",
                     (session_id, revises_thought),
                 )
                 if not await cursor.fetchone():
@@ -146,9 +139,7 @@ async def process_thought_core(
                     revises_thought,
                     branch_from_thought,
                     branch_id,
-                    json.dumps(
-                        {"env": "development", "timestamp": datetime.now().isoformat()}
-                    ),
+                    json.dumps({"env": "development", "timestamp": datetime.now().isoformat()}),
                 ),
             )
             await conn.commit()
@@ -191,12 +182,12 @@ async def process_thought_core(
                 "hits_count": len(related_knowledge),
                 "hit_ids": [k["id"] for k in related_knowledge],
                 "env": "development",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
             await conn.execute(
                 "UPDATE thought_history SET meta_data = ? "
                 "WHERE session_id = ? AND thought_number = ?",
-                (json.dumps(search_meta), session_id, thought_number)
+                (json.dumps(search_meta), session_id, thought_number),
             )
             await conn.commit()
 

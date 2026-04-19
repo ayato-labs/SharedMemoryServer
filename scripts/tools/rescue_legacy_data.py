@@ -104,8 +104,7 @@ async def rescue_data():
             for o in obs:
                 o_dict = dict(o)
                 await conn_new.execute(
-                    "INSERT INTO observations "
-                    "(entity_name, content, created_by) VALUES (?, ?, ?)",
+                    "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
                     (o_dict["entity_name"], o_dict["content"], "rescue_script"),
                 )
             await conn_new.commit()
@@ -115,6 +114,7 @@ async def rescue_data():
 
     conn_legacy.close()
     print("Rescue complete.")
+
 
 if __name__ == "__main__":
     asyncio.run(rescue_data())

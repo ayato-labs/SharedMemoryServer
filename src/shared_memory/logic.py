@@ -7,7 +7,6 @@ import aiosqlite
 from shared_memory import bank, graph, health, lifecycle, management, search
 from shared_memory.database import async_get_connection, init_db, retry_on_db_lock
 from shared_memory.embeddings import compute_embeddings_bulk
-from shared_memory.exceptions import DatabaseError, SharedMemoryError
 from shared_memory.insights import InsightEngine
 from shared_memory.utils import get_logger, log_error
 
@@ -19,22 +18,24 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
     Standardizes bank_files input into a dict[str, str].
     Handles:
     - Already a dict: { "file.md": "content" }
-    - List of dicts with various naming: 
+    - List of dicts with various naming:
         [{"filename": "a.md", "content": "..."}, {"name": "b.md", "text": "..."}]
     - List of simple dicts: [{"a.md": "content"}]
     """
     if not bank_files:
         return {}
-    
+
     result = {}
-    
+
     # 1. Handle Single Dictionary Case
     if isinstance(bank_files, dict):
         # Could be { "file.md": "content" } OR { "filename": "a.md", "content": "..." }
         if "content" in bank_files or "text" in bank_files:
             # It's a single file object passed as a dict
             content = bank_files.get("content") or bank_files.get("text")
-            filename = bank_files.get("filename") or bank_files.get("name") or "derived_knowledge.md"
+            filename = (
+                bank_files.get("filename") or bank_files.get("name") or "derived_knowledge.md"
+            )
             if content:
                 result[str(filename)] = str(content)
             return result
@@ -46,18 +47,18 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
         for i, item in enumerate(bank_files):
             if not isinstance(item, dict):
                 continue
-            
+
             # Pattern A: Standard explicit keys
             # (Checks multiple synonyms for filename and content)
             filename = item.get("filename") or item.get("name") or item.get("title")
             content = item.get("content") or item.get("text") or item.get("body")
-            
+
             if content:
                 if not filename:
                     filename = f"derived_knowledge_{i}.md"
                 result[str(filename)] = str(content)
                 continue
-            
+
             # Pattern B: Item is a single { "filename.md": "content" } entry
             if len(item) == 1:
                 key, val = next(iter(item.items()))
@@ -66,7 +67,7 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
                     continue
 
         return result
-    
+
     return {}
 
 
@@ -96,7 +97,10 @@ async def save_memory_core(
     bank_files = normalize_bank_files(bank_files)
 
     # --- Phase 1: Pre-compute AI results ---
-    logger.debug("Phase 1 (AI) START")
+    logger.info(
+        f"Phase 1 (AI) START: {len(entities)} entities, {len(relations)} relations, "
+        f"{len(observations)} observations, {len(bank_files)} bank files"
+    )
 
     # 1.1 Prepare Embedding Inputs
     entity_texts = []
@@ -116,30 +120,32 @@ async def save_memory_core(
 
     bank_texts = [item["text"] for item in bank_file_items]
     all_embedding_texts = entity_texts + bank_texts
+    logger.info(f"Prepared {len(all_embedding_texts)} embedding inputs")
 
     # 1.2 Prepare Tasks (Embeddings and Conflict Checks)
     tasks = []
     if all_embedding_texts:
+        logger.debug("Adding compute_embeddings_bulk task")
         tasks.append(compute_embeddings_bulk(all_embedding_texts))
     else:
         tasks.append(asyncio.sleep(0, result=[]))  # Dummy task
 
     for obs in observations:
+        logger.debug(f"Adding check_conflict task for entity: {obs.get('entity_name')}")
         tasks.append(
-            graph.check_conflict(
-                obs.get("entity_name", ""), obs.get("content", ""), agent_id
-            )
+            graph.check_conflict(obs.get("entity_name", ""), obs.get("content", ""), agent_id)
         )
 
     # 1.3 Execute Parallel AI Calls
-    logger.debug("Phase 1 (AI) GATHERING")
+    logger.info(f"Phase 1 (AI) GATHERING {len(tasks)} tasks")
     try:
         ai_results = await asyncio.gather(*tasks)
     except Exception as e:
         msg = f"AI Error: Connectivity failed during embedding computation. {e}"
+        logger.error(f"Phase 1 FAILED: {msg}", exc_info=True)
         log_error(msg)
         return msg
-    logger.debug("Phase 1 (AI) COMPLETE")
+    logger.info("Phase 1 (AI) COMPLETE")
 
     all_vectors = ai_results[0]
     raw_conflict_results = ai_results[1:]
@@ -154,15 +160,20 @@ async def save_memory_core(
         precomputed_observations_conflicts.append(
             {"index": i, "is_conflict": is_conflict, "reason": reason}
         )
+    logger.info(
+        f"Distributed {len(all_vectors)} vectors and "
+        f"{len(precomputed_observations_conflicts)} conflict results"
+    )
 
     # --- Phase 2: Rapid DB Write ---
-    logger.debug("Phase 2 (DB) START")
+    logger.info("Phase 2 (DB) START")
     try:
         async with await async_get_connection() as conn:
-            logger.debug("DB Connection ACQUIRED")
+            logger.info("DB Connection ACQUIRED")
             results = []
             try:
                 if entities:
+                    logger.debug(f"Saving {len(entities)} entities")
                     results.append(
                         await graph.save_entities(
                             entities,
@@ -172,8 +183,10 @@ async def save_memory_core(
                         )
                     )
                 if relations:
+                    logger.debug(f"Saving {len(relations)} relations")
                     results.append(await graph.save_relations(relations, agent_id, conn))
                 if observations:
+                    logger.debug(f"Saving {len(observations)} observations")
                     res, conflicts = await graph.save_observations(
                         observations,
                         agent_id,
@@ -182,8 +195,10 @@ async def save_memory_core(
                     )
                     results.append(res)
                     if conflicts:
+                        logger.warning(f"Conflicts detected: {len(conflicts)}")
                         results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
                 if bank_files:
+                    logger.debug(f"Saving {len(bank_files)} bank files")
                     results.append(
                         await bank.save_bank_files(
                             bank_files,
@@ -193,19 +208,25 @@ async def save_memory_core(
                         )
                     )
 
+                logger.info("Committing DB transaction")
                 await conn.commit()
+                logger.info("DB transaction COMMITTED")
             except aiosqlite.Error as e:
+                logger.error(f"DB Transaction Error: {e}", exc_info=True)
                 await conn.rollback()
                 log_error("Database transaction failed in save_memory_core", e)
                 return f"Database Error: Transaction failed. {e}"
             except Exception as e:
+                logger.error(f"Unexpected error during DB phase: {e}", exc_info=True)
                 await conn.rollback()
                 log_error("Unexpected error in save_memory_core", e)
                 return f"Internal Error: {e}"
     except Exception as e:
-        return f"Database Connection Error: Could not acquire connection. {e}"
+        msg = f"Critical Error: Failed to acquire DB connection. {e}"
+        logger.error(msg, exc_info=True)
+        return msg
 
-    logger.info("save_memory_core COMPLETE")
+    logger.info("save_memory_core SUCCESS")
     return " | ".join(results)
 
 
@@ -278,11 +299,14 @@ async def get_value_report_core(format_type: str = "markdown"):
     metrics_data = await InsightEngine.get_summary_metrics()
     return InsightEngine.generate_report_markdown(metrics_data)
 
+
 async def manage_knowledge_activation_core(ids: list[str], status: str):
     return await lifecycle.manage_knowledge_activation_logic(ids, status)
 
+
 async def list_inactive_knowledge_core():
     return await lifecycle.list_inactive_knowledge_logic()
+
 
 async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
     return await lifecycle.run_knowledge_gc_logic(age_days, dry_run)

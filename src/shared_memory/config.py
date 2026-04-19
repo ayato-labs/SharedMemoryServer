@@ -98,13 +98,10 @@ class Settings:
                         .get("SharedMemoryServer", {})
                         .get("env", {})
                     )
-                    api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get(
-                        "GEMINI_API_KEY"
-                    )
+                    api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get("GEMINI_API_KEY")
                     if not api_key:
-                        api_key = (
-                            settings_json.get("GOOGLE_API_KEY")
-                            or settings_json.get("GEMINI_API_KEY")
+                        api_key = settings_json.get("GOOGLE_API_KEY") or settings_json.get(
+                            "GEMINI_API_KEY"
                         )
 
                     if api_key:
@@ -118,10 +115,7 @@ class Settings:
     @property
     def enable_structured_logging(self) -> bool:
         """構造化ログの有効化フラグ。"""
-        return (
-            os.environ.get("ENABLE_STRUCTURED_LOGGING", "false").lower()
-            == "true"
-        )
+        return os.environ.get("ENABLE_STRUCTURED_LOGGING", "false").lower() == "true"
 
 
 # Singleton instance

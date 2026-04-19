@@ -114,7 +114,11 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
         issues.append("High DB fragmentation detected. VACUUM recommended.")
     if disk["percent_free"] < 10:
         overall_status = "warning"
-        issues.append("Low disk space in data storage directory.")
+        free_gb = disk["free"] / (1024**3)
+        issues.append(
+            f"Low disk space on host drive. Remaining: {free_gb:.1f} GB. "
+            "Note: This is a system-level resource issue, not database bloat."
+        )
     if api["status"] != "healthy":
         overall_status = "unhealthy"
         issues.append(f"Gemini API connectivity issue: {api['error']}")

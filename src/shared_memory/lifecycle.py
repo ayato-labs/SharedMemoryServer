@@ -14,10 +14,7 @@ async def manage_knowledge_activation_logic(ids: list[str], status: str):
     Valid statuses: 'active', 'inactive', 'archived'
     """
     if status not in ["active", "inactive", "archived"]:
-        return (
-            f"Error: Invalid status '{status}'. "
-            "Must be active, inactive, or archived."
-        )
+        return f"Error: Invalid status '{status}'. Must be active, inactive, or archived."
 
     async with await async_get_connection() as conn:
         tables = ["entities", "relations", "observations", "bank_files"]
@@ -26,19 +23,15 @@ async def manage_knowledge_activation_logic(ids: list[str], status: str):
         try:
             for table in tables:
                 id_col = (
-                    "name" if table == "entities" else
-                    "filename" if table == "bank_files" else "id"
+                    "name" if table == "entities" else "filename" if table == "bank_files" else "id"
                 )
 
-                if table in ["relations", "observations"] and all(
-                    isinstance(i, str) for i in ids
-                ):
+                if table in ["relations", "observations"] and all(isinstance(i, str) for i in ids):
                     # If IDs are entity names, deactivate all related items
                     if table == "observations":
                         placeholders = ",".join(["?"] * len(ids))
                         cursor = await conn.execute(
-                            f"UPDATE {table} SET status = ? "
-                            f"WHERE entity_name IN ({placeholders})",
+                            f"UPDATE {table} SET status = ? WHERE entity_name IN ({placeholders})",
                             [status] + ids,
                         )
                         changes += cursor.rowcount
@@ -53,18 +46,12 @@ async def manage_knowledge_activation_logic(ids: list[str], status: str):
                         changes += cursor.rowcount
                 else:
                     placeholders = ",".join(["?"] * len(ids))
-                    query = (
-                        f"UPDATE {table} SET status = ? "
-                        f"WHERE {id_col} IN ({placeholders})"
-                    )
+                    query = f"UPDATE {table} SET status = ? WHERE {id_col} IN ({placeholders})"
                     cursor = await conn.execute(query, [status] + ids)
                     changes += cursor.rowcount
 
             await conn.commit()
-            return (
-                f"Success: Updated {changes} items across core tables "
-                f"to status '{status}'."
-            )
+            return f"Success: Updated {changes} items across core tables to status '{status}'."
         except (aiosqlite.OperationalError, aiosqlite.Error, DatabaseError):
             await conn.rollback()
             raise  # Let the retry decorator handle it
@@ -88,22 +75,19 @@ async def list_inactive_knowledge_logic():
 
         # Entities
         cursor = await conn.execute(
-            "SELECT name, entity_type, status FROM entities "
-            "WHERE status != 'active'"
+            "SELECT name, entity_type, status FROM entities WHERE status != 'active'"
         )
         results["entities"] = [dict(row) for row in await cursor.fetchall()]
 
         # Relations
         cursor = await conn.execute(
-            "SELECT subject, predicate, object, status FROM relations "
-            "WHERE status != 'active'"
+            "SELECT subject, predicate, object, status FROM relations WHERE status != 'active'"
         )
         results["relations"] = [dict(row) for row in await cursor.fetchall()]
 
         # Observations
         cursor = await conn.execute(
-            "SELECT id, entity_name, content, status FROM observations "
-            "WHERE status != 'active'"
+            "SELECT id, entity_name, content, status FROM observations WHERE status != 'active'"
         )
         results["observations"] = [dict(row) for row in await cursor.fetchall()]
 

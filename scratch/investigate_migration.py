@@ -1,13 +1,12 @@
-
 import asyncio
-import aiosqlite
 import os
 import sys
+
+import aiosqlite
 
 # Ensure shared_memory can be imported
 sys.path.append(os.getcwd())
 
-from scripts.migrations.manager import MigrationManager
 
 async def investigate():
     db_path = "shared_memory.db"
@@ -16,10 +15,10 @@ async def investigate():
         return
 
     print(f"--- Investigating database: {db_path} ---")
-    
+
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
-        
+
         # 1. Check schema_migrations
         try:
             cursor = await conn.execute("SELECT * FROM schema_migrations")
@@ -33,17 +32,19 @@ async def investigate():
             row = await cursor.fetchone()
             if row:
                 print(f"\nRelations Schema:\n{row['sql']}")
-                if "FOREIGN KEY" in row['sql'].upper():
+                if "FOREIGN KEY" in row["sql"].upper():
                     print("!!! WARNING: FOREIGN KEY still exists in relations table.")
                 else:
                     print("SUCCESS: FOREIGN KEY removed from relations table.")
 
         # 3. Check current schema for observations
-        async with conn.execute("SELECT sql FROM sqlite_master WHERE name='observations'") as cursor:
+        async with conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name='observations'"
+        ) as cursor:
             row = await cursor.fetchone()
             if row:
                 print(f"\nObservations Schema:\n{row['sql']}")
-                if "FOREIGN KEY" in row['sql'].upper():
+                if "FOREIGN KEY" in row["sql"].upper():
                     print("!!! WARNING: FOREIGN KEY still exists in observations table.")
                 else:
                     print("SUCCESS: FOREIGN KEY removed from observations table.")
@@ -58,6 +59,7 @@ async def investigate():
                     print(f"{table}: {count} records")
             except Exception as e:
                 print(f"{table}: Failed to count records ({e})")
+
 
 if __name__ == "__main__":
     asyncio.run(investigate())

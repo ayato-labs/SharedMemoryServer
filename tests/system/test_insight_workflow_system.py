@@ -31,9 +31,7 @@ async def test_complete_knowledge_lifecycle_system():
             "description": "Managed PostgreSQL",
         },
     ]
-    relations = [
-        {"subject": "AuthModule", "object": "Database", "predicate": "writes_to"}
-    ]
+    relations = [{"subject": "AuthModule", "object": "Database", "predicate": "writes_to"}]
     bank_files = {"security_policy.md": "# Security\nAll connections must use TLS."}
 
     save_result = await save_memory_core(

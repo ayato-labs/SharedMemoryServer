@@ -1,6 +1,6 @@
-
 import ast
 import os
+
 
 def find_syntax_errors(root_dir):
     for root, _dirs, files in os.walk(root_dir):
@@ -17,9 +17,10 @@ def find_syntax_errors(root_dir):
                     with open(path, encoding="utf-8") as f:
                         lines = f.readlines()
                         if e.lineno <= len(lines):
-                            print(f"  Line {e.lineno}: {lines[e.lineno-1].strip()}")
+                            print(f"  Line {e.lineno}: {lines[e.lineno - 1].strip()}")
                 except Exception as e:
-                    pass
+                    print(f"ERROR processing {path}: {e}")
+
 
 if __name__ == "__main__":
     find_syntax_errors("src")

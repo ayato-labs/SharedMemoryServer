@@ -1,7 +1,7 @@
-
-import asyncio
 from typing import Any
-from pydantic import RootModel, ValidationError, TypeAdapter
+
+from pydantic import TypeAdapter, ValidationError
+
 
 # Simulate the type hint in FastMCP
 def validate_bank_files(input_value: Any):
@@ -13,13 +13,14 @@ def validate_bank_files(input_value: Any):
     except ValidationError as e:
         print(f"Validation error: {e}")
 
+
 # The failing case reported by the user
-failing_input = [{'content': '# Project: ...l_figures_overview.md'}]
+failing_input = [{"content": "# Project: ...l_figures_overview.md"}]
 print(f"Testing list input: {failing_input}")
 validate_bank_files(failing_input)
 
 # Another list case with explicit filename
-list_with_filename = [{'filename': 'overview.md', 'content': '# Project: ...'}]
+list_with_filename = [{"filename": "overview.md", "content": "# Project: ..."}]
 print(f"\nTesting list with filename: {list_with_filename}")
 validate_bank_files(list_with_filename)
 

@@ -12,19 +12,13 @@ def verify():
         with open(path, encoding="utf-8") as f:
             settings = json.load(f)
             # Targeting exactly what you pointed out
-            env_config = (
-                settings.get("mcpServers", {})
-                .get("SharedMemoryServer", {})
-                .get("env", {})
-            )
+            env_config = settings.get("mcpServers", {}).get("SharedMemoryServer", {}).get("env", {})
             api_key = env_config.get("GOOGLE_API_KEY")
             if api_key:
                 masked_key = f"{api_key[:4]}...{api_key[-4:]}"
                 print(f"Using Key from settings.json: {masked_key}")
             else:
-                print(
-                    "No key found at mcpServers.SharedMemoryServer.env.GOOGLE_API_KEY"
-                )
+                print("No key found at mcpServers.SharedMemoryServer.env.GOOGLE_API_KEY")
                 return
     except Exception as e:
         print(f"Error reading settings.json: {e}")

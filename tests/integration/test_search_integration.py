@@ -69,9 +69,7 @@ async def test_multi_access_reuse_multiplier():
     fake_client = FakeGeminiClient()
     with patch("shared_memory.embeddings.get_gemini_client", return_value=fake_client):
         await save_memory_core(
-            entities=[
-                {"name": "ToolA", "entity_type": "tool", "description": "Useful tool"}
-            ]
+            entities=[{"name": "ToolA", "entity_type": "tool", "description": "Useful tool"}]
         )
 
         # Access ToolA twice via search.

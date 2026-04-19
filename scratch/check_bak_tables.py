@@ -1,5 +1,5 @@
-
 import sqlite3
+
 
 def check_db(path):
     print(f"Checking {path}")
@@ -12,6 +12,7 @@ def check_db(path):
         conn.close()
     except Exception as e:
         print(f"Error checking {path}: {e}")
+
 
 if __name__ == "__main__":
     check_db("shared_memory.db")

@@ -53,9 +53,7 @@ async def save_memory(
         1. Dictionary: { "filename.md": "content" }
         2. List of objects: [ { "filename": "filename.md", "content": "content" } ]
     """
-    return await logic.save_memory_core(
-        entities, relations, observations, bank_files, agent_id
-    )
+    return await logic.save_memory_core(entities, relations, observations, bank_files, agent_id)
 
 
 @mcp.tool()

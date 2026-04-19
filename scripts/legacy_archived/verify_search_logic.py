@@ -37,9 +37,7 @@ def setup_mock_db():
         ("FastMCP", "A framework for building MCP servers quickly in Python."),
         ("SQLite", "A lightweight, file-based database engine used for storage."),
     ]
-    cursor.executemany(
-        "INSERT INTO entities (name, description) VALUES (?, ?)", entities
-    )
+    cursor.executemany("INSERT INTO entities (name, description) VALUES (?, ?)", entities)
 
     observations = [
         ("SharedMemoryServer", "Integrated SQLite for persistent storage of graphs."),
@@ -53,23 +51,18 @@ def setup_mock_db():
     bank_files = [
         (
             "server.py",
-            "mcp = FastMCP('SharedMemoryServer'). "
-            "Logic handles save_memory and read_memory.",
+            "mcp = FastMCP('SharedMemoryServer'). Logic handles save_memory and read_memory.",
         ),
         ("database.py", "sqlite3 connection logic with retry_on_db_lock decorator."),
     ]
-    cursor.executemany(
-        "INSERT INTO bank_files (filename, content) VALUES (?, ?)", bank_files
-    )
+    cursor.executemany("INSERT INTO bank_files (filename, content) VALUES (?, ?)", bank_files)
 
     conn.commit()
     return conn
 
 
 # 2. Improved Keyword Search Logic
-def keyword_search(
-    conn: sqlite3.Connection, query: str
-) -> list[tuple[str, str, float]]:
+def keyword_search(conn: sqlite3.Connection, query: str) -> list[tuple[str, str, float]]:
     """
     一致度（スコア）を計算するキーワード検索。
     - 完全一致: 10.0

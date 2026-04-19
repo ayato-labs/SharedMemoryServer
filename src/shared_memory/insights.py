@@ -128,9 +128,7 @@ class InsightEngine:
             # 4. 推論ログの観測 (Reasoning Observation)
             cursor = await conn_t.execute("SELECT COUNT(*) FROM thought_history")
             t_count = (await cursor.fetchone())[0]
-            cursor = await conn_t.execute(
-                "SELECT COUNT(DISTINCT session_id) FROM thought_history"
-            )
+            cursor = await conn_t.execute("SELECT COUNT(DISTINCT session_id) FROM thought_history")
             s_count = (await cursor.fetchone())[0] or 1
             avg_steps = round(t_count / s_count, 1)
 

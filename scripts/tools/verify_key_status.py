@@ -23,11 +23,7 @@ def verify():
             settings = json.load(f)
 
             # Target path check
-            env_config = (
-                settings.get("mcpServers", {})
-                .get("SharedMemoryServer", {})
-                .get("env", {})
-            )
+            env_config = settings.get("mcpServers", {}).get("SharedMemoryServer", {}).get("env", {})
             api_key = env_config.get("GOOGLE_API_KEY")
             source = "mcpServers.SharedMemoryServer.env.GOOGLE_API_KEY"
 

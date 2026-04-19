@@ -24,18 +24,14 @@ async def test_huge_data_limit(mock_gemini):
     Verifies that SQLite handles large blobs and the system doesn't crash.
     """
     large_desc = "X" * (1024 * 1024)  # 1MB
-    entities = [
-        {"name": "HugeEntity", "entity_type": "Data", "description": large_desc}
-    ]
+    entities = [{"name": "HugeEntity", "entity_type": "Data", "description": large_desc}]
 
     res = await save_memory_core(entities=entities)
     assert "Saved 1 entities" in res
 
     # Read it back
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT description FROM entities WHERE name = 'HugeEntity'"
-        )
+        cursor = await conn.execute("SELECT description FROM entities WHERE name = 'HugeEntity'")
         row = await cursor.fetchone()
         assert len(row[0]) == len(large_desc)
 

@@ -35,9 +35,7 @@ def run_diagnostics():
             try:
                 # Use a standard relative connection
                 conn = sqlite3.connect(path)
-                cursor = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [r[0] for r in cursor.fetchall()]
                 print(f"  Tables: {', '.join(tables) if tables else 'NONE'}")
 

@@ -6,9 +6,7 @@ from shared_memory.embeddings import get_gemini_client
 from shared_memory.utils import log_error, log_info
 
 
-async def auto_distill_knowledge(
-    session_id: str, thought_history: list[dict[str, Any]]
-):
+async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str, Any]]):
     """
     Analyzes thought history using Gemini to extract structured knowledge.
     """
@@ -73,8 +71,7 @@ async def auto_distill_knowledge(
             available_models = [m.name for m in await client.aio.models.list()]
         except Exception as e:
             log_error(
-                f"Failed to list models for session {session_id} "
-                "(possibly invalid API key)",
+                f"Failed to list models for session {session_id} (possibly invalid API key)",
                 e,
             )
             return
@@ -86,11 +83,7 @@ async def auto_distill_knowledge(
             model_name = target_model
         elif model_name not in available_models:
             # Fallback search
-            fallback = [
-                m
-                for m in available_models
-                if "flash" in m.lower() and "lite" in m.lower()
-            ]
+            fallback = [m for m in available_models if "flash" in m.lower() and "lite" in m.lower()]
             model_name = fallback[0] if fallback else "models/gemini-2.0-flash"
 
         # ASYNC TRANSITION: Use client.aio for non-blocking generation

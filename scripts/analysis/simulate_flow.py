@@ -25,7 +25,7 @@ async def simulate_behavior():
         thought_number=1,
         total_thoughts=2,
         next_thought_needed=True,
-        session_id=session_id
+        session_id=session_id,
     )
 
     # Phase 2: Saving Knowledge (Discovery)
@@ -36,12 +36,10 @@ async def simulate_behavior():
             {
                 "name": "JPY Volatility Spike",
                 "entity_type": "Observation",
-                "description": (
-                    "Detecting 2% move within 5 minutes in USD/JPY."
-                ),
+                "description": ("Detecting 2% move within 5 minutes in USD/JPY."),
             }
         ],
-        agent_id="analysis_agent"
+        agent_id="analysis_agent",
     )
 
     # Phase 3: Retrieval (Verification)
@@ -50,6 +48,7 @@ async def simulate_behavior():
     _ = await read_memory_core(query="Tell me about JPY volatility spikes")
 
     print("\nSimulation Complete. Analyzing traces...")
+
 
 if __name__ == "__main__":
     asyncio.run(simulate_behavior())

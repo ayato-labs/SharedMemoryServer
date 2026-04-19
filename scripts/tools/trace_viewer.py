@@ -23,9 +23,7 @@ async def view_trace():
     if os.path.exists(db_knowledge):
         async with aiosqlite.connect(db_knowledge) as conn:
             conn.row_factory = aiosqlite.Row
-            cursor = await conn.execute(
-                "SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 20"
-            )
+            cursor = await conn.execute("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 20")
             rows = await cursor.fetchall()
             for r in rows:
                 d = dict(r)
@@ -57,11 +55,7 @@ async def view_trace():
         if source == "THOUGHT":
             sid = item["session_id"]
             num = item["thought_number"]
-            txt = (
-                item["thought"][:50] + "..."
-                if len(item["thought"]) > 50
-                else item["thought"]
-            )
+            txt = item["thought"][:50] + "..." if len(item["thought"]) > 50 else item["thought"]
             meta = item.get("meta_data")
             print(f"[{ts}] [THOUGHT] Session:{sid} #{num} | {txt}")
             if meta:
@@ -76,6 +70,7 @@ async def view_trace():
                 print(f"    -> Meta: {meta}")
 
     print("=" * 60)
+
 
 if __name__ == "__main__":
     asyncio.run(view_trace())

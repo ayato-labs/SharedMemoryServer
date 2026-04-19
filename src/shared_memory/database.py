@@ -33,12 +33,11 @@ def retry_on_db_lock(max_retries=15, initial_delay=0.1):
                         retries += 1
                         if retries == max_retries:
                             raise DatabaseLockedError(
-                                f"Database remained locked after {max_retries} "
-                                "attempts."
+                                f"Database remained locked after {max_retries} attempts."
                             ) from e
-                        delay = min(
-                            initial_delay * (2 ** (retries - 1)), 1.0
-                        ) + random.uniform(0, 0.1)
+                        delay = min(initial_delay * (2 ** (retries - 1)), 1.0) + random.uniform(
+                            0, 0.1
+                        )
                         await asyncio.sleep(delay)
                     else:
                         raise e
@@ -66,31 +65,24 @@ class AsyncSQLiteConnection:
             async with _INIT_LOCK:
                 if self.is_thoughts:
                     if _THOUGHTS_CONNECTION is None:
-                        _THOUGHTS_CONNECTION = await aiosqlite.connect(
-                            self.db_path, timeout=30.0
-                        )
+                        _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
                         _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
                         await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                        await _THOUGHTS_CONNECTION.execute(
-                            "PRAGMA synchronous = NORMAL"
-                        )
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
                     self.conn = _THOUGHTS_CONNECTION
                 else:
                     if _MAIN_CONNECTION is None:
-                        _MAIN_CONNECTION = await aiosqlite.connect(
-                            self.db_path, timeout=30.0
-                        )
+                        _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
                         _MAIN_CONNECTION.row_factory = aiosqlite.Row
                         await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
                         await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                        await _MAIN_CONNECTION.execute(
-                            "PRAGMA synchronous = NORMAL"
-                        )
+                        await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
                     self.conn = _MAIN_CONNECTION
 
             return self.conn
         except Exception as e:
             from shared_memory.exceptions import DatabaseError
+
             log_error(f"Failed to connect to database at {self.db_path}", e)
             raise DatabaseError(f"Database connection failed: {e}") from e
 
@@ -102,6 +94,7 @@ class AsyncSQLiteConnection:
     def __await__(self):
         async def _internal():
             return self
+
         return _internal().__await__()
 
 
@@ -164,9 +157,7 @@ async def _add_column_if_missing(cursor, table, col_def):
     try:
         await cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
     except aiosqlite.OperationalError as e:
-        log_error(
-            f"CRITICAL: Migration failed for table '{table}' adding '{col_def}'", e
-        )
+        log_error(f"CRITICAL: Migration failed for table '{table}' adding '{col_def}'", e)
         raise
 
 
@@ -337,6 +328,7 @@ async def init_db(force: bool = False):
 
         # --- RUN MIGRATIONS ---
         from shared_memory.migrations.manager import MigrationManager
+
         migrator = MigrationManager(get_db_path())
         await migrator.run_migrations(conn)
 

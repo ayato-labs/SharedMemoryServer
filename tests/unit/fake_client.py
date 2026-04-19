@@ -38,9 +38,7 @@ class FakeModels:
 
         if isinstance(contents, str):
             return FakeGeminiResponse(embeddings=[FakeEmbedding(_get_val(contents))])
-        return FakeGeminiResponse(
-            embeddings=[FakeEmbedding(_get_val(c)) for c in contents]
-        )
+        return FakeGeminiResponse(embeddings=[FakeEmbedding(_get_val(c)) for c in contents])
 
     def generate_content(self, model, contents, config=None):
         if "generate_content" in self._errors:

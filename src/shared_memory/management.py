@@ -56,8 +56,7 @@ async def get_audit_history_logic(limit: int = 20, table_name: str | None = None
     async with await async_get_connection() as conn:
         if table_name:
             cursor = await conn.execute(
-                "SELECT * FROM audit_logs WHERE table_name = ? "
-                "ORDER BY timestamp DESC LIMIT ?",
+                "SELECT * FROM audit_logs WHERE table_name = ? ORDER BY timestamp DESC LIMIT ?",
                 (table_name, limit),
             )
         else:
@@ -125,9 +124,7 @@ async def get_memory_health_logic():
                 await (await conn.execute("SELECT COUNT(*) FROM relations")).fetchone()
             )[0]
             health["observations_count"] = (
-                await (
-                    await conn.execute("SELECT COUNT(*) FROM observations")
-                ).fetchone()
+                await (await conn.execute("SELECT COUNT(*) FROM observations")).fetchone()
             )[0]
             health["bank_files_cached"] = (
                 await (await conn.execute("SELECT COUNT(*) FROM bank_files")).fetchone()
@@ -158,9 +155,7 @@ async def get_memory_health_logic():
 
             # Check for missing embeddings
             health["missing_embeddings"] = (
-                health["entities_count"]
-                + health["bank_files_cached"]
-                - health["embeddings_count"]
+                health["entities_count"] + health["bank_files_cached"] - health["embeddings_count"]
             )
 
             health["semantic_search_active"] = get_gemini_client() is not None
@@ -196,9 +191,7 @@ async def get_memory_health_logic():
                 "SELECT created_by, COUNT(*) FROM entities GROUP BY created_by"
             )
             agent_stats = await cursor.fetchall()
-            health["agent_contribution"] = {
-                a[0] if a[0] else "legacy": a[1] for a in agent_stats
-            }
+            health["agent_contribution"] = {a[0] if a[0] else "legacy": a[1] for a in agent_stats}
 
         except Exception as e:
             log_error("Health diagnostics failed", e)

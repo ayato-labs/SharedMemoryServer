@@ -1,8 +1,9 @@
-
 import aiosqlite
+
 from shared_memory.utils import get_logger
 
 logger = get_logger("migration_v001")
+
 
 async def migrate(conn: aiosqlite.Connection):
     """
@@ -17,7 +18,7 @@ async def migrate(conn: aiosqlite.Connection):
     try:
         # --- RELATIONS TABLE RECONSTRUCTION ---
         logger.info("Reconstructing 'relations' table...")
-        
+
         # Create new table without FKs
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS relations_new (
@@ -31,17 +32,17 @@ async def migrate(conn: aiosqlite.Connection):
                 PRIMARY KEY (subject, object, predicate)
             )
         """)
-        
+
         # Copy data
         await conn.execute("INSERT OR IGNORE INTO relations_new SELECT * FROM relations")
-        
+
         # Drop old, rename new
         await conn.execute("DROP TABLE IF EXISTS relations")
         await conn.execute("ALTER TABLE relations_new RENAME TO relations")
 
         # --- OBSERVATIONS TABLE RECONSTRUCTION ---
         logger.info("Reconstructing 'observations' table...")
-        
+
         # Create new table without FKs
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS observations_new (
@@ -53,11 +54,13 @@ async def migrate(conn: aiosqlite.Connection):
                 status TEXT DEFAULT 'active'
             )
         """)
-        
+
         # Copy data (respecting the sequence)
-        await conn.execute("INSERT OR IGNORE INTO observations_new (id, entity_name, content, timestamp, created_by, status) "
-                           "SELECT id, entity_name, content, timestamp, created_by, status FROM observations")
-        
+        await conn.execute(
+            "INSERT OR IGNORE INTO observations_new (id, entity_name, content, timestamp, created_by, status) "
+            "SELECT id, entity_name, content, timestamp, created_by, status FROM observations"
+        )
+
         # Drop old, rename new
         await conn.execute("DROP TABLE IF EXISTS observations")
         await conn.execute("ALTER TABLE observations_new RENAME TO observations")

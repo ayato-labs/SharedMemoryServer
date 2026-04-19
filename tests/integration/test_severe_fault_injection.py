@@ -18,9 +18,7 @@ async def test_high_concurrency_db_lock_stress():
 
     async def write_op(i):
         # Multiple entities to keep the transaction open a bit longer
-        entities = [
-            {"name": f"Concurrent{i}_{j}", "description": "Stress"} for j in range(5)
-        ]
+        entities = [{"name": f"Concurrent{i}_{j}", "description": "Stress"} for j in range(5)]
         return await save_memory_core(entities=entities)
 
     # Launch 15 tasks simultaneously
@@ -50,9 +48,7 @@ async def test_huge_data_payload_resilience():
     assert "Saved" in res
 
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT description FROM entities WHERE name='HugeEntity'"
-        )
+        cursor = await conn.execute("SELECT description FROM entities WHERE name='HugeEntity'")
         saved_desc = (await cursor.fetchone())[0]
         assert len(saved_desc) == len(huge_string)
 
@@ -89,18 +85,15 @@ async def test_corrupted_settings_json_resilience():
 
     # We need to un-mock get_gemini_client for this test or use the real function
     # AND Ensure OS env is empty so it tries to read the file
-    with patch.dict(
-        os.environ, {"GOOGLE_API_KEY": "", "GEMINI_API_KEY": ""}, clear=False
-    ):
+    with patch.dict(os.environ, {"GOOGLE_API_KEY": "", "GEMINI_API_KEY": ""}, clear=False):
         # Temporarily clear these to ensure the file path is tried
         os.environ.pop("GOOGLE_API_KEY", None)
         os.environ.pop("GEMINI_API_KEY", None)
 
         with patch("shared_memory.embeddings.os.path.exists", return_value=True):
-            with patch(
-                "builtins.open", MagicMock(side_effect=Exception("Corrupted JSON!"))
-            ):
+            with patch("builtins.open", MagicMock(side_effect=Exception("Corrupted JSON!"))):
                 from shared_memory.config import settings
-                settings._api_key = None # Force reset cached key for this test
+
+                settings._api_key = None  # Force reset cached key for this test
                 client = embeddings.get_gemini_client()
                 assert client is None

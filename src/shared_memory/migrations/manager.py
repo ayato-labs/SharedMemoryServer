@@ -1,21 +1,22 @@
-
 import asyncio
 import importlib.util
 import os
 import shutil
 from datetime import datetime
-from typing import List
 
 import aiosqlite
+
 from shared_memory.utils import get_db_path, get_logger
 
 logger = get_logger("migration")
+
 
 class MigrationManager:
     """
     Manages database schema migrations for SharedMemoryServer.
     Tracks applied versions in the 'schema_migrations' table.
     """
+
     def __init__(self, db_path: str = None):
         self.db_path = db_path or get_db_path()
         # Path resolution now local to the package
@@ -50,14 +51,16 @@ class MigrationManager:
                     # Expecting format: v001_name.py
                     v_str = filename.split("_")[0][1:]
                     version = int(v_str)
-                    scripts.append({
-                        "version": version,
-                        "path": os.path.join(self.migrations_dir, filename),
-                        "name": filename
-                    })
+                    scripts.append(
+                        {
+                            "version": version,
+                            "path": os.path.join(self.migrations_dir, filename),
+                            "name": filename,
+                        }
+                    )
                 except (ValueError, IndexError):
                     logger.warning(f"Skipping invalid migration filename: {filename}")
-        
+
         return sorted(scripts, key=lambda x: x["version"])
 
     async def run_migrations(self, conn: aiosqlite.Connection):
@@ -90,7 +93,9 @@ class MigrationManager:
 
             try:
                 # Load module dynamically
-                spec = importlib.util.spec_from_file_location(f"migration_v{version}", script["path"])
+                spec = importlib.util.spec_from_file_location(
+                    f"migration_v{version}", script["path"]
+                )
                 module = importlib.util.module_from_spec(spec)
                 if spec.loader:
                     spec.loader.exec_module(module)
@@ -100,7 +105,7 @@ class MigrationManager:
                     await module.migrate(conn)
                     await conn.execute(
                         "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
-                        (version, name)
+                        (version, name),
                     )
                     await conn.commit()
                     logger.info(f"Successfully applied v{version}")
@@ -113,12 +118,15 @@ class MigrationManager:
 
         logger.info("All pending migrations applied successfully.")
 
+
 async def run_standalone():
     """CLI entry point for manual migration run."""
     from shared_memory.database import async_get_connection
+
     mgr = MigrationManager()
     async with await async_get_connection() as conn:
         await mgr.run_migrations(conn)
+
 
 if __name__ == "__main__":
     asyncio.run(run_standalone())

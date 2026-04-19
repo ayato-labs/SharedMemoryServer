@@ -54,9 +54,7 @@ async def test_search_empty_query_unit():
 @pytest.mark.asyncio
 async def test_search_special_characters_unit():
     """Severe test: search for special Regex-like characters."""
-    await save_memory_core(
-        entities=[{"name": "Special_Chars_*?+", "description": "Regex test"}]
-    )
+    await save_memory_core(entities=[{"name": "Special_Chars_*?+", "description": "Regex test"}])
 
     # Should not crash and should find the entity using literal search if possible,
     # or handle gracefully if using regex.

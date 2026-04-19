@@ -23,9 +23,7 @@ async def test_sequential_knowledge_injection_integration():
     # 1. Save data via core logic
     await save_memory_core(
         entities=[{"name": "ProjectX", "description": "A secret project about AI"}],
-        observations=[
-            {"entity_name": "ProjectX", "content": "Uses shared memory for context"}
-        ],
+        observations=[{"entity_name": "ProjectX", "content": "Uses shared memory for context"}],
     )
 
     # 2. Trigger sequential thinking with a query that should match
@@ -46,12 +44,7 @@ async def test_sequential_knowledge_injection_integration():
         if "ProjectX" in item.get("id", ""):
             # Check for content field (the fix we made earlier)
             assert "content" in item
-            assert (
-                "secret project" in item["content"]
-                or "shared memory" in item["content"]
-            )
+            assert "secret project" in item["content"] or "shared memory" in item["content"]
             found_content = True
 
-    assert found_content, (
-        "Knowledge content was not injected into sequential thinking result"
-    )
+    assert found_content, "Knowledge content was not injected into sequential thinking result"

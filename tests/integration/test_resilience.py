@@ -23,18 +23,14 @@ async def test_save_memory_atomicity(mock_gemini):
     bank_files = {"crash.md": "Trigger a crash"}
 
     # 1. Mock save_bank_files to raise an exception
-    with patch(
-        "shared_memory.bank.save_bank_files", side_effect=Exception("Disk Full")
-    ):
+    with patch("shared_memory.bank.save_bank_files", side_effect=Exception("Disk Full")):
         with pytest.raises(SharedMemoryError) as excinfo:
             await save_memory_core(entities=entities, bank_files=bank_files)
         assert "Disk Full" in str(excinfo.value)
 
     # 2. Verify that 'ShouldNotBeSaved' is NOT in the database
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT * FROM entities WHERE name = 'ShouldNotBeSaved'"
-        )
+        cursor = await conn.execute("SELECT * FROM entities WHERE name = 'ShouldNotBeSaved'")
         row = await cursor.fetchone()
         assert row is None
 
@@ -45,22 +41,16 @@ async def test_llm_json_malformed_resilience(mock_gemini):
     Verify that if the LLM returns non-JSON garbage, the system doesn't crash
     and handles it gracefully in conflict detection.
     """
-    mock_gemini.models.generate_content.return_value = MagicMock(
-        text="This is not JSON!"
-    )
+    mock_gemini.models.generate_content.return_value = MagicMock(text="This is not JSON!")
 
     entities = [{"name": "RobustEntity", "description": "Testing parser"}]
-    observations = [
-        {"entity_name": "RobustEntity", "content": "This might trigger conflict logic"}
-    ]
+    observations = [{"entity_name": "RobustEntity", "content": "This might trigger conflict logic"}]
 
     res = await save_memory_core(entities=entities, observations=observations)
     assert "Saved" in res
 
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT * FROM observations WHERE entity_name = 'RobustEntity'"
-        )
+        cursor = await conn.execute("SELECT * FROM observations WHERE entity_name = 'RobustEntity'")
         row = await cursor.fetchone()
         assert row is not None
 
@@ -128,8 +118,6 @@ async def test_api_failure_resilience(mock_gemini):
 
     # Verify data is in DB despite API failure
     async with await async_get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT * FROM entities WHERE name = 'ResilientEntity'"
-        )
+        cursor = await conn.execute("SELECT * FROM entities WHERE name = 'ResilientEntity'")
         row = await cursor.fetchone()
         assert row is not None

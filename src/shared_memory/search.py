@@ -23,9 +23,7 @@ from shared_memory.utils import (
 logger = get_logger("search")
 
 
-async def perform_keyword_search(
-    query: str, limit: int = 5, exclude_session_id: str = None
-):
+async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id: str = None):
     """
     Improved Keyword Search Logic:
     - Exact matches in ID/Name: 10.0
@@ -47,7 +45,9 @@ async def perform_keyword_search(
         ]
 
         for table, id_col, content_col in data_sources:
-            cursor = await conn.execute(f"SELECT {id_col}, {content_col} FROM {table} WHERE status = 'active'")
+            cursor = await conn.execute(
+                f"SELECT {id_col}, {content_col} FROM {table} WHERE status = 'active'"
+            )
             for row_id, content in await cursor.fetchall():
                 content_lower = str(content).lower()
                 row_id_lower = str(row_id).lower()
@@ -87,9 +87,7 @@ async def perform_keyword_search(
                     scored_results[key] = (current_score + score, str(thought))
 
         # Sort and format
-        sorted_items = sorted(
-            scored_results.items(), key=lambda x: x[1][0], reverse=True
-        )
+        sorted_items = sorted(scored_results.items(), key=lambda x: x[1][0], reverse=True)
 
         formatted_results = []
         for (source, row_id), (score, content) in sorted_items[:limit]:
@@ -118,9 +116,7 @@ async def perform_search(query: str, limit: int = 10):
     async with await async_get_connection() as conn:
         logger.debug(f"DB Connection ACQUIRED query={query}")
         try:
-            logger.debug(
-                f"compute_embedding START text={query[:20]}... reuse_conn=True"
-            )
+            logger.debug(f"compute_embedding START text={query[:20]}... reuse_conn=True")
             query_vector = await compute_embedding(query, conn=conn)
             if not query_vector:
                 # Fallback to simple keyword search
@@ -129,7 +125,7 @@ async def perform_search(query: str, limit: int = 10):
 
             # 1. Fetch Candidates (Entities & Bank Files) - Filter by Active status
             cursor = await conn.execute("""
-                SELECT e.content_id, e.vector 
+                SELECT e.content_id, e.vector
                 FROM embeddings e
                 LEFT JOIN entities ent ON e.content_id = ent.name
                 LEFT JOIN bank_files bf ON e.content_id = bf.filename
@@ -158,9 +154,7 @@ async def perform_search(query: str, limit: int = 10):
             results = []
             for i, cid in enumerate(all_cids):
                 sim = float(similarities[i])
-                count, last = meta_map.get(
-                    cid, (0, datetime.datetime.now().isoformat())
-                )
+                count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
                 importance = calculate_importance(count, last)
 
                 # Hybrid Score: 70% semantic, 30% importance/recency
@@ -182,9 +176,7 @@ async def perform_search(query: str, limit: int = 10):
             hit_count = len(graph_data["entities"]) + len(bank_data)
             avg_sim = sum(r[1] for r in top_results) / max(1, hit_count)
             hit_ids = top_cids
-            await log_search_stat(
-                query, hit_count, hit_ids=hit_ids, avg_sim=avg_sim, conn=conn
-            )
+            await log_search_stat(query, hit_count, hit_ids=hit_ids, avg_sim=avg_sim, conn=conn)
 
             logger.info(f"perform_search COMPLETE query={query}")
             return graph_data, bank_data
@@ -198,9 +190,7 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     if not cids:
         return {"entities": [], "relations": [], "observations": []}
     placeholders = ",".join(["?"] * len(cids))
-    cursor = await conn.execute(
-        f"SELECT * FROM entities WHERE name IN ({placeholders})", cids
-    )
+    cursor = await conn.execute(f"SELECT * FROM entities WHERE name IN ({placeholders})", cids)
     entities = await cursor.fetchall()
     cursor = await conn.execute(
         f"SELECT * FROM observations WHERE entity_name IN ({placeholders})", cids
@@ -241,8 +231,7 @@ async def get_graph_data_by_cids(cids: list[str], conn):
             for r in relations
         ],
         "observations": [
-            {"entity": o["entity_name"], "content": o["content"], "at": o["timestamp"]}
-            for o in obs
+            {"entity": o["entity_name"], "content": o["content"], "at": o["timestamp"]} for o in obs
         ],
     }
 
@@ -273,9 +262,7 @@ async def synthesize_knowledge(entity_name: str):
     async with await async_get_connection() as conn:
         try:
             # Collect Entity, Relations, Observations
-            cursor = await conn.execute(
-                "SELECT * FROM entities WHERE name = ?", (entity_name,)
-            )
+            cursor = await conn.execute("SELECT * FROM entities WHERE name = ?", (entity_name,))
             entity = await cursor.fetchone()
             if not entity:
                 return f"Error: Entity '{entity_name}' not found."
@@ -295,9 +282,7 @@ async def synthesize_knowledge(entity_name: str):
                 "You are a Knowledge Synthesis Engine. "
                 f"Summarize everything known about '{entity_name}'.\n\n"
                 f"ENTITIY INFO: {entity[1]} - {entity[2]}\n\n"
-                f"OBSERVATIONS:\n"
-                + "\n".join([f"- ({o[1]}) {o[0]}" for o in obs])
-                + "\n\n"
+                f"OBSERVATIONS:\n" + "\n".join([f"- ({o[1]}) {o[0]}" for o in obs]) + "\n\n"
                 "RELATIONS:\n"
                 + "\n".join([f"- {r[0]} --({r[2]})--> {r[1]}" for r in rels])
                 + "\n\n"

@@ -1,11 +1,11 @@
-
 import asyncio
+
 import aiosqlite
-import os
+
 
 async def deep_compare(db1, db2):
     print(f"Comparing {db1} (Current) and {db2} (Backup)\n")
-    
+
     async with aiosqlite.connect(db1) as conn1, aiosqlite.connect(db2) as conn2:
         conn1.row_factory = aiosqlite.Row
         conn2.row_factory = aiosqlite.Row
@@ -14,17 +14,17 @@ async def deep_compare(db1, db2):
 
         for table in tables:
             print(f"--- Table: {table} ---")
-            
+
             # 1. Compare Counts
             async with conn1.execute(f"SELECT COUNT(*) FROM {table}") as c1:
                 count1 = (await c1.fetchone())[0]
             async with conn2.execute(f"SELECT COUNT(*) FROM {table}") as c2:
                 count2 = (await c2.fetchone())[0]
-            
+
             print(f"Counts: Current={count1}, Backup={count2}")
             if count1 != count2:
                 print(f"!!! ALERT: Count mismatch in {table}")
-            
+
             # 2. Compare Content (Sample or Hash-like check)
             # We'll fetch all data and compare rows
             async with conn1.execute(f"SELECT * FROM {table} ORDER BY 1") as c1:
@@ -33,7 +33,7 @@ async def deep_compare(db1, db2):
                 rows2 = [dict(r) for r in await c2.fetchall()]
 
             if rows1 == rows2:
-                print(f"Content: Perfectly identical.")
+                print("Content: Perfectly identical.")
             else:
                 print(f"!!! ALERT: Content differs in {table}")
                 # Show first difference if any
@@ -51,9 +51,10 @@ async def deep_compare(db1, db2):
             sql1 = (await c1.fetchone())[0]
         async with conn2.execute("SELECT sql FROM sqlite_master WHERE name='relations'") as c2:
             sql2 = (await c2.fetchone())[0]
-        
+
         print(f"Current Relations FK: {'Yes' if 'FOREIGN KEY' in sql1.upper() else 'No'}")
         print(f"Backup Relations FK: {'Yes' if 'FOREIGN KEY' in sql2.upper() else 'No'}")
+
 
 if __name__ == "__main__":
     db_current = "shared_memory.db"

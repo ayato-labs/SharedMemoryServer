@@ -13,9 +13,7 @@ async def test_save_memory_integration_flow(mock_gemini):
     """
     # 1. Execute full save flow
     entities = [{"name": "Integration Entity", "description": "Combined test"}]
-    observations = [
-        {"entity_name": "Integration Entity", "content": "Flow verification"}
-    ]
+    observations = [{"entity_name": "Integration Entity", "content": "Flow verification"}]
 
     result = await save_memory_core(
         entities=entities, observations=observations, agent_id="test_agent"

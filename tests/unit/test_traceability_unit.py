@@ -23,8 +23,7 @@ async def test_check_conflict_detected_unit(mock_gemini_globally):
             "INSERT INTO entities (name, entity_type) VALUES (?, ?)", ("Apple", "Fruit")
         )
         await conn.execute(
-            "INSERT INTO observations (entity_name, content, created_by) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
             ("Apple", "Apples are sweet.", "user1"),
         )
         await conn.commit()
@@ -36,9 +35,7 @@ async def test_check_conflict_detected_unit(mock_gemini_globally):
     )
 
     # 3. Test
-    is_conflict, reason = await check_conflict(
-        "Apple", "Apples are salty.", "user2"
-    )
+    is_conflict, reason = await check_conflict("Apple", "Apples are salty.", "user2")
 
     assert is_conflict is True
     assert "not salty" in reason

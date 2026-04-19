@@ -18,6 +18,7 @@ async def check_conflict(entity_name: str, new_content: str, agent_id: str, conn
     try:
         client = get_gemini_client()
         if not client:
+            log_error("Conflict check aborted: Gemini client not initialized (check API key)")
             return False, None
 
         if conn is None:
@@ -26,21 +27,16 @@ async def check_conflict(entity_name: str, new_content: str, agent_id: str, conn
                     entity_name, new_content, agent_id, managed_conn, client
                 )
         else:
-            return await _check_conflict_internal(
-                entity_name, new_content, agent_id, conn, client
-            )
+            return await _check_conflict_internal(entity_name, new_content, agent_id, conn, client)
     except Exception as e:
         log_error("Conflict check failed", e)
         return False, None
 
 
-async def _check_conflict_internal(
-    entity_name: str, new_content: str, agent_id: str, conn, client
-):
+async def _check_conflict_internal(entity_name: str, new_content: str, agent_id: str, conn, client):
     # Fetch up to 3 most recent observations for context
     cursor = await conn.execute(
-        "SELECT content FROM observations WHERE entity_name = ? "
-        "ORDER BY timestamp DESC LIMIT 3",
+        "SELECT content FROM observations WHERE entity_name = ? ORDER BY timestamp DESC LIMIT 3",
         (entity_name,),
     )
     existing = await cursor.fetchall()
@@ -107,7 +103,10 @@ async def save_entities(
             importance = max(1, min(10, int(importance)))
         except (ValueError, TypeError):
             from shared_memory.utils import get_logger
-            get_logger("graph").debug(f"Invalid importance value for {name}: {importance}. Defaulting to 5.")
+
+            get_logger("graph").debug(
+                f"Invalid importance value for {name}: {importance}. Defaulting to 5."
+            )
             importance = 5
 
         items_to_process.append(
@@ -220,9 +219,7 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
                     "relations",
                     f"{subject}->{predicate}->{obj}",
                     "INSERT",
-                    json.dumps(
-                        {"subject": subject, "object": obj, "predicate": predicate}
-                    ),
+                    json.dumps({"subject": subject, "object": obj, "predicate": predicate}),
                     creator,
                     json.dumps(
                         {
@@ -267,23 +264,18 @@ async def save_observations(
         # Conflict check
         if precomputed_conflicts is not None:
             # Match conflict from precomputed results if available
-            conflict_info = next(
-                (c for c in precomputed_conflicts if c["index"] == i), None
-            )
+            conflict_info = next((c for c in precomputed_conflicts if c["index"] == i), None)
             if conflict_info and conflict_info.get("is_conflict"):
                 conflicts_to_report.append(
                     {"entity": entity_name, "reason": conflict_info.get("reason")}
                 )
         else:
-            is_conflict, reason = await check_conflict(
-                entity_name, content, agent_id, conn=conn
-            )
+            is_conflict, reason = await check_conflict(entity_name, content, agent_id, conn=conn)
             if is_conflict:
                 conflicts_to_report.append({"entity": entity_name, "reason": reason})
 
         await conn.execute(
-            "INSERT INTO observations (entity_name, content, created_by) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
             (entity_name, content, agent_id),
         )
         await conn.execute(
@@ -292,9 +284,7 @@ async def save_observations(
             (entity_name,),
         )
         # Log Audit
-        conflict_meta = next(
-            (c for c in conflicts_to_report if c["entity"] == entity_name), None
-        )
+        conflict_meta = next((c for c in conflicts_to_report if c["entity"] == entity_name), None)
         meta = json.dumps(
             {
                 "agent_context": "development_trace",

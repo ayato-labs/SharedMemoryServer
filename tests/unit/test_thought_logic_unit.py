@@ -54,8 +54,6 @@ async def test_invalid_thought_handling_unit():
     assert res["thoughtNumber"] == 999999
 
     # Missing revision
-    res = await process_thought_core(
-        "Revision", 2, 2, False, is_revision=True, revises_thought=1
-    )
+    res = await process_thought_core("Revision", 2, 2, False, is_revision=True, revises_thought=1)
     assert "error" in res
     assert "Invalid revision" in res["error"]

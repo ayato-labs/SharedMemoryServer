@@ -4,6 +4,7 @@ from shared_memory.bank import save_bank_files
 from shared_memory.database import async_get_connection
 from shared_memory.graph import save_relations
 
+
 @pytest.mark.asyncio
 async def test_migration_v1_auto_applied_unit(mock_env):
     """
@@ -23,12 +24,13 @@ async def test_migration_v1_auto_applied_unit(mock_env):
             {
                 "subject": "NonExistentSubject",
                 "object": "NonExistentObject",
-                "predicate": "links_to"
+                "predicate": "links_to",
             }
         ]
         # This call should succeed now
         res = await save_relations(relations, "test_agent", conn)
         assert "Saved 1 relations" in res
+
 
 @pytest.mark.asyncio
 async def test_bank_files_mentions_robustness_after_migration_unit(mock_env):
@@ -40,10 +42,8 @@ async def test_bank_files_mentions_robustness_after_migration_unit(mock_env):
         await conn.execute("INSERT OR REPLACE INTO entities (name) VALUES (?)", ("TargetEntity",))
         await conn.commit()
 
-        bank_files = {
-            "test_mentions.md": "This file mentions TargetEntity."
-        }
-        
+        bank_files = {"test_mentions.md": "This file mentions TargetEntity."}
+
         # This call used to fail due to relations FK constraint
         # Now it should succeed
         res = await save_bank_files(bank_files, "test_agent", conn)
@@ -52,7 +52,7 @@ async def test_bank_files_mentions_robustness_after_migration_unit(mock_env):
         # Verify the relation was actually created
         cursor = await conn.execute(
             "SELECT * FROM relations WHERE subject = ? AND object = ?",
-            ("test_mentions.md", "TargetEntity")
+            ("test_mentions.md", "TargetEntity"),
         )
         row = await cursor.fetchone()
         assert row is not None, "Relation from bank file to entity should be created"

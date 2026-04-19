@@ -44,9 +44,7 @@ async def test_cross_session_synthesis_workflow():
 
     # Session 2: Agent B adds observations
     await save_memory_core(
-        observations=[
-            {"entity_name": "SharedEntity", "content": "Updated observation"}
-        ],
+        observations=[{"entity_name": "SharedEntity", "content": "Updated observation"}],
         agent_id="AgentB",
     )
 

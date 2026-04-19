@@ -31,6 +31,7 @@ async def setup_teardown_db(request):
     if os.path.exists(home_dir):
         # Retry logic for Windows rmtree
         import time
+
         for _ in range(5):
             try:
                 shutil.rmtree(home_dir, ignore_errors=False)
@@ -43,17 +44,18 @@ async def setup_teardown_db(request):
 def fake_llm():
     """Deterministic LLM stub for Unit Tests (No MagicMock)."""
     from tests.unit.fake_client import FakeGeminiClient
+
     client = FakeGeminiClient()
-    
+
     patches = [
         patch("shared_memory.embeddings.get_gemini_client", return_value=client),
         patch("shared_memory.distiller.get_gemini_client", return_value=client),
-        patch("shared_memory.graph.get_gemini_client", return_value=client)
+        patch("shared_memory.graph.get_gemini_client", return_value=client),
     ]
-    
+
     for p in patches:
         p.start()
-    
+
     try:
         yield client
     finally:
@@ -67,28 +69,31 @@ def mock_llm(request):
     Universal LLM mock (MagicMock) for Integration/System tests.
     Disabled automatically if 'fake_llm' fixture or 'use_fake_llm' marker is used.
     """
-    if "no_global_mock" in request.node.keywords or \
-       "use_fake_llm" in request.node.keywords or \
-       "fake_llm" in request.fixturenames:
+    if (
+        "no_global_mock" in request.node.keywords
+        or "use_fake_llm" in request.node.keywords
+        or "fake_llm" in request.fixturenames
+    ):
         yield None
         return
 
     client = MagicMock()
     # ... (rest of the MagicMock setup)
-    client.models.generate_content.return_value.text = json.dumps({
-        "conflict": False, "reason": "No conflict detected in mock."
-    })
+    client.models.generate_content.return_value.text = json.dumps(
+        {"conflict": False, "reason": "No conflict detected in mock."}
+    )
 
     def set_response(method, text):
         if method == "generate_content":
             client.models.generate_content.return_value.text = text
             client.aio.models.generate_content.return_value.text = text
+
     client.models.set_response = set_response
 
     client.aio.models.generate_content = AsyncMock()
-    client.aio.models.generate_content.return_value.text = json.dumps({
-        "conflict": False, "reason": "No conflict detected in mock."
-    })
+    client.aio.models.generate_content.return_value.text = json.dumps(
+        {"conflict": False, "reason": "No conflict detected in mock."}
+    )
 
     client.aio.models.embed_content = AsyncMock()
     mock_embedding = MagicMock()
@@ -103,7 +108,7 @@ def mock_llm(request):
     patches = [
         patch("shared_memory.embeddings.get_gemini_client", return_value=client),
         patch("shared_memory.distiller.get_gemini_client", return_value=client),
-        patch("shared_memory.graph.get_gemini_client", return_value=client)
+        patch("shared_memory.graph.get_gemini_client", return_value=client),
     ]
 
     for p in patches:

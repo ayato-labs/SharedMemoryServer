@@ -20,6 +20,7 @@ async def test_chaos_database_lock_retry(mock_llm):
     def lock_database():
         # Standard sqlite3 library (sync) to hold a long-term lock
         import sqlite3
+
         conn = sqlite3.connect(db_path)
         conn.execute("BEGIN EXCLUSIVE")
         time.sleep(2)  # Hold lock for 2 seconds
@@ -57,6 +58,7 @@ async def test_chaos_database_permission_error(mock_llm):
         # Saving should fail
         # aiosqlite or our wrapper will throw DatabaseError
         from shared_memory.exceptions import DatabaseError
+
         with pytest.raises(DatabaseError):
             await logic.save_memory_core(entities=[{"name": "NoSave"}])
     finally:
@@ -73,9 +75,7 @@ async def test_chaos_corrupted_metadata_parsing(mock_llm):
     server doesn't crash when trying to read from it.
     """
     # 1. Setup Data
-    await logic.save_memory_core(
-        entities=[{"name": "BrokenMeta", "description": "Crash test"}]
-    )
+    await logic.save_memory_core(entities=[{"name": "BrokenMeta", "description": "Crash test"}])
 
     # 2. Corrupt metadata manually
     async with aiosqlite.connect(get_db_path()) as conn:

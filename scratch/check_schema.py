@@ -1,7 +1,8 @@
-
 import asyncio
-import aiosqlite
 import os
+
+import aiosqlite
+
 
 async def check_schema():
     db_path = "shared_memory.db"
@@ -18,10 +19,13 @@ async def check_schema():
                 print(f"SQL: {row['sql']}\n")
 
         print("--- Indexes ---")
-        async with conn.execute("SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index'") as cursor:
+        async with conn.execute(
+            "SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index'"
+        ) as cursor:
             async for row in cursor:
                 print(f"Index: {row['name']} on {row['tbl_name']}")
                 print(f"SQL: {row['sql']}\n")
+
 
 if __name__ == "__main__":
     asyncio.run(check_schema())

@@ -1,5 +1,5 @@
-
 from shared_memory.logic import normalize_bank_files
+
 
 def test_normalization():
     # 1. Standard list of dicts
@@ -31,6 +31,7 @@ def test_normalization():
     res5 = normalize_bank_files(input5)
     assert "derived_knowledge_0.md" in res5
     print("Test 5 passed")
+
 
 if __name__ == "__main__":
     test_normalization()

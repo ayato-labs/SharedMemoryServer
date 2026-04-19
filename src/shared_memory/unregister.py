@@ -69,10 +69,7 @@ def unregister_mcp(dry_run=False, isolate=False):
                 updated = True
 
             # Native Cursor
-            if (
-                "cursor.mcpServers" in config
-                and server_name in config["cursor.mcpServers"]
-            ):
+            if "cursor.mcpServers" in config and server_name in config["cursor.mcpServers"]:
                 del config["cursor.mcpServers"][server_name]
                 updated = True
 

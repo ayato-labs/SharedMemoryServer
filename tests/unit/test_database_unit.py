@@ -28,8 +28,7 @@ async def test_update_access_unit():
 
     async with await async_get_connection() as conn:
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata "
-            "WHERE content_id = ?",
+            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = ?",
             (content_id,),
         )
         row = await cursor.fetchone()
@@ -41,8 +40,7 @@ async def test_update_access_unit():
         await update_access(content_id)
 
         cursor = await conn.execute(
-            "SELECT access_count, stability FROM knowledge_metadata "
-            "WHERE content_id = ?",
+            "SELECT access_count, stability FROM knowledge_metadata WHERE content_id = ?",
             (content_id,),
         )
         row = await cursor.fetchone()

@@ -39,21 +39,15 @@ async def test_api_key_priority():
     # 2. MCP Settings fallback
     # Preserve home variables to avoid pathlib.home() breakdown
     safe_env = {
-        k: v
-        for k, v in os.environ.items()
-        if k in ("USERPROFILE", "HOME", "HOMEDRIVE", "HOMEPATH")
+        k: v for k, v in os.environ.items() if k in ("USERPROFILE", "HOME", "HOMEDRIVE", "HOMEPATH")
     }
     with patch.dict(os.environ, safe_env, clear=True):
         settings._api_key = None
-        mcp_json = {
-            "mcpServers": {
-                "SharedMemoryServer": {
-                    "env": {"GOOGLE_API_KEY": "mcp_key"}
-                }
-            }
-        }
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("builtins.open", mock_open(read_data=json.dumps(mcp_json))):
+        mcp_json = {"mcpServers": {"SharedMemoryServer": {"env": {"GOOGLE_API_KEY": "mcp_key"}}}}
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(mcp_json))),
+        ):
             assert settings.api_key == "mcp_key"
 
 

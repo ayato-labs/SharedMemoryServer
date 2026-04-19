@@ -39,9 +39,7 @@ async def initialize_bank():
             path = safe_path_join(bank_dir, filename)
             if not os.path.exists(path):
                 async with aiofiles.open(path, mode="w", encoding="utf-8") as f:
-                    await f.write(
-                        f"# {filename}\n\n{description}\n\n## Status\n- Initialized\n"
-                    )
+                    await f.write(f"# {filename}\n\n{description}\n\n## Status\n- Initialized\n")
         except ValueError as e:
             log_error(f"Initialization skipped for invalid filename: {filename}", e)
 
@@ -73,9 +71,7 @@ async def save_bank_files(
                     "sanitized_filename": sanitized_filename,
                     "path": path,
                     "content": masked_content,
-                    "embedding_text": (
-                        f"File: {sanitized_filename}\nContent: {masked_content}"
-                    ),
+                    "embedding_text": (f"File: {sanitized_filename}\nContent: {masked_content}"),
                 }
             )
         except ValueError as e:
@@ -105,9 +101,7 @@ async def save_bank_files(
                 "SELECT content FROM bank_files WHERE filename = ?", (filename,)
             )
             old_content_row = await cursor.fetchone()
-            old_data = (
-                json.dumps({"content": old_content_row[0]}) if old_content_row else None
-            )
+            old_data = json.dumps({"content": old_content_row[0]}) if old_content_row else None
 
             await conn.execute(
                 "INSERT OR REPLACE INTO bank_files "
@@ -184,7 +178,9 @@ async def read_bank_data(query: str | None = None):
 
         # Step 2: Merge with recovering data from DB (only active ones)
         async with await async_get_connection() as conn:
-            cursor = await conn.execute("SELECT filename, content FROM bank_files WHERE status = 'active'")
+            cursor = await conn.execute(
+                "SELECT filename, content FROM bank_files WHERE status = 'active'"
+            )
             db_files = await cursor.fetchall()
             for filename, content in db_files:
                 if filename not in found_files:

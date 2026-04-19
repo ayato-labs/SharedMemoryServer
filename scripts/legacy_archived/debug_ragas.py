@@ -34,17 +34,14 @@ async def run_debug():
 
     # Setup
     await save_memory(
-        entities=[
-            {"name": "Project Apollo", "description": "High-speed transcription."}
-        ],
+        entities=[{"name": "Project Apollo", "description": "High-speed transcription."}],
         observations=[{"entity_name": "Project Apollo", "content": "Uses Python 3.11"}],
     )
 
     # Eval
     search_res = await read_memory(query="Apollo")
     context_snippets = [
-        f"Entity {e['name']}: {e['description']}"
-        for e in search_res["graph"]["entities"]
+        f"Entity {e['name']}: {e['description']}" for e in search_res["graph"]["entities"]
     ]
     answer = await synthesize_entity(entity_name="Project Apollo")
 

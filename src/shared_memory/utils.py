@@ -25,9 +25,7 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(f"shared_memory.{name}")
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stderr)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
@@ -99,9 +97,7 @@ def calculate_similarity(v1: list[float], v2: list[float]) -> float:
     return dot_product / (norm_v1 * norm_v2)
 
 
-def batch_cosine_similarity(
-    query_vector: list[float], vectors: list[list[float]]
-) -> list[float]:
+def batch_cosine_similarity(query_vector: list[float], vectors: list[list[float]]) -> list[float]:
     """
     Computes cosine similarity between a query vector and a list of vectors.
     """
@@ -247,5 +243,7 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
 
         return freq_score * decay
     except Exception as e:
-        log_error(f"Importance calculation failed for count={access_count}, last={last_accessed}", e)
+        log_error(
+            f"Importance calculation failed for count={access_count}, last={last_accessed}", e
+        )
         return 0.0
