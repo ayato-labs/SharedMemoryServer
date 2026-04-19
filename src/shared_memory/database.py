@@ -5,7 +5,9 @@ import random
 import aiosqlite
 
 from shared_memory.exceptions import DatabaseError, DatabaseLockedError
-from shared_memory.utils import get_db_path, log_error
+from shared_memory.utils import get_db_path, log_error, get_logger
+
+logger = get_logger("database")
 
 # Global singletons for persistent connections
 _MAIN_CONNECTION: aiosqlite.Connection | None = None
@@ -198,9 +200,7 @@ async def init_db(force: bool = False):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
                 status TEXT DEFAULT 'active',
-                PRIMARY KEY (subject, object, predicate),
-                FOREIGN KEY (subject) REFERENCES entities (name) ON DELETE CASCADE,
-                FOREIGN KEY (object) REFERENCES entities (name) ON DELETE CASCADE
+                PRIMARY KEY (subject, object, predicate)
             )
         """)
         await cursor.execute("""
@@ -210,8 +210,7 @@ async def init_db(force: bool = False):
                 content TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_by TEXT,
-                status TEXT DEFAULT 'active',
-                FOREIGN KEY (entity_name) REFERENCES entities (name) ON DELETE CASCADE
+                status TEXT DEFAULT 'active'
             )
         """)
         # Explicit consistency check for critical tables
@@ -339,6 +338,11 @@ async def init_db(force: bool = False):
         )
 
         await conn.commit()
+
+        # --- RUN MIGRATIONS ---
+        from scripts.migrations.manager import MigrationManager
+        migrator = MigrationManager(get_db_path())
+        await migrator.run_migrations(conn)
 
         # Final Verification: Ensure critical tables exist before marking as initialized
         cursor = await conn.execute(

@@ -14,12 +14,54 @@ from shared_memory.utils import get_logger, log_error
 logger = get_logger("logic")
 
 
+def normalize_bank_files(bank_files: Any) -> dict[str, str]:
+    """
+    Standardizes bank_files input into a dict[str, str].
+    Handles:
+    - Already a dict
+    - List of dicts with 'filename' and 'content' keys
+    - List of dicts with only 'content' (derives filename)
+    """
+    if not bank_files:
+        return {}
+    if isinstance(bank_files, dict):
+        return bank_files
+    if isinstance(bank_files, list):
+        result = {}
+        for i, item in enumerate(bank_files):
+            if not isinstance(item, dict):
+                continue
+
+            filename = item.get("filename")
+            content = item.get("content")
+
+            if filename and content:
+                result[filename] = content
+                continue
+
+            # Fallback 1: Item is a single { "name": "content" } entry
+            if not content and len(item) == 1:
+                key, val = next(iter(item.items()))
+                if isinstance(val, str):
+                    result[key] = val
+                    continue
+
+            # Fallback 2: Content only, missing filename
+            if content and not filename:
+                safe_name = f"derived_knowledge_{i}.md"
+                result[safe_name] = content
+                logger.warning(f"Bank file missing filename, saved as {safe_name}")
+
+        return result
+    return {}
+
+
 @retry_on_db_lock()
 async def save_memory_core(
     entities: list[dict[str, Any]] | None = None,
     relations: list[dict[str, Any]] | None = None,
     observations: list[dict[str, Any]] | None = None,
-    bank_files: dict[str, str] | None = None,
+    bank_files: dict[str, str] | list[dict[str, str]] | None = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -31,7 +73,7 @@ async def save_memory_core(
     entities = entities or []
     relations = relations or []
     observations = observations or []
-    bank_files = bank_files or {}
+    bank_files = normalize_bank_files(bank_files)
 
     # --- Phase 1: Pre-compute AI results ---
     logger.debug("Phase 1 (AI) START")

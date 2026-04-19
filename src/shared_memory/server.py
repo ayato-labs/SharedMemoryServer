@@ -39,7 +39,7 @@ async def save_memory(
     entities: list[dict[str, Any]] | None = None,
     relations: list[dict[str, Any]] | None = None,
     observations: list[dict[str, Any]] | None = None,
-    bank_files: dict[str, str] | None = None,
+    bank_files: dict[str, str] | list[dict[str, str]] | None = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -49,7 +49,9 @@ async def save_memory(
     - relations: Knowledge Graph Triples. Each dict MUST have:
         'subject' (source), 'object' (target), 'predicate' (type).
     - observations: List of factual statements linked to an entity.
-    - bank_files: Markdown documentation to be saved in the memory bank.
+    - bank_files: Markdown documentation. Supports two formats:
+        1. Dictionary: { "filename.md": "content" }
+        2. List of objects: [ { "filename": "filename.md", "content": "content" } ]
     """
     return await logic.save_memory_core(
         entities, relations, observations, bank_files, agent_id
