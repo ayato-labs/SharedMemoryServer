@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-04-17)
+
+### Features
+
+- Add simulation script to test memory core logic and retrieval flow
+  ([`fc8161e`](https://github.com/Ayato-AI-for-Auto/SharedMemoryServer/commit/fc8161ef3542cbe30ef732207a7c23842980a998))
+
+
 ## v1.4.0 (2026-04-17)
 
 ### Chores
