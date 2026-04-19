@@ -20,7 +20,7 @@ async def migrate(conn: aiosqlite.Connection):
         
         # Create new table without FKs
         await conn.execute("""
-            CREATE TABLE relations_new (
+            CREATE TABLE IF NOT EXISTS relations_new (
                 subject TEXT,
                 object TEXT,
                 predicate TEXT,
@@ -33,19 +33,18 @@ async def migrate(conn: aiosqlite.Connection):
         """)
         
         # Copy data
-        await conn.execute("INSERT INTO relations_new SELECT * FROM relations")
+        await conn.execute("INSERT OR IGNORE INTO relations_new SELECT * FROM relations")
         
         # Drop old, rename new
-        await conn.execute("DROP TABLE relations")
+        await conn.execute("DROP TABLE IF EXISTS relations")
         await conn.execute("ALTER TABLE relations_new RENAME TO relations")
 
         # --- OBSERVATIONS TABLE RECONSTRUCTION ---
         logger.info("Reconstructing 'observations' table...")
         
         # Create new table without FKs
-        # Note: id is INTEGER PRIMARY KEY AUTOINCREMENT
         await conn.execute("""
-            CREATE TABLE observations_new (
+            CREATE TABLE IF NOT EXISTS observations_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 entity_name TEXT,
                 content TEXT,
@@ -56,11 +55,11 @@ async def migrate(conn: aiosqlite.Connection):
         """)
         
         # Copy data (respecting the sequence)
-        await conn.execute("INSERT INTO observations_new (id, entity_name, content, timestamp, created_by, status) "
+        await conn.execute("INSERT OR IGNORE INTO observations_new (id, entity_name, content, timestamp, created_by, status) "
                            "SELECT id, entity_name, content, timestamp, created_by, status FROM observations")
         
         # Drop old, rename new
-        await conn.execute("DROP TABLE observations")
+        await conn.execute("DROP TABLE IF EXISTS observations")
         await conn.execute("ALTER TABLE observations_new RENAME TO observations")
 
         logger.info("Migration v001 completed successfully.")
@@ -69,6 +68,4 @@ async def migrate(conn: aiosqlite.Connection):
         logger.error(f"Migration v001 failed: {e}")
         raise
     finally:
-        # Re-enable Foreign Keys (for other tables that might still need them, 
-        # though SharedMemoryServer intends to be soft-link-first now)
         await conn.execute("PRAGMA foreign_keys = ON")

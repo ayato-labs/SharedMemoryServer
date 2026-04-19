@@ -340,7 +340,7 @@ async def init_db(force: bool = False):
         await conn.commit()
 
         # --- RUN MIGRATIONS ---
-        from scripts.migrations.manager import MigrationManager
+        from shared_memory.migrations.manager import MigrationManager
         migrator = MigrationManager(get_db_path())
         await migrator.run_migrations(conn)
 

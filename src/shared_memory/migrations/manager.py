@@ -18,6 +18,7 @@ class MigrationManager:
     """
     def __init__(self, db_path: str = None):
         self.db_path = db_path or get_db_path()
+        # Path resolution now local to the package
         self.migrations_dir = os.path.join(os.path.dirname(__file__), "versions")
         os.makedirs(self.migrations_dir, exist_ok=True)
 
@@ -76,9 +77,6 @@ class MigrationManager:
         backup_path = f"{self.db_path}.{datetime.now().strftime('%Y%m%d%H%M%S')}.bak"
         logger.info(f"Backing up database to {backup_path} before migrations...")
         try:
-            # We use shutil.copy2 for physical backup. 
-            # Note: In a production server, we might want to use sqlite's backup API,
-            # but for this scale, physical copy is robust.
             shutil.copy2(self.db_path, backup_path)
         except Exception as e:
             logger.error(f"Migration aborted: Backup failed: {e}")
@@ -94,7 +92,8 @@ class MigrationManager:
                 # Load module dynamically
                 spec = importlib.util.spec_from_file_location(f"migration_v{version}", script["path"])
                 module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
+                if spec.loader:
+                    spec.loader.exec_module(module)
 
                 # Execute
                 if hasattr(module, "migrate"):
@@ -110,7 +109,6 @@ class MigrationManager:
 
             except Exception as e:
                 logger.error(f"CRITICAL: Failed to apply migration v{version} ({name}): {e}")
-                # We stop here to prevent further corruption
                 raise
 
         logger.info("All pending migrations applied successfully.")
