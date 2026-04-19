@@ -36,6 +36,7 @@ async def setup_teardown_db(request):
     if os.path.exists(home_dir):
         # Retry logic for Windows rmtree
         import time
+
         for _ in range(10):
             try:
                 shutil.rmtree(home_dir, ignore_errors=False)

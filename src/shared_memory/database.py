@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import sqlite3
 
 import aiosqlite
 
@@ -167,7 +168,7 @@ async def init_db(force: bool = False):
     if force:
         _DB_INITIALIZED = False
         await close_all_connections()
-    
+
     if _DB_INITIALIZED:
         return
 
@@ -176,8 +177,8 @@ async def init_db(force: bool = False):
         try:
             await conn.execute("SELECT 1")
         except (aiosqlite.DatabaseError, sqlite3.DatabaseError):
-            # This happens if it's not a DB file. 
-            # We don't catch it here if we want pytest to catch it, 
+            # This happens if it's not a DB file.
+            # We don't catch it here if we want pytest to catch it,
             # but we need to ensure it's not swallowed by the initializer.
             raise
         cursor = await conn.cursor()

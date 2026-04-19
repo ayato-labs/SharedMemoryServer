@@ -162,13 +162,12 @@ async def get_graph_data_by_cids(cids: list[str], conn):
         return {"entities": [], "relations": [], "observations": []}
     placeholders = ",".join(["?"] * len(cids))
     cursor = await conn.execute(
-        f"SELECT * FROM entities WHERE name IN ({placeholders}) AND status = 'active'",
-        cids
+        f"SELECT * FROM entities WHERE name IN ({placeholders}) AND status = 'active'", cids
     )
     entities = await cursor.fetchall()
     cursor = await conn.execute(
         f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
-        cids
+        cids,
     )
     obs = await cursor.fetchall()
 
@@ -177,7 +176,8 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     if matched_names:
         p2 = ",".join(["?"] * len(matched_names))
         cursor = await conn.execute(
-            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) AND status = 'active'",
+            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) "
+            "AND status = 'active'",
             matched_names + matched_names,
         )
         relations = await cursor.fetchall()
@@ -196,7 +196,8 @@ async def get_bank_data_by_cids(cids: list[str], conn):
         return {}
     placeholders = ",".join(["?"] * len(cids))
     cursor = await conn.execute(
-        f"SELECT filename, content FROM bank_files WHERE filename IN ({placeholders}) AND status = 'active'",
+        f"SELECT filename, content FROM bank_files WHERE filename IN ({placeholders}) "
+        "AND status = 'active'",
         cids,
     )
     files = await cursor.fetchall()
@@ -210,7 +211,7 @@ async def search_memory_logic(query: str, limit: int = 10):
         "entities": graph_data["entities"],
         "relations": graph_data["relations"],
         "observations": graph_data["observations"],
-        "bank_files": bank_data
+        "bank_files": bank_data,
     }
 
 
@@ -223,7 +224,8 @@ async def synthesize_knowledge(entity_name: str):
                 return f"Error: Entity '{entity_name}' not found."
 
             cursor = await conn.execute(
-                "SELECT content, timestamp FROM observations WHERE entity_name = ? AND status='active'",
+                "SELECT content, timestamp FROM observations WHERE entity_name = ? "
+                "AND status='active'",
                 (entity_name,),
             )
             obs = await cursor.fetchall()
@@ -237,9 +239,13 @@ async def synthesize_knowledge(entity_name: str):
                 "You are a Knowledge Synthesis Engine. Summarize everything known about "
                 f"'{entity_name}'.\n\n"
                 f"ENTITY INFO: {entity['entity_type']} - {entity['description']}\n\n"
-                f"OBSERVATIONS:\n" + "\n".join([f"- ({o['timestamp']}) {o['content']}" for o in obs]) + "\n\n"
+                f"OBSERVATIONS:\n"
+                + "\n".join([f"- ({o['timestamp']}) {o['content']}" for o in obs])
+                + "\n\n"
                 "RELATIONS:\n"
-                + "\n".join([f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels])
+                + "\n".join(
+                    [f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels]
+                )
             )
             client = get_gemini_client()
             if not client:
