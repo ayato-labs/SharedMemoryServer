@@ -64,4 +64,7 @@ async def run_test():
     process.terminate()
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     asyncio.run(run_test())

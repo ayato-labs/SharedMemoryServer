@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.database import async_get_connection, init_db
+from shared_memory.database import async_get_connection, init_db, close_all_connections
 from shared_memory.exceptions import DatabaseError, SharedMemoryError
 from shared_memory.logic import save_memory_core
 from shared_memory.utils import get_db_path
@@ -42,7 +42,8 @@ async def test_database_corruption_resilience(mock_gemini):
     Test what happens if the database file is not a valid SQLite database.
     """
     db_path = get_db_path()
-
+    # Ensure fresh start: Close singleton connection before corrupting file
+    await close_all_connections()
     # Close any connections and overwrite with garbage
     with open(db_path, "wb") as f:
         f.write(b"NOT_A_DATABASE_FILE_GARBAGE")

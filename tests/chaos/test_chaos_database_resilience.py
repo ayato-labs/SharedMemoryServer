@@ -4,7 +4,7 @@ import pytest
 import asyncio
 import aiosqlite
 from shared_memory import logic
-from shared_memory.database import get_db_path, init_db, DatabaseLockedError
+from shared_memory.database import get_db_path, init_db, DatabaseLockedError, close_all_connections
 
 @pytest.fixture(autouse=True)
 async def setup_env():
@@ -47,6 +47,8 @@ async def test_chaos_read_only_db():
     Chaos Test: Verify behavior when the DB file is read-only.
     """
     db_path = get_db_path()
+    # Ensure fresh start: Close singleton connection before making read-only
+    await close_all_connections()
     # Make read-only
     os.chmod(db_path, 0o444)
     

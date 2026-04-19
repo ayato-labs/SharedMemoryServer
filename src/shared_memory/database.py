@@ -62,25 +62,29 @@ class AsyncSQLiteConnection:
 
     async def __aenter__(self):
         global _MAIN_CONNECTION, _THOUGHTS_CONNECTION
-
-        async with _INIT_LOCK:
-            if self.is_thoughts:
-                if _THOUGHTS_CONNECTION is None:
-                    _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
-                    _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
-                    await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                    await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
-                self.conn = _THOUGHTS_CONNECTION
-            else:
-                if _MAIN_CONNECTION is None:
-                    _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
-                    _MAIN_CONNECTION.row_factory = aiosqlite.Row
-                    await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
-                    await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                    await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
-                self.conn = _MAIN_CONNECTION
-        
-        return self.conn
+        try:
+            async with _INIT_LOCK:
+                if self.is_thoughts:
+                    if _THOUGHTS_CONNECTION is None:
+                        _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                        _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                    self.conn = _THOUGHTS_CONNECTION
+                else:
+                    if _MAIN_CONNECTION is None:
+                        _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                        _MAIN_CONNECTION.row_factory = aiosqlite.Row
+                        await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
+                        await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                        await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                    self.conn = _MAIN_CONNECTION
+            
+            return self.conn
+        except Exception as e:
+            from shared_memory.exceptions import DatabaseError
+            log_error(f"Failed to connect to database at {self.db_path}", e)
+            raise DatabaseError(f"Database connection failed: {e}") from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # We DO NOT close the singleton connection here.
