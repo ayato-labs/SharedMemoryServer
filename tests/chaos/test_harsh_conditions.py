@@ -39,32 +39,36 @@ async def test_db_lock_exhaustion_chaos():
 @pytest.mark.asyncio
 async def test_malformed_llm_json_chaos(fake_llm):
     """Chaos: Verify that malformed JSON from LLM doesn't crash the conflict logic."""
-    # Setup
     from shared_memory.database import init_db
     await init_db(force=True)
     
     fake_llm.models.set_response("generate_content", "This is NOT json { [")
     
-    # This should be handled gracefully by a broad try-except in graph.py returning False
-    res, conflicts = await logic.save_memory_core(
+    # This should be handled gracefully (conflicts detection skipped)
+    res = await logic.save_memory_core(
         observations=[{"entity_name": "E1", "content": "C1"}]
     )
     
     assert "Saved 1 observations" in res
-    assert len(conflicts) == 0 # No conflict recorded because check failed gracefully
+    assert "CONFLICTS DETECTED" not in res
 
 @pytest.mark.chaos
 @pytest.mark.asyncio
 async def test_database_connection_failure_chaos():
     """Chaos: Verify behavior when the DB file is not a database."""
-    from shared_memory.database import init_db, get_db_path
+    from shared_memory.database import init_db, get_db_path, close_all_connections
     import sqlite3
     
     db_path = get_db_path()
+    
+    # CRITICAL: Close all existing connections to the file before overwriting it
+    # Otherwise, some OSs might keep a handle to the old file or WAL
+    await close_all_connections()
+    
     # Write garbage to the DB file
     with open(db_path, "wb") as f:
         f.write(b"NOT A SQLITE DATABASE")
     
-    # aiosqlite or the lower level sqlite3 should raise a DatabaseError
-    with pytest.raises((sqlite3.DatabaseError, Exception)):
+    # init_db(force=True) should fail because SELECT 1 check will fail
+    with pytest.raises(Exception):
         await init_db(force=True)

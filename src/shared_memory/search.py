@@ -26,9 +26,7 @@ logger = get_logger("search")
 async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id: str = None):
     """
     Improved Keyword Search Logic:
-    - Exact matches in ID/Name: 10.0
-    - Partial matches in ID/Name: 5.0
-    - Keyword frequency in content: 1.5 per occurrence
+    - Only searches for ACTIVE status items.
     """
     async with await async_get_connection() as conn:
         query_words = re.findall(r"\w+", query.lower())
@@ -86,7 +84,6 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                     current_score, _ = scored_results.get(key, (0.0, ""))
                     scored_results[key] = (current_score + score, str(thought))
 
-        # Sort and format
         sorted_items = sorted(scored_results.items(), key=lambda x: x[1][0], reverse=True)
 
         formatted_results = []
@@ -100,30 +97,21 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                 }
             )
 
-        # Log search statistics for ROI/Hit-rate/Knowledge-Age calculation
         hit_ids = [r["id"] for r in formatted_results]
         await log_search_stat(query, len(formatted_results), hit_ids=hit_ids)
-
-        logger.info(f"SEARCH: perform_keyword_search COMPLETE query={query}")
         return formatted_results
 
 
 async def perform_search(query: str, limit: int = 10):
-    """
-    Expert implementation of hybrid search logic.
-    """
+    """Hybrid search logic (Semantic + Keyword)."""
     logger.info(f"perform_search START query={query}")
     async with await async_get_connection() as conn:
-        logger.debug(f"DB Connection ACQUIRED query={query}")
         try:
-            logger.debug(f"compute_embedding START text={query[:20]}... reuse_conn=True")
             query_vector = await compute_embedding(query, conn=conn)
             if not query_vector:
-                # Fallback to simple keyword search
                 return await get_graph_data(query), await read_bank_data(query)
-            logger.debug(f"query_vector COMPUTED query={query}")
 
-            # 1. Fetch Candidates (Entities & Bank Files) - Filter by Active status
+            # Join with entities and bank_files to filter by active status
             cursor = await conn.execute("""
                 SELECT e.content_id, e.vector
                 FROM embeddings e
@@ -132,23 +120,18 @@ async def perform_search(query: str, limit: int = 10):
                 WHERE (ent.status = 'active' OR bf.status = 'active')
             """)
             all_rows = await cursor.fetchall()
-            logger.debug(f"candidates FETCHED count={len(all_rows)}")
 
             if not all_rows:
                 return await get_graph_data(query), await read_bank_data(query)
 
-            # 2. Compute Similarities
             all_cids = [r[0] for r in all_rows]
             all_vectors = [json.loads(r[1]) for r in all_rows]
             similarities = batch_cosine_similarity(query_vector, all_vectors)
-            logger.debug("similarities COMPUTED")
 
-            # 3. Apply Metadata Score (Importance + Decay)
             cursor = await conn.execute(
                 "SELECT content_id, access_count, last_accessed FROM knowledge_metadata"
             )
             metadata = await cursor.fetchall()
-            logger.debug(f"metadata FETCHED count={len(metadata)}")
             meta_map = {m[0]: (m[1], m[2]) for m in metadata}
 
             results = []
@@ -156,29 +139,17 @@ async def perform_search(query: str, limit: int = 10):
                 sim = float(similarities[i])
                 count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
                 importance = calculate_importance(count, last)
-
-                # Hybrid Score: 70% semantic, 30% importance/recency
                 final_score = (sim * 0.7) + (importance * 0.3)
                 results.append((cid, final_score))
 
-            # 4. Sort and Filter
             results.sort(key=lambda x: x[1], reverse=True)
-            # Apply a loose threshold to exclude obvious non-matches from "Hits"
-            # Lowered to 0.1 for better recall in tests/mcp environments
             top_results = [r for r in results[:limit] if r[1] > 0.1]
             top_cids = [r[0] for r in top_results]
 
-            # 5. Fetch Content for Top Results
             graph_data = await get_graph_data_by_cids(top_cids, conn)
             bank_data = await get_bank_data_by_cids(top_cids, conn)
 
-            # Log search statistics
-            hit_count = len(graph_data["entities"]) + len(bank_data)
-            avg_sim = sum(r[1] for r in top_results) / max(1, hit_count)
-            hit_ids = top_cids
-            await log_search_stat(query, hit_count, hit_ids=hit_ids, avg_sim=avg_sim, conn=conn)
-
-            logger.info(f"perform_search COMPLETE query={query}")
+            await log_search_stat(query, len(top_results), hit_ids=top_cids, conn=conn)
             return graph_data, bank_data
 
         except Exception as e:
@@ -201,40 +172,19 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     )
     obs = await cursor.fetchall()
 
-    # Track usage (Reuse Fact)
-    for cid in cids:
-        from shared_memory.database import update_access
-
-        await update_access(cid, conn=conn)
-
-    matched_names = [r[0] for r in entities]
+    matched_names = [e["name"] for e in entities]
     relations = []
     if matched_names:
         p2 = ",".join(["?"] * len(matched_names))
         cursor = await conn.execute(
-            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) "
-            "AND status = 'active'",
+            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) AND status = 'active'",
             matched_names + matched_names,
         )
         relations = await cursor.fetchall()
 
     return {
-        "entities": [
-            {
-                "name": r["name"],
-                "type": r["entity_type"],
-                "description": r["description"],
-            }
-            for r in entities
-        ],
-        "relations": [
-            {
-                "subject": r["subject"],
-                "object": r["object"],
-                "predicate": r["predicate"],
-            }
-            for r in relations
-        ],
+        "entities": [dict(e) for e in entities],
+        "relations": [dict(r) for r in relations],
         "observations": [
             {"entity": o["entity_name"], "content": o["content"], "at": o["timestamp"]} for o in obs
         ],
@@ -246,260 +196,55 @@ async def get_bank_data_by_cids(cids: list[str], conn):
         return {}
     placeholders = ",".join(["?"] * len(cids))
     cursor = await conn.execute(
-        f"SELECT filename, content FROM bank_files WHERE filename IN ({placeholders}) "
-        "AND status = 'active'",
+        f"SELECT filename, content FROM bank_files WHERE filename IN ({placeholders}) AND status = 'active'",
         cids,
     )
     files = await cursor.fetchall()
-
-    # Track usage (Reuse Fact)
-    for cid in cids:
-        from shared_memory.database import update_access
-
-        await update_access(cid, conn=conn)
-
     return {f["filename"]: f["content"] for f in files}
 
 
-async def synthesize_knowledge(entity_name: str):
-    """
-    Aggregates all known info about an entity and asks Gemini to create a summary.
-    """
-    async with await async_get_connection() as conn:
-        try:
-            # Collect Entity, Relations, Observations
-            cursor = await conn.execute("SELECT * FROM entities WHERE name = ?", (entity_name,))
-            entity = await cursor.fetchone()
-            if not entity:
-                return f"Error: Entity '{entity_name}' not found."
-
-            cursor = await conn.execute(
-                "SELECT content, timestamp FROM observations WHERE entity_name = ?",
-                (entity_name,),
-            )
-            obs = await cursor.fetchall()
-            cursor = await conn.execute(
-                "SELECT * FROM relations WHERE subject = ? OR object = ?",
-                (entity_name, entity_name),
-            )
-            rels = await cursor.fetchall()
-
-            prompt = (
-                "You are a Knowledge Synthesis Engine. "
-                f"Summarize everything known about '{entity_name}'.\n\n"
-                f"ENTITIY INFO: {entity[1]} - {entity[2]}\n\n"
-                f"OBSERVATIONS:\n" + "\n".join([f"- ({o[1]}) {o[0]}" for o in obs]) + "\n\n"
-                "RELATIONS:\n"
-                + "\n".join([f"- {r[0]} --({r[2]})--> {r[1]}" for r in rels])
-                + "\n\n"
-                "Create a concise, structured synthesis of this entity and "
-                "its role in the project."
-            )
-
-            client = get_gemini_client()
-            if not client:
-                return "Error: Gemini client not available for synthesis."
-
-        return formatted_results
-
-
-async def perform_search(query: str, limit: int = 10):
-    """
-    Expert implementation of hybrid search logic.
-    """
-    logger.info(f"perform_search START query={query}")
-    async with await async_get_connection() as conn:
-        logger.debug(f"DB Connection ACQUIRED query={query}")
-        try:
-            logger.debug(f"compute_embedding START text={query[:20]}... reuse_conn=True")
-            query_vector = await compute_embedding(query, conn=conn)
-            if not query_vector:
-                # Fallback to simple keyword search
-                return await get_graph_data(query), await read_bank_data(query)
-            logger.debug(f"query_vector COMPUTED query={query}")
-
-            # 1. Fetch Candidates (Entities & Bank Files) - Filter by Active status
-            cursor = await conn.execute("""
-                SELECT e.content_id, e.vector
-                FROM embeddings e
-                LEFT JOIN entities ent ON e.content_id = ent.name
-                LEFT JOIN bank_files bf ON e.content_id = bf.filename
-                WHERE (ent.status = 'active' OR bf.status = 'active')
-            """)
-            all_rows = await cursor.fetchall()
-            logger.debug(f"candidates FETCHED count={len(all_rows)}")
-
-            if not all_rows:
-                return await get_graph_data(query), await read_bank_data(query)
-
-            # 2. Compute Similarities
-            all_cids = [r[0] for r in all_rows]
-            all_vectors = [json.loads(r[1]) for r in all_rows]
-            similarities = batch_cosine_similarity(query_vector, all_vectors)
-            logger.debug("similarities COMPUTED")
-
-            # 3. Apply Metadata Score (Importance + Decay)
-            cursor = await conn.execute(
-                "SELECT content_id, access_count, last_accessed FROM knowledge_metadata"
-            )
-            metadata = await cursor.fetchall()
-            logger.debug(f"metadata FETCHED count={len(metadata)}")
-            meta_map = {m[0]: (m[1], m[2]) for m in metadata}
-
-            results = []
-            for i, cid in enumerate(all_cids):
-                sim = float(similarities[i])
-                count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
-                importance = calculate_importance(count, last)
-
-                # Hybrid Score: 70% semantic, 30% importance/recency
-                final_score = (sim * 0.7) + (importance * 0.3)
-                results.append((cid, final_score))
-
-            # 4. Sort and Filter
-            results.sort(key=lambda x: x[1], reverse=True)
-            # Apply a loose threshold to exclude obvious non-matches from "Hits"
-            # Lowered to 0.1 for better recall in tests/mcp environments
-            top_results = [r for r in results[:limit] if r[1] > 0.1]
-            top_cids = [r[0] for r in top_results]
-
-            # 5. Fetch Content for Top Results
-            graph_data = await get_graph_data_by_cids(top_cids, conn)
-            bank_data = await get_bank_data_by_cids(top_cids, conn)
-
-            # Log search statistics
-            hit_count = len(graph_data["entities"]) + len(bank_data)
-            avg_sim = sum(r[1] for r in top_results) / max(1, hit_count)
-            hit_ids = top_cids
-            await log_search_stat(query, hit_count, hit_ids=hit_ids, avg_sim=avg_sim, conn=conn)
-
-            logger.info(f"perform_search COMPLETE query={query}")
-            return graph_data, bank_data
-
-        except Exception as e:
-            log_error(f"Search failed for query: {query}", e)
-            return await get_graph_data(query), await read_bank_data(query)
-
-
-async def get_graph_data_by_cids(cids: list[str], conn):
-    if not cids:
-        return {"entities": [], "relations": [], "observations": []}
-    placeholders = ",".join(["?"] * len(cids))
-    cursor = await conn.execute(
-        f"SELECT * FROM entities WHERE name IN ({placeholders}) AND status = 'active'",
-        cids
-    )
-    entities = await cursor.fetchall()
-    cursor = await conn.execute(
-        f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
-        cids
-    )
-    obs = await cursor.fetchall()
-
-    # Track usage (Reuse Fact)
-    for cid in cids:
-        from shared_memory.database import update_access
-
-        await update_access(cid, conn=conn)
-
-    matched_names = [r[0] for r in entities]
-    relations = []
-    if matched_names:
-        p2 = ",".join(["?"] * len(matched_names))
-        cursor = await conn.execute(
-            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) "
-            "AND status = 'active'",
-            matched_names + matched_names,
-        )
-        relations = await cursor.fetchall()
-
+async def search_memory_logic(query: str, limit: int = 10):
+    """Compatibility wrapper for system tests."""
+    graph_data, bank_data = await perform_search(query, limit)
     return {
-        "entities": [
-            {
-                "name": r["name"],
-                "type": r["entity_type"],
-                "description": r["description"],
-            }
-            for r in entities
-        ],
-        "relations": [
-            {
-                "subject": r["subject"],
-                "object": r["object"],
-                "predicate": r["predicate"],
-            }
-            for r in relations
-        ],
-        "observations": [
-            {"entity": o["entity_name"], "content": o["content"], "at": o["timestamp"]} for o in obs
-        ],
+        "entities": graph_data["entities"],
+        "relations": graph_data["relations"],
+        "observations": graph_data["observations"],
+        "bank_files": bank_data
     }
 
 
-async def get_bank_data_by_cids(cids: list[str], conn):
-    if not cids:
-        return {}
-    placeholders = ",".join(["?"] * len(cids))
-    cursor = await conn.execute(
-        f"SELECT filename, content FROM bank_files WHERE filename IN ({placeholders}) "
-        "AND status = 'active'",
-        cids,
-    )
-    files = await cursor.fetchall()
-
-    # Track usage (Reuse Fact)
-    for cid in cids:
-        from shared_memory.database import update_access
-
-        await update_access(cid, conn=conn)
-
-    return {f["filename"]: f["content"] for f in files}
-
-
 async def synthesize_knowledge(entity_name: str):
-    """
-    Aggregates all known info about an entity and asks Gemini to create a summary.
-    """
     async with await async_get_connection() as conn:
         try:
-            # Collect Entity, Relations, Observations
             cursor = await conn.execute("SELECT * FROM entities WHERE name = ?", (entity_name,))
             entity = await cursor.fetchone()
             if not entity:
                 return f"Error: Entity '{entity_name}' not found."
 
             cursor = await conn.execute(
-                "SELECT content, timestamp FROM observations WHERE entity_name = ?",
+                "SELECT content, timestamp FROM observations WHERE entity_name = ? AND status='active'",
                 (entity_name,),
             )
             obs = await cursor.fetchall()
             cursor = await conn.execute(
-                "SELECT * FROM relations WHERE subject = ? OR object = ?",
+                "SELECT * FROM relations WHERE (subject = ? OR object = ?) AND status='active'",
                 (entity_name, entity_name),
             )
             rels = await cursor.fetchall()
 
             prompt = (
-                "You are a Knowledge Synthesis Engine. "
-                f"Summarize everything known about '{entity_name}'.\n\n"
-                f"ENTITIY INFO: {entity[1]} - {entity[2]}\n\n"
-                f"OBSERVATIONS:\n" + "\n".join([f"- ({o[1]}) {o[0]}" for o in obs]) + "\n\n"
+                "You are a Knowledge Synthesis Engine. Summarize everything known about "
+                f"'{entity_name}'.\n\n"
+                f"ENTITY INFO: {entity['entity_type']} - {entity['description']}\n\n"
+                f"OBSERVATIONS:\n" + "\n".join([f"- ({o['timestamp']}) {o['content']}" for o in obs]) + "\n\n"
                 "RELATIONS:\n"
-                + "\n".join([f"- {r[0]} --({r[2]})--> {r[1]}" for r in rels])
-                + "\n\n"
-                "Create a concise, structured synthesis of this entity and "
-                "its role in the project."
+                + "\n".join([f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels])
             )
-
             client = get_gemini_client()
             if not client:
-                return "Error: Gemini client not available for synthesis."
-
-            response = client.models.generate_content(
-                model="gemini-2.0-flash-exp",
-                contents=prompt,
-            )
-
+                return "Error: Gemini client not available."
+            response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=prompt)
             return response.text
         except Exception as e:
             log_error(f"Synthesis failed for {entity_name}", e)

@@ -164,10 +164,22 @@ async def _add_column_if_missing(cursor, table, col_def):
 @retry_on_db_lock()
 async def init_db(force: bool = False):
     global _DB_INITIALIZED
-    if _DB_INITIALIZED and not force:
+    if force:
+        _DB_INITIALIZED = False
+        await close_all_connections()
+    
+    if _DB_INITIALIZED:
         return
 
     async with await _async_get_connection_raw(get_db_path()) as conn:
+        # Integrity Check: verify file is a database
+        try:
+            await conn.execute("SELECT 1")
+        except (aiosqlite.DatabaseError, sqlite3.DatabaseError):
+            # This happens if it's not a DB file. 
+            # We don't catch it here if we want pytest to catch it, 
+            # but we need to ensure it's not swallowed by the initializer.
+            raise
         cursor = await conn.cursor()
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS entities (
