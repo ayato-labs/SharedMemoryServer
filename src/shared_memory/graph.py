@@ -106,6 +106,8 @@ async def save_entities(
         try:
             importance = max(1, min(10, int(importance)))
         except (ValueError, TypeError):
+            from shared_memory.utils import get_logger
+            get_logger("graph").debug(f"Invalid importance value for {name}: {importance}. Defaulting to 5.")
             importance = 5
 
         items_to_process.append(

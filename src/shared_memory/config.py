@@ -26,7 +26,7 @@ class Settings:
 
             load_dotenv()
         except ImportError:
-            pass
+            logger.debug("python-dotenv not installed; skipping .env loading")
 
     @property
     def base_dir(self) -> Path:

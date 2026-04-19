@@ -109,7 +109,8 @@ class InsightEngine:
                                 maturity["short_term"] += 1
                             else:
                                 maturity["long_term"] += 1
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate maturity for hit record: {e}")
                         continue
 
             hit_rate = 0.0

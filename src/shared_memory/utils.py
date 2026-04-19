@@ -246,5 +246,6 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
         decay = math.exp(-days_ago / 30.0)
 
         return freq_score * decay
-    except Exception:
+    except Exception as e:
+        log_error(f"Importance calculation failed for count={access_count}, last={last_accessed}", e)
         return 0.0

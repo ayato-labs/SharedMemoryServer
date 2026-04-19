@@ -2,6 +2,7 @@ import json
 import aiosqlite
 from typing import Any
 from shared_memory.database import async_get_connection, retry_on_db_lock
+from shared_memory.exceptions import DatabaseError
 from shared_memory.utils import get_logger, calculate_importance
 
 logger = get_logger("lifecycle")
@@ -47,6 +48,9 @@ async def manage_knowledge_activation_logic(ids: list[str], status: str):
 
             await conn.commit()
             return f"Success: Updated {changes} items across core tables to status '{status}'."
+        except (aiosqlite.OperationalError, aiosqlite.Error, DatabaseError):
+            await conn.rollback()
+            raise  # Let the retry decorator handle it
         except Exception as e:
             await conn.rollback()
             return f"Error: Failed to update status: {e}"
