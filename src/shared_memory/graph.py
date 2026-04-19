@@ -316,7 +316,8 @@ async def get_graph_data(query: str | None = None):
     async with await async_get_connection() as conn:
         if query:
             cursor = await conn.execute(
-                "SELECT * FROM entities WHERE (name LIKE ? OR description LIKE ?) AND status = 'active'",
+                "SELECT * FROM entities WHERE "
+                "(name LIKE ? OR description LIKE ?) AND status = 'active'",
                 (f"%{query}%", f"%{query}%"),
             )
             matched_entities = await cursor.fetchall()
@@ -334,7 +335,8 @@ async def get_graph_data(query: str | None = None):
             relations = await cursor.fetchall()
 
             cursor = await conn.execute(
-                f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
+                "SELECT * FROM observations WHERE entity_name IN "
+                f"({placeholders}) AND status = 'active'",
                 matched_names,
             )
             observations = await cursor.fetchall()

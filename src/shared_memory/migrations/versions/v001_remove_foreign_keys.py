@@ -57,7 +57,8 @@ async def migrate(conn: aiosqlite.Connection):
 
         # Copy data (respecting the sequence)
         await conn.execute(
-            "INSERT OR IGNORE INTO observations_new (id, entity_name, content, timestamp, created_by, status) "
+            "INSERT OR IGNORE INTO observations_new "
+            "(id, entity_name, content, timestamp, created_by, status) "
             "SELECT id, entity_name, content, timestamp, created_by, status FROM observations"
         )
 

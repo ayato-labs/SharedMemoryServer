@@ -10,7 +10,8 @@ from shared_memory.logic import save_memory_core
 @pytest.mark.asyncio
 async def test_integration_handles_locked_db(mock_llm):
     """
-    Integration test: Verify that the system handles a locked database gracefully during a save operation.
+    Integration test: Verify that the system handles a locked database
+    gracefully during a save operation.
     """
     # Force a locking error when executing SQL
     with patch(

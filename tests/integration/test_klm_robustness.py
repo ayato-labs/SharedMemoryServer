@@ -10,7 +10,8 @@ from shared_memory.exceptions import DatabaseLockedError
 @pytest.mark.asyncio
 async def test_klm_db_lock_resilience(mock_llm):
     """
-    Robustness Test: Verify that manage_knowledge_activation handles DB locks using the retry decorator.
+    Robustness Test: Verify that manage_knowledge_activation handles
+    DB locks using the retry decorator.
     """
     await init_db(force=True)
     await logic.save_memory_core(entities=[{"name": "LockedItem", "description": "X"}])

@@ -71,7 +71,8 @@ async def test_run_knowledge_gc_unit(mock_gemini_client):
         # Manually create the metadata record (since save_memory_core doesn't do it)
         # Using julianday directly ensures SQLite compatibility
         await conn.execute(
-            "INSERT OR REPLACE INTO knowledge_metadata (content_id, last_accessed, importance_score) "
+            "INSERT OR REPLACE INTO knowledge_metadata "
+            "(content_id, last_accessed, importance_score) "
             "VALUES ('StaleEntity', datetime('now', '-200 days'), 0.05)"
         )
         await conn.commit()
