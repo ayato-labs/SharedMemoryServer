@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.8.0 (2026-04-22)
+
+### Features
+
+- Implement automated knowledge distillation and LLM-driven retrieval salvage for memory management.
+  ([`71a7e8a`](https://github.com/ayato-labs/SharedMemoryServer/commit/71a7e8a67109fbb51cb3b92e461fd0e61b9d8c42))
+
+
 ## v1.7.0 (2026-04-19)
 
 ### Chores
