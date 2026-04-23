@@ -103,8 +103,21 @@ uv pip install -e .
 
 ### 2. Execution
 ```bash
-uv run shared-memory         # Start Agent Server
+uv run shared-memory         # Start Agent Server (STDIO mode)
 uv run shared-memory-admin   # Start Admin Server
+```
+
+#### 🛡️ Connection Stability & Transport (Professional Grade)
+SharedMemoryServer supports multiple transport modes to ensure 100% connection reliability:
+
+- **STDIO Mode (Default)**: Best for quick local integration. 
+  - *Robustness*: Automatically suppresses library noise and uses asynchronous initialization to prevent handshake timeouts.
+- **SSE Mode (High Availability)**: Best for production-grade stability. 
+  - *Activation*: Run with `--sse` or set `MCP_TRANSPORT=sse`. 
+  - *Benefits*: Decouples communication from terminal output, eliminating "Broken Pipe" errors caused by stray logs.
+
+```bash
+uv run shared-memory --sse --port 8000
 ```
 
 ### 3. Integration
