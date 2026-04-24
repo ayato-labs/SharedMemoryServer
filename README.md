@@ -138,8 +138,47 @@ uv run pytest tests -v
 ```
 
 ### 4. Integration
+#### 🤖 Connecting to MCP Clients (Cursor, Claude, Antigravity)
+
+SharedMemoryServer supports two primary connection strategies. For maximum stability in high-performance clients like **Antigravity** or **Gemini**, we recommend using the **mcp-remote bridge** pattern.
+
+##### Option A: mcp-remote Bridge (Recommended for Antigravity/Gemini)
+This method uses a local bridge to handle the SSE (Server-Sent Events) handshake, ensuring perfect compatibility with clients that primarily support stdio.
+
+1. Start the server in SSE mode:
+   ```bash
+   uv run shared-memory --sse --port 8377
+   ```
+2. Add the following to your `mcp_config.json`:
+   ```json
+   "SharedMemoryServer": {
+     "command": "npx",
+     "args": [
+       "-y",
+       "mcp-remote",
+       "http://localhost:8377/sse"
+     ]
+   }
+   ```
+
+##### Option B: Direct STDIO (Best for CLI/Simple Integration)
+1. Add the following to your configuration:
+   ```json
+   "SharedMemoryServer": {
+     "command": "uv",
+     "args": [
+       "run",
+       "--project",
+       "/path/to/SharedMemoryServer",
+       "shared-memory"
+     ]
+   }
+   ```
+
+##### Registration Tool
+You can also use the built-in registration tool:
 ```bash
-uv run shared-memory-register # Register with Cursor/Claude
+uv run shared-memory-register
 ```
 
 ---
