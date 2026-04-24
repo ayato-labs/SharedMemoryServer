@@ -63,8 +63,20 @@ async def _background_init():
         _INITIALIZED_EVENT.set()
 
 
+_INIT_STARTED = False
+
+def trigger_init():
+    global _INIT_STARTED
+    if not _INIT_STARTED:
+        _INIT_STARTED = True
+        logger.info("Triggering background initialization...")
+        asyncio.create_task(_background_init())
+
+
 async def ensure_initialized():
     """Wait for background initialization if it's still running."""
+    trigger_init()
+
     if not _INITIALIZED_EVENT.is_set():
         logger.info("Tool called before initialization finished. Waiting...")
         await _INITIALIZED_EVENT.wait()
@@ -80,8 +92,8 @@ async def lifespan(mcp_instance: FastMCP):
     Handles server startup and shutdown.
     Ensures handshake is fast by moving DB init to background.
     """
-    # Start init in background, don't wait here to avoid blocking the handshake
-    asyncio.create_task(_background_init())
+    # Start init in background if not already started
+    trigger_init()
 
     yield
 
