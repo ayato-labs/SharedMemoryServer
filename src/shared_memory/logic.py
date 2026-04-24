@@ -97,7 +97,7 @@ async def save_memory_core(
         for e in (entities or [])
     ]
     observations = [
-        {"content": obs, "entity_name": ""} if isinstance(obs, str) else obs
+        {"content": obs, "entity_name": "Global"} if isinstance(obs, str) else obs
         for obs in (observations or [])
     ]
     relations = relations or []
