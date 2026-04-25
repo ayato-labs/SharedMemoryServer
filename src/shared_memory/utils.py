@@ -247,3 +247,39 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
             f"Importance calculation failed for count={access_count}, last={last_accessed}", e
         )
         return 0.0
+
+
+class AIRateLimiter:
+    """
+    Centralized rate limiter for AI API calls (Gemini).
+    Specifically designed to handle Free Tier '429 RESOURCE_EXHAUSTED' errors.
+    """
+
+    _last_call_time: float = 0.0
+    _min_interval: float = 1.0  # 1 second between calls (min)
+    _locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
+
+    @classmethod
+    async def throttle(cls):
+        """
+        Enforces a minimum time interval between AI calls.
+        Usage: await AIRateLimiter.throttle()
+        """
+        loop = asyncio.get_running_loop()
+        if loop not in cls._locks:
+            cls._locks[loop] = asyncio.Lock()
+
+        async with cls._locks[loop]:
+            now = asyncio.get_event_loop().time()
+            elapsed = now - cls._last_call_time
+            if elapsed < cls._min_interval:
+                wait_time = cls._min_interval - elapsed
+                get_logger("core").debug(f"AI Quota Throttling: Waiting {wait_time:.2f}s...")
+                await asyncio.sleep(wait_time)
+                cls._last_call_time = asyncio.get_event_loop().time()
+            else:
+                cls._last_call_time = now
+
+    @classmethod
+    def set_min_interval(cls, seconds: float):
+        cls._min_interval = seconds

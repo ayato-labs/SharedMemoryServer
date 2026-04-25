@@ -8,7 +8,7 @@ from google import genai
 
 from shared_memory.config import settings
 from shared_memory.database import async_get_connection, retry_on_db_lock
-from shared_memory.utils import get_logger, log_error
+from shared_memory.utils import AIRateLimiter, get_logger, log_error
 
 logger = get_logger("embeddings")
 
@@ -95,11 +95,29 @@ async def compute_embedding(
 
     logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
     start_api = time.perf_counter()
-    response = await client.aio.models.embed_content(
-        model=settings.embedding_model,
-        contents=to_compute,
-        config={"task_type": "RETRIEVAL_DOCUMENT"},
-    )
+
+    # Enforce Rate Limiting (Quota Protection)
+    await AIRateLimiter.throttle()
+
+    try:
+        response = await client.aio.models.embed_content(
+            model=settings.embedding_model,
+            contents=to_compute,
+            config={"task_type": "RETRIEVAL_DOCUMENT"},
+        )
+    except Exception as e:
+        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            logger.warning("AI Quota Exceeded (429). Retrying after short delay...")
+            await asyncio.sleep(2)
+            await AIRateLimiter.throttle()
+            response = await client.aio.models.embed_content(
+                model=settings.embedding_model,
+                contents=to_compute,
+                config={"task_type": "RETRIEVAL_DOCUMENT"},
+            )
+        else:
+            raise e
+
     api_duration = time.perf_counter() - start_api
     logger.info(f"Gemini API (Embeddings) COMPLETE. Duration: {api_duration:.2f}s")
 

@@ -4,7 +4,7 @@ from typing import Any
 from shared_memory.config import settings
 from shared_memory.embeddings import get_gemini_client
 from shared_memory.search import perform_search
-from shared_memory.utils import get_logger, log_error
+from shared_memory.utils import AIRateLimiter, get_logger, log_error
 
 logger = get_logger("salvage")
 
@@ -48,6 +48,9 @@ async def salvage_related_knowledge(
             history_context = "\n".join(
                 [f"Prev Step {t['thought_number']}: {t['thought'][:200]}..." for t in history[-3:]]
             )
+
+        # Enforce Rate Limiting
+        await AIRateLimiter.throttle()
 
         prompt = f"""
         You are a Knowledge Re-ranking Engine.

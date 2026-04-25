@@ -149,47 +149,42 @@ async def save_memory_core(
     else:
         tasks.append(asyncio.sleep(0, result=[]))  # Dummy task
 
-    for obs in observations:
-        logger.debug(f"Adding check_conflict task for entity: {obs.get('entity_name')}")
-        tasks.append(
-            graph.check_conflict(obs.get("entity_name", ""), obs.get("content", ""), agent_id)
-        )
-
-    # 1.3 Execute Parallel AI Calls
-    logger.info(f"Phase 1 (AI) GATHERING {len(tasks)} tasks")
+    # 1.3 Execute Parallel AI Calls (Embeddings only for now)
+    logger.info("Phase 1.1 (Embeddings) GATHERING")
     try:
-        ai_results = await asyncio.gather(*tasks)
+        # We only run embeddings in parallel here. 
+        # Conflict checks are moved inside the semaphore to prevent race conditions.
+        all_vectors = await (tasks[0] if tasks else asyncio.sleep(0, result=[]))
     except Exception as e:
-        msg = f"AI Error: Connectivity failed during embedding computation. {e}"
-        logger.error(f"Phase 1 FAILED: {msg}", exc_info=True)
+        msg = f"AI Error: Embedding computation failed. {e}"
+        logger.error(f"Phase 1.1 FAILED: {msg}", exc_info=True)
         log_error(msg)
         return msg
+
     ai_duration = time.perf_counter() - ai_start_time
-    logger.info(f"Phase 1 (AI) COMPLETE. Duration: {ai_duration:.2f}s")
+    logger.info(f"Phase 1.1 COMPLETE. Duration: {ai_duration:.2f}s")
 
-    all_vectors = ai_results[0]
-    raw_conflict_results = ai_results[1:]
-
-    # 1.4 Distribute Results
+    # Distribute Vectors
     precomputed_entity_vectors = all_vectors[: len(entity_texts)]
     precomputed_bank_vectors = all_vectors[len(entity_texts) :]
 
-    precomputed_observations_conflicts = []
-    for i, res in enumerate(raw_conflict_results):
-        is_conflict, reason = res
-        precomputed_observations_conflicts.append(
-            {"index": i, "is_conflict": is_conflict, "reason": reason}
-        )
-    logger.info(
-        f"Distributed {len(all_vectors)} vectors and "
-        f"{len(precomputed_observations_conflicts)} conflict results"
-    )
-
-    # --- Phase 2: Rapid DB Write ---
-    logger.info("Phase 2 (DB) START")
+    # --- Phase 2: Sequential Write (Conflict Checks + DB Write) ---
+    logger.info("Phase 2 (Protected) START")
     db_start_time = time.perf_counter()
     try:
         async with get_write_semaphore():
+            # 2.1 Conflict Checks (Inside semaphore to avoid races)
+            logger.info(f"Phase 2.1 (Conflict Checks) START for {len(observations)} observations")
+            precomputed_observations_conflicts = []
+            for i, obs in enumerate(observations):
+                is_conflict, reason = await graph.check_conflict(
+                    obs.get("entity_name", ""), obs.get("content", ""), agent_id
+                )
+                precomputed_observations_conflicts.append(
+                    {"index": i, "is_conflict": is_conflict, "reason": reason}
+                )
+
+            # 2.2 Rapid DB Write
             async with await async_get_connection() as conn:
                 logger.info("DB Connection ACQUIRED")
                 results = []

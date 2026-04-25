@@ -8,7 +8,7 @@ from shared_memory.embeddings import (
     compute_embeddings_bulk,
     get_gemini_client,
 )
-from shared_memory.utils import get_logger, log_error, mask_sensitive_data
+from shared_memory.utils import AIRateLimiter, get_logger, log_error, mask_sensitive_data
 
 logger = get_logger("graph")
 
@@ -56,8 +56,11 @@ async def _check_conflict_internal(entity_name: str, new_content: str, agent_id:
         'Output MUST be JSON: {"conflict": bool, "reason": "string"}'
     )
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
+    # Enforce Rate Limiting
+    await AIRateLimiter.throttle()
+
+    response = await client.aio.models.generate_content(
+        model=settings.generative_model,
         contents=prompt,
         config={"response_mime_type": "application/json"},
     )

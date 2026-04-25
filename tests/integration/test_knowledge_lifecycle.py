@@ -50,7 +50,7 @@ async def test_conflict_detection_integration(mock_llm):
     mock_llm.models.set_response("generate_content", json.dumps({"conflict": False}))
     await save_memory_core(
         entities=[{"name": entity, "description": "Node for conflict testing"}],
-        observations=["Existing truth: The sky is blue."],
+        observations=[{"entity_name": entity, "content": "Existing truth: The sky is blue."}],
         agent_id=agent
     )
     

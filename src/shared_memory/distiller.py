@@ -4,7 +4,7 @@ from typing import Any
 from shared_memory import logic
 from shared_memory.config import settings
 from shared_memory.embeddings import get_gemini_client
-from shared_memory.utils import log_error, log_info
+from shared_memory.utils import AIRateLimiter, log_error, log_info
 
 
 async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str, Any]]):
@@ -65,6 +65,9 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
     """
 
     try:
+        # Enforce Rate Limiting
+        await AIRateLimiter.throttle()
+
         # Use centralized model from settings
         response = await client.aio.models.generate_content(
             model=settings.generative_model,
@@ -139,6 +142,9 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
     }}
     """
     try:
+        # Enforce Rate Limiting
+        await AIRateLimiter.throttle()
+
         response = await client.aio.models.generate_content(
             model=settings.generative_model,
             contents=prompt,

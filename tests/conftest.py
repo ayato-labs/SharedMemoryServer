@@ -63,6 +63,7 @@ def fake_llm():
         patch("shared_memory.distiller.get_gemini_client", return_value=client),
         patch("shared_memory.graph.get_gemini_client", return_value=client),
         patch("shared_memory.salvage.get_gemini_client", return_value=client),
+        patch("shared_memory.search.get_gemini_client", return_value=client),
     ]
 
     for p in patches:
@@ -119,6 +120,7 @@ def mock_llm(request):
         patch("shared_memory.distiller.get_gemini_client", return_value=client),
         patch("shared_memory.graph.get_gemini_client", return_value=client),
         patch("shared_memory.salvage.get_gemini_client", return_value=client),
+        patch("shared_memory.search.get_gemini_client", return_value=client),
     ]
 
     for p in patches:
