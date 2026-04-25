@@ -4,7 +4,9 @@ from typing import Any
 from shared_memory import logic
 from shared_memory.config import settings
 from shared_memory.embeddings import get_gemini_client
-from shared_memory.utils import AIRateLimiter, log_error, log_info
+from shared_memory.utils import AIRateLimiter, get_logger, log_error, log_info
+
+logger = get_logger("distiller")
 
 
 async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str, Any]]):
@@ -110,6 +112,7 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
         )
 
     except Exception as e:
+        logger.error(f"Failed to distill knowledge for session {session_id}: {e}", exc_info=True)
         log_error(f"Failed to distill knowledge for session {session_id}", e)
         # Note: We don't re-raise here to avoid crashing the thought process
         # because distillation is a background/secondary task.
@@ -167,4 +170,5 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
             )
             log_info(f"Incremental Distill: Saved {len(entities) + len(observations)} atoms.")
     except Exception as e:
+        logger.error(f"Incremental distillation failed for {session_id}: {e}", exc_info=True)
         log_error(f"Incremental distillation failed for {session_id}", e)

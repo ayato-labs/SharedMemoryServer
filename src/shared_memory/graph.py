@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 from typing import Any
@@ -71,8 +72,10 @@ async def _check_conflict_internal(entity_name: str, new_content: str, agent_id:
             break
         except Exception as e:
             error_str = str(e).lower()
-            if ("429" in error_str or "resource_exhausted" in error_str) and attempt < max_retries - 1:
-                wait_time = (2 ** attempt) + 1
+            if (
+                "429" in error_str or "resource_exhausted" in error_str
+            ) and attempt < max_retries - 1:
+                wait_time = (2**attempt) + 1
                 logger.warning(f"Conflict Check Rate Limit (429): Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
                 continue

@@ -24,7 +24,6 @@ _WRITE_SEMAPHORES: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 
 def get_write_semaphore() -> asyncio.Semaphore:
     """Returns a write semaphore bound to the current event loop."""
-    global _WRITE_SEMAPHORES
     loop = asyncio.get_running_loop()
     if loop not in _WRITE_SEMAPHORES:
         _WRITE_SEMAPHORES[loop] = asyncio.Semaphore(1)
@@ -110,6 +109,7 @@ class AsyncSQLiteConnection:
         except Exception as e:
             from shared_memory.exceptions import DatabaseError
 
+            logger.error(f"Failed to connect to database at {self.db_path}: {e}", exc_info=True)
             log_error(f"Failed to connect to database at {self.db_path}", e)
             raise DatabaseError(f"Database connection failed: {e}") from e
 
@@ -199,11 +199,11 @@ async def init_db(force: bool = False):
         return
 
     logger.info(f"Initializing main database (force={force})...")
-    
+
     # Ensure directory exists
     db_path = get_db_path()
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    
+
     async with await _async_get_connection_raw(db_path) as conn:
         # Integrity Check: verify file is a database
         try:

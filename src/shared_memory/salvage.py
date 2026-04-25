@@ -94,8 +94,14 @@ async def salvage_related_knowledge(
             return reranked
         except Exception:
             # Fallback if JSON parsing fails
+            logger.error(
+                "Salvage: Failed to parse re-rank JSON. Response: %s",
+                response.text,
+                exc_info=True,
+            )
             return candidates[:3]
 
     except Exception as e:
+        logger.error(f"Salvage failure for session {session_id}: {e}", exc_info=True)
         log_error(f"Salvage failure for session {session_id}", e)
         return []

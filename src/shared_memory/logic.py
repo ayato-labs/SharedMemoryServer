@@ -98,6 +98,7 @@ async def save_memory_core(
         await init_db()
     except Exception as e:
         msg = f"Critical Error: Could not initialize database. {e}"
+        logger.error(msg, exc_info=True)
         log_error(msg)
         return msg
 
@@ -152,7 +153,7 @@ async def save_memory_core(
     # 1.3 Execute Parallel AI Calls (Embeddings only for now)
     logger.info("Phase 1.1 (Embeddings) GATHERING")
     try:
-        # We only run embeddings in parallel here. 
+        # We only run embeddings in parallel here.
         # Conflict checks are moved inside the semaphore to prevent race conditions.
         all_vectors = await (tasks[0] if tasks else asyncio.sleep(0, result=[]))
     except Exception as e:
@@ -245,11 +246,12 @@ async def save_memory_core(
 
     db_duration = time.perf_counter() - db_start_time
     total_duration = time.perf_counter() - start_time
+    result_summary = " | ".join(results)
     logger.info(
-        f"save_memory_core SUCCESS. "
+        f"save_memory_core SUCCESS. Results: {result_summary}. "
         f"Total: {total_duration:.2f}s (AI: {ai_duration:.2f}s, DB: {db_duration:.2f}s)"
     )
-    return " | ".join(results)
+    return result_summary
 
 
 async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
