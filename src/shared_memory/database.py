@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import random
 import sqlite3
 
@@ -198,7 +199,12 @@ async def init_db(force: bool = False):
         return
 
     logger.info(f"Initializing main database (force={force})...")
-    async with await _async_get_connection_raw(get_db_path()) as conn:
+    
+    # Ensure directory exists
+    db_path = get_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    
+    async with await _async_get_connection_raw(db_path) as conn:
         # Integrity Check: verify file is a database
         try:
             await conn.execute("SELECT 1")

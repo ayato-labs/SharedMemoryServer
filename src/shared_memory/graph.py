@@ -59,17 +59,25 @@ async def _check_conflict_internal(entity_name: str, new_content: str, agent_id:
     # Enforce Rate Limiting
     await AIRateLimiter.throttle()
 
-    response = await client.aio.models.generate_content(
-        model=settings.generative_model,
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
-
-    try:
-        data = json.loads(response.text)
-    except Exception as e:
-        log_error("Failed to parse conflict check JSON", e)
-        return False, None
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = await client.aio.models.generate_content(
+                model=settings.generative_model,
+                contents=prompt,
+                config={"response_mime_type": "application/json"},
+            )
+            data = json.loads(response.text)
+            break
+        except Exception as e:
+            error_str = str(e).lower()
+            if ("429" in error_str or "resource_exhausted" in error_str) and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + 1
+                logger.warning(f"Conflict Check Rate Limit (429): Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                continue
+            log_error("Conflict check failed during AI call", e)
+            return False, None
     if data.get("conflict"):
         reason = data.get("reason", "Unknown contradiction")
         logger.warning(f"CONFLICT DETECTED in '{entity_name}': {reason}")
