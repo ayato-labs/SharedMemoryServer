@@ -17,6 +17,19 @@ _THOUGHTS_CONNECTION: aiosqlite.Connection | None = None
 # Global lock to prevent race conditions during singleton initialization
 _INIT_LOCK = asyncio.Lock()
 
+# Global semaphores mapped by event loop to limit concurrent DB writes
+_WRITE_SEMAPHORES: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+
+
+def get_write_semaphore() -> asyncio.Semaphore:
+    """Returns a write semaphore bound to the current event loop."""
+    global _WRITE_SEMAPHORES
+    loop = asyncio.get_running_loop()
+    if loop not in _WRITE_SEMAPHORES:
+        _WRITE_SEMAPHORES[loop] = asyncio.Semaphore(1)
+    return _WRITE_SEMAPHORES[loop]
+
+
 # Global flag to track if the main database has been initialized in the current session.
 _DB_INITIALIZED = False
 
@@ -88,6 +101,7 @@ class AsyncSQLiteConnection:
                         await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
                         await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
                         await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                        await _MAIN_CONNECTION.execute("PRAGMA cache_size = -2000")
                         logger.info("Main connection successfully established and configured.")
                     self.conn = _MAIN_CONNECTION
 

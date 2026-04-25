@@ -6,7 +6,12 @@ from typing import Any
 import aiosqlite
 
 from shared_memory import bank, graph, health, lifecycle, management, search
-from shared_memory.database import async_get_connection, init_db, retry_on_db_lock
+from shared_memory.database import (
+    async_get_connection,
+    get_write_semaphore,
+    init_db,
+    retry_on_db_lock,
+)
 from shared_memory.embeddings import compute_embeddings_bulk
 from shared_memory.insights import InsightEngine
 from shared_memory.utils import get_logger, log_error
@@ -184,59 +189,60 @@ async def save_memory_core(
     logger.info("Phase 2 (DB) START")
     db_start_time = time.perf_counter()
     try:
-        async with await async_get_connection() as conn:
-            logger.info("DB Connection ACQUIRED")
-            results = []
-            try:
-                if entities:
-                    logger.debug(f"Saving {len(entities)} entities")
-                    results.append(
-                        await graph.save_entities(
-                            entities,
+        async with get_write_semaphore():
+            async with await async_get_connection() as conn:
+                logger.info("DB Connection ACQUIRED")
+                results = []
+                try:
+                    if entities:
+                        logger.debug(f"Saving {len(entities)} entities")
+                        results.append(
+                            await graph.save_entities(
+                                entities,
+                                agent_id,
+                                conn,
+                                precomputed_vectors=precomputed_entity_vectors,
+                            )
+                        )
+                    if relations:
+                        logger.debug(f"Saving {len(relations)} relations")
+                        results.append(await graph.save_relations(relations, agent_id, conn))
+                    if observations:
+                        logger.debug(f"Saving {len(observations)} observations")
+                        res, conflicts = await graph.save_observations(
+                            observations,
                             agent_id,
                             conn,
-                            precomputed_vectors=precomputed_entity_vectors,
+                            precomputed_conflicts=precomputed_observations_conflicts,
                         )
-                    )
-                if relations:
-                    logger.debug(f"Saving {len(relations)} relations")
-                    results.append(await graph.save_relations(relations, agent_id, conn))
-                if observations:
-                    logger.debug(f"Saving {len(observations)} observations")
-                    res, conflicts = await graph.save_observations(
-                        observations,
-                        agent_id,
-                        conn,
-                        precomputed_conflicts=precomputed_observations_conflicts,
-                    )
-                    results.append(res)
-                    if conflicts:
-                        logger.warning(f"Conflicts detected: {len(conflicts)}")
-                        results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
-                if bank_files:
-                    logger.debug(f"Saving {len(bank_files)} bank files")
-                    results.append(
-                        await bank.save_bank_files(
-                            bank_files,
-                            agent_id,
-                            conn,
-                            precomputed_vectors=precomputed_bank_vectors,
+                        results.append(res)
+                        if conflicts:
+                            logger.warning(f"Conflicts detected: {len(conflicts)}")
+                            results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
+                    if bank_files:
+                        logger.debug(f"Saving {len(bank_files)} bank files")
+                        results.append(
+                            await bank.save_bank_files(
+                                bank_files,
+                                agent_id,
+                                conn,
+                                precomputed_vectors=precomputed_bank_vectors,
+                            )
                         )
-                    )
 
-                logger.info("Committing DB transaction")
-                await conn.commit()
-                logger.info("DB transaction COMMITTED")
-            except aiosqlite.Error as e:
-                logger.error(f"DB Transaction Error: {e}", exc_info=True)
-                await conn.rollback()
-                log_error("Database transaction failed in save_memory_core", e)
-                return f"Database Error: Transaction failed. {e}"
-            except Exception as e:
-                logger.error(f"Unexpected error during DB phase: {e}", exc_info=True)
-                await conn.rollback()
-                log_error("Unexpected error in save_memory_core", e)
-                return f"Internal Error: {e}"
+                    logger.info("Committing DB transaction")
+                    await conn.commit()
+                    logger.info("DB transaction COMMITTED")
+                except aiosqlite.Error as e:
+                    logger.error(f"DB Transaction Error: {e}", exc_info=True)
+                    await conn.rollback()
+                    log_error("Database transaction failed in save_memory_core", e)
+                    return f"Database Error: Transaction failed. {e}"
+                except Exception as e:
+                    logger.error(f"Unexpected error during DB phase: {e}", exc_info=True)
+                    await conn.rollback()
+                    log_error("Unexpected error in save_memory_core", e)
+                    return f"Internal Error: {e}"
     except Exception as e:
         msg = f"Critical Error: Failed to acquire DB connection. {e}"
         logger.error(msg, exc_info=True)

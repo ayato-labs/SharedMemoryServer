@@ -95,40 +95,33 @@ async def compute_embedding(
 
     logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
     start_api = time.perf_counter()
-    try:
-        response = await client.aio.models.embed_content(
-            model=settings.embedding_model,
-            contents=to_compute,
-            config={"task_type": "RETRIEVAL_DOCUMENT"},
-        )
-        api_duration = time.perf_counter() - start_api
-        logger.info(f"Gemini API (Embeddings) COMPLETE. Duration: {api_duration:.2f}s")
+    response = await client.aio.models.embed_content(
+        model=settings.embedding_model,
+        contents=to_compute,
+        config={"task_type": "RETRIEVAL_DOCUMENT"},
+    )
+    api_duration = time.perf_counter() - start_api
+    logger.info(f"Gemini API (Embeddings) COMPLETE. Duration: {api_duration:.2f}s")
 
-        async def _save_cache(db_conn):
-            for idx, (original_idx, content_hash) in enumerate(compute_map):
-                vector = response.embeddings[idx].values
-                results[original_idx] = vector
-                await db_conn.execute(
-                    """
-                    INSERT OR REPLACE INTO embedding_cache
-                    (content_hash, vector, model_name)
-                    VALUES (?, ?, ?)
-                """,
-                    (content_hash, json.dumps(vector), settings.embedding_model),
-                )
-            await db_conn.commit()
+    async def _save_cache(db_conn):
+        for idx, (original_idx, content_hash) in enumerate(compute_map):
+            vector = response.embeddings[idx].values
+            results[original_idx] = vector
+            await db_conn.execute(
+                """
+                INSERT OR REPLACE INTO embedding_cache
+                (content_hash, vector, model_name)
+                VALUES (?, ?, ?)
+            """,
+                (content_hash, json.dumps(vector), settings.embedding_model),
+            )
+        await db_conn.commit()
 
-        if conn:
-            await _save_cache(conn)
-        else:
-            async with await async_get_connection() as db:
-                await _save_cache(db)
-
-    except Exception as e:
-        log_error("Failed to compute embeddings via Gemini API", e)
-        # Fallback
-        for original_idx, _ in compute_map:
-            results[original_idx] = [0.0] * 768
+    if conn:
+        await _save_cache(conn)
+    else:
+        async with await async_get_connection() as db:
+            await _save_cache(db)
 
     # Ensure all slots are filled
     final_results = [r if r is not None else ([0.0] * 768) for r in results]

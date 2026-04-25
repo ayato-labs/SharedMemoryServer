@@ -47,6 +47,12 @@ async def test_sequential_vs_concurrent_consistency(mock_llm):
     """Verifies that concurrent updates to the same entity don't cause deadlocks or corrupt data."""
     entity_name = "HotEntity"
     
+    # Ensure entity exists so observations are retrieved by name filter
+    await save_memory_core(
+        entities=[{"name": entity_name, "description": "High traffic node"}],
+        agent_id="test_agent"
+    )
+    
     async def update_obs(i):
         return await save_memory_core(
             observations=[{"entity_name": entity_name, "content": f"Update {i}"}],
