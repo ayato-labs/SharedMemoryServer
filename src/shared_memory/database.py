@@ -81,14 +81,15 @@ class AsyncSQLiteConnection:
                         await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
                     self.conn = _THOUGHTS_CONNECTION
                 else:
-                    logger.info(f"Establishing NEW singleton connection to: {self.db_path}")
-                    _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
-                    _MAIN_CONNECTION.row_factory = aiosqlite.Row
-                    await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
-                    await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                    await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                    if _MAIN_CONNECTION is None:
+                        logger.info(f"Establishing NEW singleton connection to: {self.db_path}")
+                        _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                        _MAIN_CONNECTION.row_factory = aiosqlite.Row
+                        await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
+                        await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                        await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                        logger.info("Main connection successfully established and configured.")
                     self.conn = _MAIN_CONNECTION
-                    logger.info("Main connection successfully established and configured.")
 
             return self.conn
         except Exception as e:

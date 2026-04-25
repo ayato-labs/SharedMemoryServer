@@ -61,8 +61,12 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
                 continue
 
             # Pattern B: Item is a single { "filename.md": "content" } entry
+            # But only if it's not a structured dict that happens to have 1 key
             if len(item) == 1:
                 key, val = next(iter(item.items()))
+                # Ignore if the single key is a known attribute name but has no value
+                if key in ["filename", "name", "title", "content", "text", "body"]:
+                    continue
                 if isinstance(val, str):
                     result[str(key)] = val
                     continue

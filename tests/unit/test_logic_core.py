@@ -1,35 +1,72 @@
 import pytest
-
-from shared_memory import logic
-
+from shared_memory.logic import save_memory_core, read_memory_core
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_save_memory_core_minimal(fake_llm):
-    """単体テスト: 最低限のエンティティ保存を検証 (No MagicMock)"""
-    # init_db is handled by fixture setup_teardown_db in conftest.py
-
-    entities = [
-        {"name": "TestEntity", "entity_type": "concept", "description": "A unit test entity"}
-    ]
-    result = await logic.save_memory_core(entities=entities, agent_id="test_agent")
-
-    assert "Saved" in result
-
+async def test_save_memory_core_full_flow(fake_llm):
+    """
+    Test save_memory_core logic using FakeGeminiClient (No MagicMock).
+    """
+    # 1. Setup Input
+    entities = [{"name": "UnitNode", "description": "A node for unit testing"}]
+    observations = ["This is a test observation for UnitNode"]
+    bank_files = {"unit_test.md": "# Unit Test\nThis is content."}
+    
+    # 2. Execute
+    result = await save_memory_core(
+        entities=entities,
+        observations=observations,
+        bank_files=bank_files,
+        agent_id="test_agent"
+    )
+    
+    # 3. Verify Result Message
+    assert "Saved 1 entities" in result
+    assert "bank files" in result.lower()
+    
+    # 4. Verify Persistence via read_memory_core
+    search_result = await read_memory_core(query="UnitNode")
+    
+    # Check entities
+    found_entities = search_result["graph"]["entities"]
+    assert any(e["name"] == "UnitNode" for e in found_entities)
+    
+    # Check bank files
+    found_bank = search_result["bank"]
+    assert "unit_test.md" in found_bank
+    assert "Unit Test" in found_bank["unit_test.md"]
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_read_memory_core_empty(fake_llm):
-    """単体テスト: 空のDBでの読み取りを検証"""
-    result = await logic.read_memory_core(query="Nothing")
-    assert result["graph"]["entities"] == []
-    assert result["graph"]["relations"] == []
-
+async def test_save_memory_core_shorthand(fake_llm):
+    """Test string shorthands for entities and observations."""
+    result = await save_memory_core(
+        entities=["ShorthandNode"],
+        observations=["Shorthand observation"],
+        agent_id="test_agent"
+    )
+    
+    assert "Saved 1 entities" in result
+    
+    search_result = await read_memory_core(query="ShorthandNode")
+    assert any(e["name"] == "ShorthandNode" for e in search_result["graph"]["entities"])
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_save_memory_invalid_input(fake_llm):
-    """単体テスト: 不正な入力形式での動作を検証 (Adversarial)"""
-    # entities がリストではない場合
-    with pytest.raises((TypeError, AttributeError)):
-        await logic.save_memory_core(entities="not a list")
+async def test_save_memory_core_ai_failure(fake_llm):
+    """Test behavior when AI/Embedding computation fails."""
+    # Inject error into fake client
+    fake_llm.models.set_error("embed_content", Exception("API Timeout"))
+    
+    result = await save_memory_core(
+        entities=["FailNode"],
+        agent_id="test_agent"
+    )
+    
+    # In Phase 1, if embed_content fails, the whole save_memory_core returns early with "AI Error"
+    assert "AI Error" in result
+    assert "API Timeout" in result
+    
+    # Verify nothing was saved (as it returned before Phase 2)
+    search_result = await read_memory_core(query="FailNode")
+    assert not any(e["name"] == "FailNode" for e in search_result["graph"]["entities"])
