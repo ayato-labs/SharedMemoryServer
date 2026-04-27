@@ -61,24 +61,24 @@ def parse_retry_delay(error: Exception) -> float | None:
     return None
 
 
-def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0):
+def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0, rotate_models: bool = True):
     """
     Decorator for retrying AI API calls on 429 RESOURCE_EXHAUSTED errors.
     Implements model fallback and exponential backoff.
+    :param rotate_models: If True, switches models on 429. If False, just waits.
     """
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             last_error = None
             
-            # Each 'attempt' tries to use a model.
-            # We try up to max_retries full cycles if needed.
-            total_attempts = max_retries * len(model_manager.models)
+            # If rotation is disabled, one 'attempt' is one retry.
+            # If enabled, one 'attempt' is one model in the cycle.
+            multiplier = len(model_manager.models) if rotate_models else 1
+            total_attempts = max_retries * multiplier
             
             for attempt in range(total_attempts):
                 try:
-                    # The decorated function might use settings.generative_model
-                    # which we will update to point to model_manager.get_current_model().
                     return await func(*args, **kwargs)
                 
                 except Exception as e:
@@ -86,23 +86,31 @@ def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0):
                     e_str = str(e).upper()
                     
                     if "429" in e_str or "RESOURCE_EXHAUSTED" in e_str:
-                        is_full_cycle = await model_manager.rotate()
+                        wait_time = parse_retry_delay(e)
                         
-                        if is_full_cycle:
-                            # Exponential backoff on full cycle
-                            cycle_count = attempt // len(model_manager.models)
-                            wait_time = parse_retry_delay(e) or (initial_backoff * (2 ** cycle_count))
+                        if rotate_models:
+                            is_full_cycle = await model_manager.rotate()
+                            if is_full_cycle:
+                                cycle_count = attempt // len(model_manager.models)
+                                wait_time = wait_time or (initial_backoff * (2 ** cycle_count))
+                                logger.warning(
+                                    f"All models exhausted (429). Cycle {cycle_count+1} complete. "
+                                    f"Waiting {wait_time:.2f}s before restarting..."
+                                )
+                                await asyncio.sleep(wait_time)
+                            else:
+                                logger.info(
+                                    f"Model 429 detected. Falling back to {model_manager.get_current_model()}..."
+                                )
+                                await asyncio.sleep(random.uniform(0.1, 0.3))
+                        else:
+                            # Just exponential backoff without rotation
+                            wait_time = wait_time or (initial_backoff * (2 ** attempt))
                             logger.warning(
-                                f"All models exhausted (429). Cycle {cycle_count+1} complete. "
-                                f"Waiting {wait_time:.2f}s before restarting..."
+                                f"Quota limit (429) reached. Attempt {attempt+1}. "
+                                f"Waiting {wait_time:.2f}s..."
                             )
                             await asyncio.sleep(wait_time)
-                        else:
-                            # Fallback immediately
-                            logger.info(
-                                f"Model 429 detected. Falling back to {model_manager.get_current_model()}..."
-                            )
-                            await asyncio.sleep(random.uniform(0.1, 0.3))
                         continue
                     raise e
             raise last_error
