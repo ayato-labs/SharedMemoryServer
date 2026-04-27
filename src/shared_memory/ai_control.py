@@ -72,10 +72,10 @@ def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0, rotate
         async def wrapper(*args, **kwargs):
             last_error = None
             
-            # If rotation is disabled, one 'attempt' is one retry.
-            # If enabled, one 'attempt' is one model in the cycle.
+            # total_attempts is the initial try plus max_retries, 
+            # multiplied by the number of models if rotation is enabled.
             multiplier = len(model_manager.models) if rotate_models else 1
-            total_attempts = max_retries * multiplier
+            total_attempts = (max_retries + 1) * multiplier
             
             for attempt in range(total_attempts):
                 try:

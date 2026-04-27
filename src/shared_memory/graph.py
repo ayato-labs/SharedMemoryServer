@@ -40,7 +40,7 @@ async def check_conflict(entity_name: str, new_contents: list[str], agent_id: st
             )
     except Exception as e:
         log_error("Conflict check failed", e)
-        return [(False, None)] * len(new_contents)
+        raise e
 
 
 async def _check_conflicts_internal(
@@ -94,7 +94,7 @@ async def _check_conflicts_internal(
                 await asyncio.sleep(wait_time)
                 continue
             log_error("Conflict check failed during AI call", e)
-            return [(False, None)] * len(new_contents)
+            raise e
 
     if not results:
         return [(False, None)] * len(new_contents)
@@ -312,18 +312,24 @@ async def save_observations(
         content = mask_sensitive_data(content)
 
         # Conflict check
+        is_actually_conflict = False
         if precomputed_conflicts is not None:
             # Match conflict from precomputed results if available
-            conflict_info = next((c for c in precomputed_conflicts if c["index"] == i), None)
+            conflict_info = precomputed_conflicts[i] if i < len(precomputed_conflicts) else None
             if conflict_info and conflict_info.get("is_conflict"):
                 conflicts_to_report.append(
                     {"entity": entity_name, "reason": conflict_info.get("reason")}
                 )
+                is_actually_conflict = True
         else:
             results = await check_conflict(entity_name, [content], agent_id, conn=conn)
             if results and results[0][0]:
                 is_conflict, reason = results[0]
                 conflicts_to_report.append({"entity": entity_name, "reason": reason})
+                is_actually_conflict = True
+        
+        if is_actually_conflict:
+            continue
 
         await conn.execute(
             "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",

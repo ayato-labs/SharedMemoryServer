@@ -239,10 +239,10 @@ async def save_memory_core(
             for entity_name, result in zip(unique_entities, group_results, strict=True):
                 if isinstance(result, Exception):
                     logger.error(f"Batch conflict check failed for entity {entity_name}: {result}")
-                    # Fill with default (no conflict) for safety on error
+                    # Strict by default: Mark as conflict on error to prevent unsafe saves
                     for item in entity_groups[entity_name]:
                         precomputed_observations_conflicts[item["index"]] = {
-                            "index": item["index"], "is_conflict": False, "reason": str(result)
+                            "index": item["index"], "is_conflict": True, "reason": f"Conflict check failed: {result}"
                         }
                 else:
                     # result is a list of (is_conflict, reason) tuples
