@@ -163,10 +163,10 @@ async def _run_save_memory_background(entities, relations, observations, bank_fi
 
 @mcp.tool()
 async def save_memory(
-    entities: Any | None = None,
-    relations: Any | None = None,
-    observations: Any | None = None,
-    bank_files: Any | None = None,
+    entities: list[dict[str, Any]] | None = None,
+    relations: list[dict[str, Any]] | None = None,
+    observations: list[dict[str, Any]] | None = None,
+    bank_files: dict[str, str] | None = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -177,7 +177,8 @@ async def save_memory(
     - relations: Knowledge Graph Triples. Each dict MUST have:
         'subject' (source), 'object' (target), 'predicate' (type).
     - observations: List of factual statements linked to an entity.
-    - bank_files: Markdown documentation.
+        Format: {"entity_name": "Name", "content": "Fact"}
+    - bank_files: Markdown documentation mapping filename to content.
     """
     await ensure_initialized()
     

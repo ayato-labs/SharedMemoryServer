@@ -98,9 +98,9 @@ class Settings:
     @property
     def generative_model(self) -> str:
         """推論や知識抽出に使用する現在の生成モデル名を返す。"""
-        # Note: We prioritize the rotator's choice if available in the future.
-        # For now, it returns the current primary.
-        return os.environ.get("GOOGLE_GENERATIVE_MODEL", GOOGLE_GENERATIVE_MODEL)
+        # Dynamic rotation support
+        from shared_memory.ai_control import model_manager
+        return model_manager.get_current_model()
 
     @property
     def embedding_model(self) -> str:
