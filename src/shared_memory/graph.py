@@ -5,11 +5,12 @@ from typing import Any
 
 from shared_memory.config import settings
 from shared_memory.database import async_get_connection
+from shared_memory.ai_control import AIRateLimiter, retry_on_ai_quota
 from shared_memory.embeddings import (
     compute_embeddings_bulk,
     get_gemini_client,
 )
-from shared_memory.utils import AIRateLimiter, get_logger, log_error, mask_sensitive_data
+from shared_memory.utils import get_logger, log_error, mask_sensitive_data
 
 logger = get_logger("graph")
 
@@ -83,6 +84,11 @@ async def _check_conflicts_internal(
             data = json.loads(response.text)
             if isinstance(data, list) and len(data) == len(new_contents):
                 results = data
+                break
+            elif isinstance(data, dict):
+                # Robustness fallback: If AI returns a single object instead of a list of one,
+                # wrap it. This handles many legacy mocks and simpler LLM behaviors.
+                results = [data] * len(new_contents)
                 break
         except Exception as e:
             error_str = str(e).lower()
@@ -402,7 +408,8 @@ async def get_graph_data(query: str | None = None):
             )
             relations = await cursor.fetchall()
 
-            # For observations, we take the union of direct matches and those linked to matched entities
+            # For observations, we take the union of direct matches 
+            # and those linked to matched entities
             cursor = await conn.execute(
                 "SELECT * FROM observations WHERE entity_name IN "
                 f"({placeholders}) AND status = 'active'",

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import aiosqlite
 
@@ -19,7 +19,9 @@ from shared_memory.utils import get_logger, log_error
 logger = get_logger("logic")
 
 
-def normalize_entities(entities: Optional[List[Union[Dict[str, Any], str]]]) -> List[Dict[str, Any]]:
+def normalize_entities(
+    entities: list[dict[str, Any] | str] | None
+) -> list[dict[str, Any]]:
     """Normalize entities from strings or various dict formats."""
     normalized = []
     for e in (entities or []):
@@ -34,7 +36,7 @@ def normalize_entities(entities: Optional[List[Union[Dict[str, Any], str]]]) -> 
     return normalized
 
 
-def normalize_observation_item(obs: Union[Dict[str, Any], str]) -> Optional[Dict[str, Any]]:
+def normalize_observation_item(obs: dict[str, Any] | str) -> dict[str, Any] | None:
     """Normalize a single observation item."""
     if isinstance(obs, str):
         return {"content": obs, "entity_name": "Global"}
@@ -49,8 +51,8 @@ def normalize_observation_item(obs: Union[Dict[str, Any], str]) -> Optional[Dict
 
 
 def normalize_observations(
-    observations: Optional[List[Union[Dict[str, Any], str]]]
-) -> List[Dict[str, Any]]:
+    observations: list[dict[str, Any] | str] | None
+) -> list[dict[str, Any]]:
     """Normalize a list of observations."""
     normalized = []
     for obs in (observations or []):
@@ -60,7 +62,7 @@ def normalize_observations(
     return normalized
 
 
-def normalize_bank_files(bank_files: Any) -> Dict[str, str]:
+def normalize_bank_files(bank_files: Any) -> dict[str, str]:
     """
     Standardizes bank_files input into a dict[str, str].
     Handles:
@@ -242,13 +244,19 @@ async def save_memory_core(
                     # Strict by default: Mark as conflict on error to prevent unsafe saves
                     for item in entity_groups[entity_name]:
                         precomputed_observations_conflicts[item["index"]] = {
-                            "index": item["index"], "is_conflict": True, "reason": f"Conflict check failed: {result}"
+                            "index": item["index"],
+                            "is_conflict": True,
+                            "reason": f"Conflict check failed: {result}"
                         }
                 else:
                     # result is a list of (is_conflict, reason) tuples
-                    for item, (is_conflict, reason) in zip(entity_groups[entity_name], result, strict=True):
+                    for item, (is_conflict, reason) in zip(
+                        entity_groups[entity_name], result, strict=True
+                    ):
                         precomputed_observations_conflicts[item["index"]] = {
-                            "index": item["index"], "is_conflict": is_conflict, "reason": reason
+                            "index": item["index"],
+                            "is_conflict": is_conflict,
+                            "reason": reason
                         }
 
             # 2.2 Rapid DB Write

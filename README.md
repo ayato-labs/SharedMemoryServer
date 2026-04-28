@@ -11,6 +11,7 @@ If you are a **Senior AI Architect**, **Staff Engineer**, or **LLM Systems Lead*
 - **State Governance**: Managing reasoning continuity across ephemeral sessions.
 - **Architectural Determinism**: Enforcing data integrity through multi-agent atomic synchronization.
 - **Intelligence Provenance**: Quantifying the maturity and reuse of knowledge assets.
+- **Team-Scale Knowledge Hub**: Centralizing agentic memory across multiple developers and devices via a persistent SSE server.
 
 ---
 
@@ -138,30 +139,31 @@ uv run pytest tests -v
 ```
 
 ### 4. Integration
-#### 🤖 Connecting to MCP Clients (Cursor, Claude, Antigravity)
+#### 🤖 Connection Strategies: Local vs. Team Hub
 
-SharedMemoryServer supports two primary connection strategies. For maximum stability in high-performance clients like **Antigravity** or **Gemini**, we recommend using the **mcp-remote bridge** pattern.
+SharedMemoryServer supports two primary deployment topologies. To realize the true value of "Shared Memory", we highly recommend deploying the server as a centralized hub.
 
-##### Option A: mcp-remote Bridge (Recommended for Antigravity/Gemini)
-This method uses a local bridge to handle the SSE (Server-Sent Events) handshake, ensuring perfect compatibility with clients that primarily support stdio.
+##### Option A: Centralized Team Hub (SSE - Recommended)
+To enable knowledge sharing across a team of developers and multiple devices, run the server as an always-on service in SSE mode. This eliminates initialization race conditions, keeps the SQLite/Graph DB constantly warm, and allows all agents to collaboratively build upon the exact same context.
 
-1. Start the server in SSE mode:
+1. Start the server centrally:
    ```bash
-   uv run shared-memory --sse --port 8377
+   uv run shared-memory --sse --port 8377 --host 0.0.0.0
    ```
-2. Add the following to your `mcp_config.json`:
+2. Team members configure their local MCP clients (Cursor, Claude, Antigravity) using `mcp-remote` pointing to the central hub:
    ```json
    "SharedMemoryServer": {
      "command": "npx",
      "args": [
        "-y",
        "mcp-remote",
-       "http://localhost:8377/sse"
+       "http://<central-server-ip>:8377/sse"
      ]
    }
    ```
 
-##### Option B: Direct STDIO (Best for CLI/Simple Integration)
+##### Option B: Local Isolation (Direct STDIO)
+For isolated, single-developer environments where extreme stdio output-guarding is preferred.
 1. Add the following to your configuration:
    ```json
    "SharedMemoryServer": {

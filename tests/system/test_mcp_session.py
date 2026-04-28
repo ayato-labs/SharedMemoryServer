@@ -35,7 +35,8 @@ async def test_mcp_tool_session_flow(mock_llm):
     assert "thoughtNumber" in str(think_resp)
 
     # 3. インサイトの取得
-    await asyncio.sleep(0.1)
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
     insights = await server.get_insights(format="json")
     assert "facts" in insights
     assert insights["facts"]["stored_entities"] >= 1

@@ -20,9 +20,10 @@ async def test_corrupt_llm_json_response(mock_llm):
     # 実装によりますが、一般的には内部でハンドルされるべきです
     try:
         await logic.save_memory_core(entities=entities)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         # もしデコードエラーがそのまま上がる設計なら、それはそれで検知
-        pass
+        from shared_memory.utils import get_logger
+        get_logger("tests").error(f"JSON corruption detected as expected: {e}")
     except Exception as e:
         # その他のハンドリングされたエラー
         assert "json" in str(e).lower() or "error" in str(e).lower()

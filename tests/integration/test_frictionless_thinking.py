@@ -1,10 +1,12 @@
 import asyncio
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from shared_memory.thought_logic import process_thought_core
+import pytest
+
 from shared_memory.database import async_get_connection
+from shared_memory.thought_logic import process_thought_core
+
 
 @pytest.mark.asyncio
 async def test_frictionless_accretion_and_salvage(mock_llm):
@@ -13,7 +15,7 @@ async def test_frictionless_accretion_and_salvage(mock_llm):
     1. Thought A contains a new fact -> System distills it into DB.
     2. Thought B in a new session asks about it -> System salvages it from DB.
     """
-    from shared_memory.utils import AIRateLimiter
+    from shared_memory.ai_control import AIRateLimiter
     AIRateLimiter.set_min_interval(0)
     
     # --- SETUP MOCK BEHAVIOR ---
@@ -27,9 +29,11 @@ async def test_frictionless_accretion_and_salvage(mock_llm):
             # Incremental Distillation Prompt
             # Return a JSON containing the PHX-2026 code name
             response.text = json.dumps({
-                "entities": [
-                    {"name": "Project Phoenix", "entity_type": "project", "description": "A top-secret research initiative."}
-                ],
+                "entities": [{
+                    "name": "Project Phoenix",
+                    "entity_type": "project",
+                    "description": "A top-secret research initiative."
+                }],
                 "relations": [],
                 "observations": [
                     {"entity_name": "Project Phoenix", "content": "Code name is PHX-2026."}
@@ -53,7 +57,7 @@ async def test_frictionless_accretion_and_salvage(mock_llm):
     session_a = "session_learning"
     thought_a = "Our secret research Project Phoenix has the code name PHX-2026."
     
-    result_a = await process_thought_core(
+    await process_thought_core(
         thought=thought_a,
         thought_number=1,
         total_thoughts=1,
@@ -62,21 +66,21 @@ async def test_frictionless_accretion_and_salvage(mock_llm):
     )
     
     # Wait for the background distillation task to complete
-    # We poll the DB for up to 5 seconds.
-    found_in_db = False
-    for _ in range(10):
-        async with await async_get_connection() as conn:
-            cursor = await conn.execute("SELECT name FROM entities WHERE name = 'Project Phoenix'")
-            if await cursor.fetchone():
-                found_in_db = True
-                break
-        await asyncio.sleep(0.5)
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
+    
+    # Check if the entity reached the DB
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute("SELECT name FROM entities WHERE name = 'Project Phoenix'")
+        found_in_db = await cursor.fetchone() is not None
     
     assert found_in_db, "Entity 'Project Phoenix' was never distilled into the database."
     
     # Verify observation
     async with await async_get_connection() as conn:
-        cursor = await conn.execute("SELECT content FROM observations WHERE entity_name = 'Project Phoenix'")
+        cursor = await conn.execute(
+            "SELECT content FROM observations WHERE entity_name = 'Project Phoenix'"
+        )
         row = await cursor.fetchone()
         assert row is not None, "Observation for 'Project Phoenix' missing."
         assert "PHX-2026" in row[0], f"Expected PHX-2026 in observation, got: {row[0]}"
@@ -106,13 +110,19 @@ async def test_frictionless_accretion_and_salvage(mock_llm):
             found_fact = True
             break
             
-    assert found_fact, f"Frictionless recall failed.\nSalvaged items: {json.dumps(related, indent=2)}\nThought B: {thought_b}"
+    msg = (
+        f"Frictionless recall failed.\nSalvaged items: "
+        f"{json.dumps(related, indent=2)}\nThought B: {thought_b}"
+    )
+    assert found_fact, msg
 
 @pytest.mark.asyncio
 async def test_thought_privacy_masking(mock_llm):
     """Verifies that sensitive data in thoughts is masked before storage."""
     session_id = "privacy_test"
-    sensitive_thought = "My secret key is sk-1234567890abcdef1234567890 and my email is test@example.com"
+    sensitive_thought = (
+        "My secret key is sk-1234567890abcdef1234567890 and my email is test@example.com"
+    )
     
     await process_thought_core(
         thought=sensitive_thought,
@@ -124,7 +134,9 @@ async def test_thought_privacy_masking(mock_llm):
     
     from shared_memory.database import async_get_thoughts_connection
     async with await async_get_thoughts_connection() as conn:
-        cursor = await conn.execute("SELECT thought FROM thought_history WHERE session_id = ?", (session_id,))
+        cursor = await conn.execute(
+            "SELECT thought FROM thought_history WHERE session_id = ?", (session_id,)
+        )
         row = await cursor.fetchone()
         saved_thought = row[0]
         

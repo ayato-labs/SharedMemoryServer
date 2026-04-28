@@ -1,7 +1,10 @@
-import pytest
 import asyncio
 import json
-from shared_memory import server, logic
+
+import pytest
+
+from shared_memory import server
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -18,16 +21,13 @@ async def test_save_memory_async_system_flow(fake_llm):
     
     assert "initiated in background" in response
     
-    # Wait for the background task to progress
-    from shared_memory.search import search_memory_logic
+    # Wait for the background task to complete
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
     
-    for _ in range(20):
-        await asyncio.sleep(0.5)
-        res = await search_memory_logic("SystemEntity")
-        # Check if the observation reached the DB
-        if any("System test fact" in r["content"] for r in res.get("observations", [])):
-            break
-    else:
+    from shared_memory.search import search_memory_logic
+    res = await search_memory_logic("SystemEntity")
+    if not any("System test fact" in r["content"] for r in res.get("observations", [])):
         pytest.fail("Asynchronous save did not complete in time or entity not searchable.")
 
 @pytest.mark.unit
@@ -45,9 +45,16 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
     
     # Setup Fake LLM response for distillation
     fake_llm.models.set_response("generate_content", json.dumps({
-        "entities": [{"name": "SharedMemoryServer", "entity_type": "software", "description": "Memory server"}],
+        "entities": [{
+            "name": "SharedMemoryServer",
+            "entity_type": "software",
+            "description": "Memory server"
+        }],
         "relations": [],
-        "observations": [{"entity_name": "SharedMemoryServer", "content": "Supports asynchronous saving"}],
+        "observations": [{
+            "entity_name": "SharedMemoryServer",
+            "content": "Supports asynchronous saving"
+        }],
         "bank_files": []
     }))
     
@@ -61,10 +68,10 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
     )
     
     # 2. The distillation is a background task. Wait for it.
-    for _ in range(20):
-        await asyncio.sleep(0.5)
-        results = await search_memory_logic("SharedMemoryServer")
-        if any("asynchronous saving" in r["content"].lower() for r in results.get("observations", [])):
-            break
-    else:
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
+    
+    results = await search_memory_logic("SharedMemoryServer")
+    obs_list = results.get("observations", [])
+    if not any("asynchronous saving" in r["content"].lower() for r in obs_list):
         pytest.fail("Knowledge was not distilled and saved in time.")

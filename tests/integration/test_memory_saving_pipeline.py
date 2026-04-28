@@ -1,8 +1,10 @@
-import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from shared_memory import logic
-from shared_memory.exceptions import DatabaseError
+
 
 @pytest.mark.asyncio
 async def test_save_memory_pipeline_with_quota_rotation(mock_llm):
@@ -32,7 +34,9 @@ async def test_save_memory_pipeline_with_quota_rotation(mock_llm):
     
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr("asyncio.sleep", AsyncMock())
-        result = await logic.save_memory_core(observations=observations, agent_id="integration_test")
+        result = await logic.save_memory_core(
+            observations=observations, agent_id="integration_test"
+        )
     
     assert "Saved 1 observations" in result
     assert call_count >= 2
@@ -44,14 +48,19 @@ async def test_save_memory_partial_failure_robustness(mock_llm):
     """
     from shared_memory.database import async_get_connection
     async with await async_get_connection() as conn:
-        await conn.execute("INSERT INTO observations (entity_name, content) VALUES (?, ?)", ("GoodEntity", "init"))
-        await conn.execute("INSERT INTO observations (entity_name, content) VALUES (?, ?)", ("BadEntity", "init"))
+        await conn.execute(
+            "INSERT INTO observations (entity_name, content) VALUES (?, ?)", ("GoodEntity", "init")
+        )
+        await conn.execute(
+            "INSERT INTO observations (entity_name, content) VALUES (?, ?)", ("BadEntity", "init")
+        )
         await conn.commit()
 
     async def side_effect(model, contents, **kwargs):
         if "BadEntity" in contents or "BadEntity" in str(kwargs.get("contents", "")):
             raise Exception("500 Internal Server Error for this entity")
-        return MagicMock(text=json.dumps([{"conflict": False, "reason": "OK"}])) # Response for GoodEntity
+        # Response for GoodEntity
+        return MagicMock(text=json.dumps([{"conflict": False, "reason": "OK"}]))
 
     mock_llm.aio.models.generate_content.side_effect = side_effect
     observations = [

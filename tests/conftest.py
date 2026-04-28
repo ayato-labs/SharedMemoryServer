@@ -35,6 +35,8 @@ async def setup_teardown_db(request):
     # Teardown: Close singleton connections before rmtree (Windows requirement)
     # We must ensure all connections are closed and references cleared
     try:
+        from shared_memory.server import wait_for_background_tasks
+        await wait_for_background_tasks(timeout=2.0)
         await close_all_connections()
     except Exception as e:
         print(f"DEBUG: Teardown close_all_connections failed: {e}")

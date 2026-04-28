@@ -1,8 +1,11 @@
-import pytest
 import json
-from unittest.mock import patch, AsyncMock
-from shared_memory import thought_logic, logic, server
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from shared_memory import logic, thought_logic
 from shared_memory.database import async_get_connection
+
 
 @pytest.mark.asyncio
 async def test_sequential_thinking_to_distillation_flow(mock_llm):
@@ -16,7 +19,11 @@ async def test_sequential_thinking_to_distillation_flow(mock_llm):
     
     # Setup mock LLM response for distillation
     distilled_json = {
-        "entities": [{"name": "Quantum Computing", "entity_type": "Field", "description": "Physics field"}],
+        "entities": [{
+            "name": "Quantum Computing",
+            "entity_type": "Field",
+            "description": "Physics field"
+        }],
         "relations": [],
         "observations": [{"entity_name": "Quantum Computing", "content": "Uses qubits."}]
     }
@@ -54,13 +61,19 @@ async def test_sequential_thinking_to_distillation_flow(mock_llm):
     )
     
     # 4. Verify graph contains the distilled knowledge
+    # We need to ensure background tasks (like incremental distillation) are finished
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
+    
     # We need to use read_memory_core or direct DB check
     async with await async_get_connection() as conn:
         cursor = await conn.execute("SELECT name FROM entities WHERE name='Quantum Computing'")
         row = await cursor.fetchone()
         assert row is not None
         
-        cursor = await conn.execute("SELECT content FROM observations WHERE entity_name='Quantum Computing'")
+        cursor = await conn.execute(
+            "SELECT content FROM observations WHERE entity_name='Quantum Computing'"
+        )
         row = await cursor.fetchone()
         assert row is not None
         assert "qubits" in row[0].lower()

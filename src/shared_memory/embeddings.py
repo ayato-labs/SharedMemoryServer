@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import os
@@ -9,7 +8,8 @@ from google import genai
 
 from shared_memory.config import settings
 from shared_memory.database import async_get_connection, retry_on_db_lock
-from shared_memory.utils import AIRateLimiter, get_logger, retry_on_ai_quota
+from shared_memory.ai_control import AIRateLimiter, retry_on_ai_quota
+from shared_memory.utils import get_logger
 
 logger = get_logger("embeddings")
 

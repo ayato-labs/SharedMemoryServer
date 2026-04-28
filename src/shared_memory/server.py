@@ -1,13 +1,12 @@
 import argparse
 import asyncio
-import json
 import logging
 import os
 import signal
 import sys
-import time
 
 from loguru import logger
+
 
 # Intercept standard logging with Loguru
 class InterceptHandler(logging.Handler):
@@ -28,18 +27,48 @@ logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 logger.remove()
 logger.add(
     sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+           "<level>{message}</level>",
     level="INFO",
 )
 
 # ruff: noqa: E402
 
-# Save real stdout for MCP communication later
-_REAL_STDOUT = sys.stdout
-# Redirect sys.stdout to stderr to catch any noise from libraries during import
-sys.stdout = sys.stderr
+# --- EXTREME GUARD: FD ISOLATION ---
+_REAL_STDOUT_FD = os.dup(sys.stdout.fileno())
+# Redirect OS-level FD 1 (stdout) to FD 2 (stderr)
+# This ensures even C-level printf() calls go to stderr.
+os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 
-logger.info("--- SERVER SCRIPT STARTING (Loguru Mode) ---")
+class ProtectedStdout:
+    """
+    A wrapper for sys.stdout that protects the real MCP communication pipe.
+    Everything written via sys.stdout.write (Python-level) goes to stderr.
+    Only the .buffer attribute provides access to the real, isolated stdout FD.
+    """
+    def __init__(self, real_fd):
+        import io
+        # Create a clean, unbuffered binary stream for MCP
+        self.buffer = io.FileIO(real_fd, mode='wb')
+    
+    def write(self, data):
+        # Redirect all Python-level print() to stderr
+        sys.stderr.write(data)
+        
+    def flush(self):
+        sys.stderr.flush()
+        self.buffer.flush()
+
+    def fileno(self):
+        return self.buffer.fileno()
+
+# Replace sys.stdout with our guard
+sys.stdout = ProtectedStdout(_REAL_STDOUT_FD)
+
+logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+logger.info("OS-level stdout (FD 1) has been redirected to stderr (FD 2)")
+logger.info("MCP communication will use an isolated FD.")
 
 from typing import Any
 
@@ -58,7 +87,24 @@ except Exception as e:
     raise e
 
 # Create MCP server instance
-mcp = FastMCP("SharedMemoryServer")
+import fastmcp.tools.function_tool
+from fastmcp.tools.base import ToolResult
+
+# Monkey-patch FunctionTool.run to allow extra arguments (compatibility with strict hosts)
+_original_run = fastmcp.tools.function_tool.FunctionTool.run
+
+async def _lenient_run(self, arguments: dict[str, Any]) -> ToolResult:
+    """Sanitize arguments by removing extra fields not defined in the tool's schema."""
+    if isinstance(arguments, dict) and hasattr(self, "parameters"):
+        properties = self.parameters.get("properties", {})
+        # Only keep arguments that are defined in the tool's properties
+        filtered_arguments = {k: v for k, v in arguments.items() if k in properties}
+        return await _original_run(self, filtered_arguments)
+    return await _original_run(self, arguments)
+
+fastmcp.tools.function_tool.FunctionTool.run = _lenient_run
+
+mcp = FastMCP("SharedMemoryServer_V2")
 
 # Global initialization state
 _INITIALIZED_EVENT = asyncio.Event()
@@ -81,7 +127,7 @@ async def _background_init():
         logger.info("BACKGROUND INITIALIZATION COMPLETE.")
     except Exception as e:
         _INIT_ERROR = e
-        logger.error(f"CRITICAL FAILURE in _background_init: {e}", exc_info=True)
+        logger.error(f"Background initialization FAILED: {e}", exc_info=True)
         # We don't exit here because we want to report this via ensure_initialized()
         # when a tool is called, providing better feedback to the user.
     finally:
@@ -105,12 +151,21 @@ def trigger_init():
         loop = asyncio.get_event_loop()
         if loop.is_running():
             logger.info("Event loop is already running. Scheduling _background_init...")
-            loop.create_task(_background_init())
+            from shared_memory.tasks import create_background_task
+            create_background_task(_background_init(), name="background_init")
         else:
             logger.info("Event loop exists but not running. Scheduling for startup...")
-            loop.call_soon(lambda: asyncio.create_task(_background_init()))
+
+            def _start():
+                from shared_memory.tasks import create_background_task
+                create_background_task(_background_init(), name="background_init")
+
+            loop.call_soon(_start)
     except Exception as e:
-        logger.warning(f"Could not schedule init on default loop: {e}. Will fallback to tool-call trigger.")
+        logger.warning(
+            f"Could not schedule init on default loop: {e}. "
+            "Will fallback to tool-call trigger."
+        )
         _INIT_STARTED = False
 
 
@@ -130,6 +185,12 @@ async def ensure_initialized():
         raise DatabaseError(f"Server failed to initialize: {_INIT_ERROR}")
 
 
+async def wait_for_background_tasks(timeout: float = 5.0):
+    """Wait for all currently tracked background tasks to complete."""
+    from shared_memory.tasks import wait_for_background_tasks as _wait
+    await _wait(timeout=timeout)
+
+
 @mcp.lifespan()
 async def lifespan(mcp_instance: FastMCP):
     """
@@ -144,6 +205,8 @@ async def lifespan(mcp_instance: FastMCP):
 
     # CLEANUP: Close persistent singleton connections on shutdown
     logger.info("Lifespan SHUTTING DOWN, closing connections...")
+    
+    await wait_for_background_tasks(timeout=5.0)
     await close_all_connections()
 
 
@@ -155,18 +218,22 @@ async def lifespan(mcp_instance: FastMCP):
 async def _run_save_memory_background(entities, relations, observations, bank_files, agent_id):
     """Internal helper to run save_memory_core in background and log results/errors."""
     try:
-        result = await logic.save_memory_core(entities, relations, observations, bank_files, agent_id)
+        result = await logic.save_memory_core(
+            entities, relations, observations, bank_files, agent_id
+        )
         logger.info(f"Background save_memory COMPLETE for agent {agent_id}: {result}")
     except Exception as e:
         logger.error(f"Background save_memory FAILED for agent {agent_id}: {e}", exc_info=True)
 
 
+from typing import Any, List, Dict, Optional
+
 @mcp.tool()
 async def save_memory(
-    entities: list[dict[str, Any]] | None = None,
-    relations: list[dict[str, Any]] | None = None,
-    observations: list[dict[str, Any]] | None = None,
-    bank_files: dict[str, str] | None = None,
+    entities: list[dict] = [],
+    relations: list[dict] = [],
+    observations: list[dict] = [],
+    bank_files: dict[str, str] = {},
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -183,23 +250,32 @@ async def save_memory(
     await ensure_initialized()
     
     # Fire and forget
-    asyncio.create_task(
-        _run_save_memory_background(entities, relations, observations, bank_files, agent_id)
+    from shared_memory.tasks import create_background_task
+    create_background_task(
+        _run_save_memory_background(entities, relations, observations, bank_files, agent_id),
+        name=f"save_memory_{agent_id}"
     )
     
     count_info = []
-    if entities: count_info.append(f"{len(entities)} entities")
-    if relations: count_info.append(f"{len(relations)} relations")
-    if observations: count_info.append(f"{len(observations)} observations")
-    if bank_files: count_info.append(f"{len(bank_files)} files")
+    if entities:
+        count_info.append(f"{len(entities)} entities")
+    if relations:
+        count_info.append(f"{len(relations)} relations")
+    if observations:
+        count_info.append(f"{len(observations)} observations")
+    if bank_files:
+        count_info.append(f"{len(bank_files)} files")
     
-    msg = f"Knowledge storage initiated in background for: {', '.join(count_info) if count_info else 'nothing'}."
+    msg = (
+        f"Saved (initiated in background) for: "
+        f"{', '.join(count_info) if count_info else 'nothing'}."
+    )
     logger.info(msg)
     return msg
 
 
 @mcp.tool()
-async def read_memory(query: str | None = None):
+async def read_memory(query: str = ""):
     """
     Retrieves knowledge from the graph and memory bank.
     Uses hybrid search (Semantic + Keyword) if a query is provided.
@@ -209,7 +285,7 @@ async def read_memory(query: str | None = None):
 
 
 @mcp.tool()
-async def get_graph_data(query: str = None) -> dict[str, Any] | str:
+async def get_graph_data(query: str = "") -> dict[str, Any] | str:
     """
     Retrieves knowledge from the graph database.
     Optionally filters graph data based on a query.
@@ -260,10 +336,10 @@ async def sequential_thinking(
     thought_number: int,
     total_thoughts: int,
     next_thought_needed: bool,
-    is_revision: bool | None = False,
-    revises_thought: int | None = None,
-    branch_from_thought: int | None = None,
-    branch_id: str | None = None,
+    is_revision: bool = False,
+    revises_thought: int = 0,
+    branch_from_thought: int = 0,
+    branch_id: str = "",
     session_id: str = "default_session",
 ):
     """
@@ -339,12 +415,9 @@ def main():
     use_sse = args.sse or os.environ.get("MCP_TRANSPORT") == "sse"
 
     if not use_sse:
-        # Restore stdout for MCP communication ONLY in stdio mode
-        sys.stdout = _REAL_STDOUT
-        # Ensure output is unbuffered to prevent connection hangs
-        if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(line_buffering=True)
-        logger.info("SharedMemoryServer: Starting in STDIO mode")
+        logger.info("SharedMemoryServer: Starting in STDIO mode (Using Protected Channel)")
+        # Note: sys.stdout is already our ProtectedStdout wrapper.
+        # FastMCP will automatically use sys.stdout.buffer for UTF-8 wrapping.
     else:
         logger.info(f"SharedMemoryServer: Starting in SSE mode on port {args.port}")
 

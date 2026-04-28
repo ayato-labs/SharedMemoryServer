@@ -19,7 +19,7 @@ async def test_knowledge_lifecycle_integration(mock_llm):
 
     # 1. Create Knowledge
     mock_llm.models.set_response(
-        "generate_content", json.dumps({"conflict": False, "reason": "No conflict"})
+        "generate_content", json.dumps([{"conflict": False, "reason": "No conflict"}])
     )
 
     await save_memory_core(
@@ -58,7 +58,7 @@ async def test_conflict_detection_integration(mock_llm):
     entity = "ConflictNode"
 
     # 1. First, create some existing context so check_conflict actually runs
-    mock_llm.models.set_response("generate_content", json.dumps({"conflict": False}))
+    mock_llm.models.set_response("generate_content", json.dumps([{"conflict": False}]))
     await save_memory_core(
         entities=[{"name": entity, "description": "Node for conflict testing"}],
         observations=[{"entity_name": entity, "content": "Existing truth: The sky is blue."}],
@@ -68,7 +68,7 @@ async def test_conflict_detection_integration(mock_llm):
     # 2. Now, steer mock to REPORT a conflict for the NEXT observation
     conflict_reason = "This information contradicts previous entry."
     mock_llm.models.set_response(
-        "generate_content", json.dumps({"conflict": True, "reason": conflict_reason})
+        "generate_content", json.dumps([{"conflict": True, "reason": conflict_reason}])
     )
 
     result = await save_memory_core(

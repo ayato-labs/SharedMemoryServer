@@ -1,8 +1,9 @@
-import pytest
-import asyncio
 from unittest.mock import patch
+
+import pytest
+
 from shared_memory import logic
-from shared_memory.graph import check_conflict
+
 
 @pytest.mark.unit
 class TestLogicParallel:
@@ -18,7 +19,6 @@ class TestLogicParallel:
         # the ENTIRE client. We just want to see the batching.
         
         call_args = []
-        original_check_conflict = logic.graph.check_conflict
         
         async def mock_check_conflict(entity_name, new_contents, agent_id, conn=None):
             call_args.append((entity_name, new_contents))
@@ -58,7 +58,9 @@ class TestLogicParallel:
                 return [(True, "Internal Conflict Found")] * len(new_contents)
             return [(False, "No conflict")] * len(new_contents)
 
-        with patch("shared_memory.logic.graph.check_conflict", side_effect=mock_check_conflict_with_fail):
+        with patch(
+            "shared_memory.logic.graph.check_conflict", side_effect=mock_check_conflict_with_fail
+        ):
             observations = [
                 {"entity_name": "SafeEntity", "content": "Safe fact"},
                 {"entity_name": "ConflictEntity", "content": "Bad fact"},

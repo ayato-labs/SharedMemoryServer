@@ -74,11 +74,12 @@ class Settings:
         try:
             config_paths = [
                 Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json",
-                Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json",
+                Path.home() / "Library" / "Application Support" / "Claude"
+                / "claude_desktop_config.json",
             ]
             for path in config_paths:
                 if path.exists():
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         settings_json = json.load(f)
                     
                     # Search in mcpServers -> SharedMemoryServer -> env

@@ -4,7 +4,8 @@ from typing import Any
 from shared_memory.config import settings
 from shared_memory.embeddings import get_gemini_client
 from shared_memory.search import perform_search
-from shared_memory.utils import AIRateLimiter, get_logger, log_error, retry_on_ai_quota
+from shared_memory.ai_control import AIRateLimiter, retry_on_ai_quota
+from shared_memory.utils import get_logger, log_error
 
 logger = get_logger("salvage")
 

@@ -107,7 +107,10 @@ class AsyncSQLiteConnection:
                             await _MAIN_CONNECTION.execute("PRAGMA cache_size = -2000")
                             logger.info("Main connection successfully established and configured.")
                         except Exception as e:
-                            logger.error(f"CRITICAL: Failed to establish main DB connection: {e}", exc_info=True)
+                            logger.error(
+                                f"CRITICAL: Failed to establish main DB connection: {e}",
+                                exc_info=True
+                            )
                             raise
                     self.conn = _MAIN_CONNECTION
 

@@ -47,9 +47,10 @@ def test_normalize_bank_files_mixed_and_invalid():
         {"filename": "no_content_too"},
     ]
     # 'no_content' is not in ['filename', 'name', 'title', 'content', 'text', 'body']
-    # So Pattern B will pick up {"no_content": "skip me"} as filename="no_content", content="skip me"
-    # To strictly test "skipping invalid items", we need items that have no content synonyms AND more than 1 key,
-    # or items with a key in the ignore list.
+    # So Pattern B will pick up {"no_content": "skip me"} as 
+    # filename="no_content", content="skip me"
+    # To strictly test "skipping invalid items", we need items that have 
+    # no content synonyms AND more than 1 key, or items with a key in the ignore list.
 
     # Let's verify the current behavior for these specific items:
     res = normalize_bank_files(input_data)

@@ -170,7 +170,11 @@ async def process_thought_core(
         from shared_memory.distiller import incremental_distill_knowledge
 
         logger.info(f"Triggering incremental distillation for thought in session: {session_id}")
-        asyncio.create_task(incremental_distill_knowledge(session_id, thought))
+        from shared_memory.tasks import create_background_task
+        create_background_task(
+            incremental_distill_knowledge(session_id, thought),
+            name=f"incremental_distill_{session_id}"
+        )
 
         # 6.2 Salvage: Synchronously retrieve and rerank related past knowledge
         history = await get_thought_history(session_id)
@@ -193,7 +197,8 @@ async def process_thought_core(
 
         # 7. Opportunistic Recovery: Disabled during tests to prevent GHA hangs
         if "PYTEST_CURRENT_TEST" not in os.environ:
-            asyncio.create_task(trigger_opportunistic_recovery())
+            from shared_memory.tasks import create_background_task
+            create_background_task(trigger_opportunistic_recovery(), name="opportunistic_recovery")
 
         # 8. Final Distillation (Session Wrap-up)
         if not next_thought_needed:

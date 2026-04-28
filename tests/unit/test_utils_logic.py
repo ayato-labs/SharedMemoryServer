@@ -1,5 +1,5 @@
-import pytest
-from shared_memory.utils import calculate_importance, sanitize_filename, mask_sensitive_data
+from shared_memory.utils import calculate_importance, mask_sensitive_data, sanitize_filename
+
 
 def test_calculate_importance_basic():
     # Frequency should increase importance
@@ -22,7 +22,8 @@ def test_calculate_importance_basic():
 
 def test_sanitize_filename():
     assert sanitize_filename("Hello World.md") == "hello_world.md"
-    assert sanitize_filename("  spaces  .txt") == "spaces.md" # Note: implementation strips ext and appends .md
+    # Note: implementation strips ext and appends .md
+    assert sanitize_filename("  spaces  .txt") == "spaces.md"
     assert sanitize_filename("Path/To\\File.md") == "file.md" # os.path.basename handles this
     assert sanitize_filename("UPPER.MD") == "upper.md"
     assert sanitize_filename("!@#$%^&*().md") == "_.md"

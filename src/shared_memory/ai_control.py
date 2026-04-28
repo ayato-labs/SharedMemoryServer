@@ -5,6 +5,7 @@ from functools import wraps
 
 from loguru import logger
 
+
 class ModelManager:
     """
     Manages Generative AI model rotation for fallback.
@@ -33,7 +34,9 @@ class ModelManager:
         async with self._lock:
             self.current_index = (self.current_index + 1) % len(self.models)
             is_full_cycle = (self.current_index == 0)
-            logger.info(f"Model rotated to: {self.get_current_model()} (Full cycle: {is_full_cycle})")
+            logger.info(
+                f"Model rotated to: {self.get_current_model()} (Full cycle: {is_full_cycle})"
+            )
             return is_full_cycle
 
 # Singleton Model Manager
@@ -56,12 +59,14 @@ def parse_retry_delay(error: Exception) -> float | None:
                 if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
                     delay_str = detail.get("retryDelay", "0s")
                     return float(delay_str.rstrip("s"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not parse retry delay from error details: {e}")
     return None
 
 
-def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0, rotate_models: bool = True):
+def retry_on_ai_quota(
+    max_retries: int = 5, initial_backoff: float = 1.0, rotate_models: bool = True
+):
     """
     Decorator for retrying AI API calls on 429 RESOURCE_EXHAUSTED errors.
     Implements model fallback and exponential backoff.
@@ -100,7 +105,8 @@ def retry_on_ai_quota(max_retries: int = 5, initial_backoff: float = 1.0, rotate
                                 await asyncio.sleep(wait_time)
                             else:
                                 logger.info(
-                                    f"Model 429 detected. Falling back to {model_manager.get_current_model()}..."
+                                    f"Model 429 detected. Falling back to "
+                                    f"{model_manager.get_current_model()}..."
                                 )
                                 await asyncio.sleep(random.uniform(0.1, 0.3))
                         else:
@@ -127,6 +133,14 @@ class AIRateLimiter:
 
     GENERATION_INTERVAL = 6.0
     EMBEDDING_INTERVAL = 1.0
+
+    @classmethod
+    def set_min_interval(cls, interval: float, task_type: str = "generation"):
+        """Sets the minimum interval between calls (for testing)."""
+        if task_type == "generation":
+            cls.GENERATION_INTERVAL = interval
+        else:
+            cls.EMBEDDING_INTERVAL = interval
 
     @classmethod
     async def throttle(cls, task_type: str = "generation"):

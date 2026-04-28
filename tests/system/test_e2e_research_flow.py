@@ -1,6 +1,9 @@
-import pytest
 import json
+
+import pytest
+
 from shared_memory import server
+
 
 @pytest.mark.asyncio
 async def test_e2e_researcher_workflow(mock_llm):
@@ -13,10 +16,17 @@ async def test_e2e_researcher_workflow(mock_llm):
     """
     # 1. Researcher saves an observation
     res1 = await server.save_memory(
-        observations=[{"entity_name": "Antigravity", "content": "Antigravity is an agentic AI assistant."}],
+        observations=[{
+            "entity_name": "Antigravity",
+            "content": "Antigravity is an agentic AI assistant."
+        }],
         agent_id="researcher_01"
     )
     assert "Saved" in res1
+    
+    # Ensure background save is finished before proceeding
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
     
     # 2. Researcher starts thinking
     session_id = "research_task_42"
@@ -37,19 +47,32 @@ async def test_e2e_researcher_workflow(mock_llm):
     # 4. Researcher finishes thinking
     # Mock distillation result for the final step
     distilled_knowledge = {
-        "entities": [{"name": "Memory Management", "entity_type": "Mechanism", "description": "How AI stores state"}],
-        "relations": [{"source": "Antigravity", "target": "Memory Management", "relation_type": "uses", "justification": "E2E Test"}],
+        "entities": [{
+            "name": "Memory Management",
+            "entity_type": "Mechanism",
+            "description": "How AI stores state"
+        }],
+        "relations": [{
+            "source": "Antigravity",
+            "target": "Memory Management",
+            "relation_type": "uses",
+            "justification": "E2E Test"
+        }],
         "observations": []
     }
     mock_llm.models.set_response("generate_content", json.dumps(distilled_knowledge))
     
-    res4 = await server.sequential_thinking(
+    await server.sequential_thinking(
         thought="Antigravity uses a Graph DB and a Markdown Bank for memory.",
         thought_number=2,
         total_thoughts=2,
         next_thought_needed=False,
         session_id=session_id
     )
+    
+    # Wait for background distillation
+    from shared_memory.tasks import wait_for_background_tasks
+    await wait_for_background_tasks()
     
     # 5. Verify the new knowledge is searchable
     res5 = await server.read_memory(query="Mechanism")

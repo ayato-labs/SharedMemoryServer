@@ -1,8 +1,8 @@
-import asyncio
 import pytest
-from unittest.mock import AsyncMock
-from shared_memory.ai_control import ModelManager, retry_on_ai_quota, parse_retry_delay
+
+from shared_memory.ai_control import ModelManager, parse_retry_delay, retry_on_ai_quota
 from shared_memory.config import GOOGLE_AI_MODELS
+
 
 @pytest.mark.unit
 class TestAIControl:
