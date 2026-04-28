@@ -90,11 +90,41 @@ except Exception as e:
 import fastmcp.tools.function_tool
 from fastmcp.tools.base import ToolResult
 
+import time
+import threading
+_LAST_ACTIVITY_TIME = time.time()
+
+def update_activity():
+    """Updates the last activity timestamp to prevent auto-shutdown."""
+    global _LAST_ACTIVITY_TIME
+    _LAST_ACTIVITY_TIME = time.time()
+
+def _inactivity_thread(timeout_seconds: int):
+    """Thread that monitors inactivity and shuts down the server if exceeded."""
+    if timeout_seconds <= 0:
+        logger.info("Inactivity monitor disabled.")
+        return
+        
+    logger.info(f"Inactivity monitor started. Timeout: {timeout_seconds}s ({timeout_seconds/60:.1f}m)")
+    while True:
+        time.sleep(min(30, timeout_seconds // 2 if timeout_seconds > 0 else 30))
+        elapsed = time.time() - _LAST_ACTIVITY_TIME
+        if elapsed > timeout_seconds:
+            logger.warning(
+                f"INACTIVITY LIMIT REACHED: Server idle for {elapsed:.0f}s. "
+                "Triggering graceful shutdown..."
+            )
+            # Send SIGTERM to ourselves to trigger graceful shutdown in main()
+            # This works on both Windows and Linux to trigger our signal handlers.
+            os.kill(os.getpid(), signal.SIGTERM)
+            break
+
 # Monkey-patch FunctionTool.run to allow extra arguments (compatibility with strict hosts)
 _original_run = fastmcp.tools.function_tool.FunctionTool.run
 
 async def _lenient_run(self, arguments: dict[str, Any]) -> ToolResult:
-    """Sanitize arguments by removing extra fields not defined in the tool's schema."""
+    """Sanitize arguments and refresh activity timestamp on every tool call."""
+    update_activity()
     if isinstance(arguments, dict) and hasattr(self, "parameters"):
         properties = self.parameters.get("properties", {})
         # Only keep arguments that are defined in the tool's properties
@@ -167,6 +197,22 @@ def trigger_init():
             "Will fallback to tool-call trigger."
         )
         _INIT_STARTED = False
+
+
+def trigger_inactivity_watcher(timeout: int):
+    """
+    Starts the inactivity monitor thread.
+    """
+    if timeout <= 0:
+        return
+
+    monitor_thread = threading.Thread(
+        target=_inactivity_thread, 
+        args=(timeout,), 
+        name="InactivityMonitor",
+        daemon=True
+    )
+    monitor_thread.start()
 
 
 _INIT_LOCK = asyncio.Lock()
@@ -403,16 +449,25 @@ async def ping() -> str:
 
 def main():
     """Entry point for the MCP server with enhanced stability and SSE support."""
-    # Start the initialization watcher immediately
-    trigger_init()
-
     parser = argparse.ArgumentParser(description="SharedMemoryServer MCP")
     parser.add_argument("--sse", action="store_true", help="Run with SSE transport")
     parser.add_argument("--port", type=int, default=8377, help="Port for SSE server")
+    parser.add_argument(
+        "--timeout", 
+        type=int, 
+        default=1800, 
+        help="Auto-shutdown after N seconds of inactivity (default: 1800s / 30m). Set to 0 to disable."
+    )
     args = parser.parse_args()
-
     # Determine transport
     use_sse = args.sse or os.environ.get("MCP_TRANSPORT") == "sse"
+
+    # Attach timeout to mcp instance for reference
+    mcp._inactivity_timeout = args.timeout
+
+    # Start the initialization and inactivity watchers
+    trigger_init()
+    trigger_inactivity_watcher(args.timeout)
 
     if not use_sse:
         logger.info("SharedMemoryServer: Starting in STDIO mode (Using Protected Channel)")

@@ -1,0 +1,19 @@
+services:
+  shared-memory-hub:
+    build: .
+    container_name: shared-memory-hub
+    ports:
+      - "8377:8377"
+    volumes:
+      # Persist the knowledge database and memory bank
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - MCP_TRANSPORT=sse
+    restart: unless-stopped
+    command: ["--sse", "--port", "8377", "--timeout", "1800"]
+
+volumes:
+  data:
+  logs:
