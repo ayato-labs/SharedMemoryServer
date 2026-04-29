@@ -295,15 +295,15 @@ async def _run_save_memory_background(entities, relations, observations, bank_fi
         logger.error(f"Background save_memory FAILED for agent {agent_id}: {e}", exc_info=True)
 
 
-from typing import Any
+from typing import Any, Optional
 
 
 @mcp.tool()
 async def save_memory(
-    entities: list[dict] = [],
-    relations: list[dict] = [],
-    observations: list[dict] = [],
-    bank_files: dict[str, str] = {},
+    entities: Optional[list[dict]] = None,
+    relations: Optional[list[dict]] = None,
+    observations: Optional[list[dict]] = None,
+    bank_files: Optional[dict[str, str]] = None,
     agent_id: str = "default_agent",
 ) -> str:
     """
@@ -317,6 +317,12 @@ async def save_memory(
         Format: {"entity_name": "Name", "content": "Fact"}
     - bank_files: Markdown documentation mapping filename to content.
     """
+    # Defensive normalization: Ensure we have objects to work with
+    entities = entities or []
+    relations = relations or []
+    observations = observations or []
+    bank_files = bank_files or {}
+
     await ensure_initialized()
 
     # Fire and forget
@@ -376,12 +382,17 @@ async def synthesize_entity(entity_name: str):
 
 
 @mcp.tool()
-async def manage_knowledge_activation(ids: list[str], status: str):
+async def manage_knowledge_activation(ids: Any, status: str):
     """
     Manages the activation state of knowledge items (entities, bank files, etc.).
+    - ids: List of IDs or a single ID string.
     - status: 'active' (default/searchable), 'inactive' (hidden), or 'archived' (legacy).
     Use this to toggle knowledge OFF/ON without destructive deletion.
     """
+    # Normalize: allow single ID as string
+    if isinstance(ids, str):
+        ids = [ids]
+
     await ensure_initialized()
     return await logic.manage_knowledge_activation_core(ids, status)
 
@@ -404,12 +415,12 @@ async def list_inactive_knowledge():
 @mcp.tool()
 async def sequential_thinking(
     thought: str,
-    thought_number: int,
-    total_thoughts: int,
-    next_thought_needed: bool,
+    thought_number: Any,
+    total_thoughts: Any,
+    next_thought_needed: Any,
     is_revision: bool = False,
-    revises_thought: int = 0,
-    branch_from_thought: int = 0,
+    revises_thought: Any = 0,
+    branch_from_thought: Any = 0,
     branch_id: str = "",
     session_id: str = "default_session",
 ):
@@ -425,6 +436,18 @@ async def sequential_thinking(
     code changes to ensure traceability. Summarize your reasoning in the
     commit message.
     """
+    # Defensive normalization: Convert strings to ints/bools if AI sends them wrong
+    try:
+        thought_number = int(thought_number)
+        total_thoughts = int(total_thoughts)
+        revises_thought = int(revises_thought) if revises_thought else 0
+        branch_from_thought = int(branch_from_thought) if branch_from_thought else 0
+
+        if isinstance(next_thought_needed, str):
+            next_thought_needed = next_thought_needed.lower() == "true"
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Lenient parsing corrected a type mismatch in thinking args: {e}")
+
     await ensure_initialized()
     return await thought_logic.process_thought_core(
         thought,
