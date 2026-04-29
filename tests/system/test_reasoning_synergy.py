@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 import pytest
@@ -47,6 +46,7 @@ async def test_reasoning_synergy_and_distillation(mock_llm):
 
     # Wait for background incremental distillation task
     from shared_memory.tasks import wait_for_background_tasks
+
     await wait_for_background_tasks()
 
     # Verify Session A knowledge was saved to Graph
@@ -111,6 +111,7 @@ async def test_reasoning_synergy_and_distillation(mock_llm):
 
     # Wait for background final distillation
     from shared_memory.tasks import wait_for_background_tasks
+
     await wait_for_background_tasks()
 
     # Verify final synthesized knowledge exists

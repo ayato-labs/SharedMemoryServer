@@ -3,9 +3,9 @@ import json
 from datetime import datetime
 from typing import Any
 
+from shared_memory.ai_control import AIRateLimiter
 from shared_memory.config import settings
 from shared_memory.database import async_get_connection
-from shared_memory.ai_control import AIRateLimiter, retry_on_ai_quota
 from shared_memory.embeddings import (
     compute_embeddings_bulk,
     get_gemini_client,
@@ -333,7 +333,7 @@ async def save_observations(
                 is_conflict, reason = results[0]
                 conflicts_to_report.append({"entity": entity_name, "reason": reason})
                 is_actually_conflict = True
-        
+
         if is_actually_conflict:
             continue
 
@@ -408,7 +408,7 @@ async def get_graph_data(query: str | None = None):
             )
             relations = await cursor.fetchall()
 
-            # For observations, we take the union of direct matches 
+            # For observations, we take the union of direct matches
             # and those linked to matched entities
             cursor = await conn.execute(
                 "SELECT * FROM observations WHERE entity_name IN "
@@ -423,7 +423,7 @@ async def get_graph_data(query: str | None = None):
                 key = (o["entity_name"], o["content"])
                 if key not in final_obs_map:
                     final_obs_map[key] = o
-            
+
             final_observations = list(final_obs_map.values())
 
             return {

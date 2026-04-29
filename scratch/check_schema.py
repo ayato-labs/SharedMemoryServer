@@ -1,10 +1,9 @@
-
 import asyncio
-from typing import Any
+
 from fastmcp import FastMCP
-import json
 
 mcp = FastMCP("TestServer")
+
 
 @mcp.tool()
 async def save_memory(
@@ -16,12 +15,14 @@ async def save_memory(
 ) -> str:
     return "ok"
 
+
 async def main():
     tools = await mcp.list_tools()
     for tool in tools:
         print(f"Tool: {tool.name}")
         if hasattr(tool, "parameters"):
-             print(f"Parameters: {tool.parameters}")
+            print(f"Parameters: {tool.parameters}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

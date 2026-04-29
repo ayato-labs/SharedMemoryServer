@@ -19,12 +19,10 @@ from shared_memory.utils import get_logger, log_error
 logger = get_logger("logic")
 
 
-def normalize_entities(
-    entities: list[dict[str, Any] | str] | None
-) -> list[dict[str, Any]]:
+def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict[str, Any]]:
     """Normalize entities from strings or various dict formats."""
     normalized = []
-    for e in (entities or []):
+    for e in entities or []:
         if isinstance(e, str):
             normalized.append({"name": e, "entity_type": "concept", "description": ""})
         elif isinstance(e, dict):
@@ -50,12 +48,10 @@ def normalize_observation_item(obs: dict[str, Any] | str) -> dict[str, Any] | No
     return None
 
 
-def normalize_observations(
-    observations: list[dict[str, Any] | str] | None
-) -> list[dict[str, Any]]:
+def normalize_observations(observations: list[dict[str, Any] | str] | None) -> list[dict[str, Any]]:
     """Normalize a list of observations."""
     normalized = []
-    for obs in (observations or []):
+    for obs in observations or []:
         item = normalize_observation_item(obs)
         if item:
             normalized.append(item)
@@ -213,7 +209,7 @@ async def save_memory_core(
         async with get_write_semaphore():
             # 2.1 Conflict Checks (Inside semaphore to avoid races)
             logger.info(f"Phase 2.1 (Conflict Checks) START for {len(observations)} observations")
-            
+
             # Group observations by entity to minimize AI calls
             entity_groups = {}
             for i, obs in enumerate(observations):
@@ -221,21 +217,19 @@ async def save_memory_core(
                 if name not in entity_groups:
                     entity_groups[name] = []
                 entity_groups[name].append({"index": i, "content": obs.get("content", "")})
-            
+
             # Create parallel tasks (one task per unique entity)
             unique_entities = list(entity_groups.keys())
             conflict_tasks = [
                 graph.check_conflict(
-                    entity_name, 
-                    [item["content"] for item in entity_groups[entity_name]], 
-                    agent_id
+                    entity_name, [item["content"] for item in entity_groups[entity_name]], agent_id
                 )
                 for entity_name in unique_entities
             ]
-            
+
             # Execute all group checks in parallel
             group_results = await asyncio.gather(*conflict_tasks, return_exceptions=True)
-            
+
             # Map results back to original indices
             precomputed_observations_conflicts = [None] * len(observations)
             for entity_name, result in zip(unique_entities, group_results, strict=True):
@@ -246,7 +240,7 @@ async def save_memory_core(
                         precomputed_observations_conflicts[item["index"]] = {
                             "index": item["index"],
                             "is_conflict": True,
-                            "reason": f"Conflict check failed: {result}"
+                            "reason": f"Conflict check failed: {result}",
                         }
                 else:
                     # result is a list of (is_conflict, reason) tuples
@@ -256,7 +250,7 @@ async def save_memory_core(
                         precomputed_observations_conflicts[item["index"]] = {
                             "index": item["index"],
                             "is_conflict": is_conflict,
-                            "reason": reason
+                            "reason": reason,
                         }
 
             # 2.2 Rapid DB Write
@@ -334,6 +328,7 @@ async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
     logger.info(f"read_memory_core START query='{query}'")
     try:
         from shared_memory.database import init_db
+
         await init_db()
     except Exception as e:
         return f"Database Error: Initialization failed. {e}"

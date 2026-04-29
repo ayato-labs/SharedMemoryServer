@@ -47,9 +47,9 @@ def test_normalize_bank_files_mixed_and_invalid():
         {"filename": "no_content_too"},
     ]
     # 'no_content' is not in ['filename', 'name', 'title', 'content', 'text', 'body']
-    # So Pattern B will pick up {"no_content": "skip me"} as 
+    # So Pattern B will pick up {"no_content": "skip me"} as
     # filename="no_content", content="skip me"
-    # To strictly test "skipping invalid items", we need items that have 
+    # To strictly test "skipping invalid items", we need items that have
     # no content synonyms AND more than 1 key, or items with a key in the ignore list.
 
     # Let's verify the current behavior for these specific items:
@@ -75,18 +75,19 @@ def test_normalize_observations_synonyms():
     item = {"entity_name": "A", "observation": "fact"}
     res = normalize_observation_item(item)
     assert res["content"] == "fact"
-    
+
     # Test 'text' -> 'content'
     item = {"entity_name": "A", "text": "fact2"}
     res = normalize_observation_item(item)
     assert res["content"] == "fact2"
+
 
 def test_normalize_observations_auto_entity():
     # Test missing entity_name (should be 'Unknown')
     item = {"content": "orphan fact"}
     res = normalize_observation_item(item)
     assert res["entity_name"] == "Unknown"
-    
+
     # Test missing content
     item = {"entity_name": "Ghost"}
     assert normalize_observation_item(item) is None

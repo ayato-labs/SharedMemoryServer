@@ -15,11 +15,11 @@ class TestLogicParallel:
         """
         # We will patch graph.check_conflict to track how many times it's called
         # and what arguments it receives.
-        # Since this is a unit test, we can use patch, but we avoid MagicMocking 
+        # Since this is a unit test, we can use patch, but we avoid MagicMocking
         # the ENTIRE client. We just want to see the batching.
-        
+
         call_args = []
-        
+
         async def mock_check_conflict(entity_name, new_contents, agent_id, conn=None):
             call_args.append((entity_name, new_contents))
             # Just return no conflicts
@@ -32,18 +32,18 @@ class TestLogicParallel:
                 {"entity_name": "Entity1", "content": "Fact 1.2"},
                 {"entity_name": "Entity3", "content": "Fact 3.1"},
             ]
-            
+
             await logic.save_memory_core(observations=observations, agent_id="test_agent")
-            
+
             # Should have 3 calls (Entity1, Entity2, Entity3)
             assert len(call_args) == 3
-            
+
             # Check Entity1 call - should have 2 contents
             entity1_call = next(arg for arg in call_args if arg[0] == "Entity1")
             assert len(entity1_call[1]) == 2
             assert "Fact 1.1" in entity1_call[1]
             assert "Fact 1.2" in entity1_call[1]
-            
+
             # Check others have 1 content
             assert any(arg[0] == "Entity2" and len(arg[1]) == 1 for arg in call_args)
             assert any(arg[0] == "Entity3" and len(arg[1]) == 1 for arg in call_args)
@@ -53,6 +53,7 @@ class TestLogicParallel:
         """
         Tests that conflicts are correctly reported when the batch check finds them.
         """
+
         async def mock_check_conflict_with_fail(entity_name, new_contents, agent_id, conn=None):
             if entity_name == "ConflictEntity":
                 return [(True, "Internal Conflict Found")] * len(new_contents)
@@ -65,9 +66,9 @@ class TestLogicParallel:
                 {"entity_name": "SafeEntity", "content": "Safe fact"},
                 {"entity_name": "ConflictEntity", "content": "Bad fact"},
             ]
-            
+
             result = await logic.save_memory_core(observations=observations, agent_id="test_agent")
-            
+
             assert "CONFLICTS DETECTED" in result
             assert "ConflictEntity" in result
             assert "Internal Conflict Found" in result

@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 from datetime import datetime, timedelta
@@ -171,9 +170,10 @@ async def process_thought_core(
 
         logger.info(f"Triggering incremental distillation for thought in session: {session_id}")
         from shared_memory.tasks import create_background_task
+
         create_background_task(
             incremental_distill_knowledge(session_id, thought),
-            name=f"incremental_distill_{session_id}"
+            name=f"incremental_distill_{session_id}",
         )
 
         # 6.2 Salvage: Synchronously retrieve and rerank related past knowledge
@@ -198,6 +198,7 @@ async def process_thought_core(
         # 7. Opportunistic Recovery: Disabled during tests to prevent GHA hangs
         if "PYTEST_CURRENT_TEST" not in os.environ:
             from shared_memory.tasks import create_background_task
+
             create_background_task(trigger_opportunistic_recovery(), name="opportunistic_recovery")
 
         # 8. Final Distillation (Session Wrap-up)

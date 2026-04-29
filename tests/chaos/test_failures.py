@@ -23,6 +23,7 @@ async def test_corrupt_llm_json_response(mock_llm):
     except json.JSONDecodeError as e:
         # もしデコードエラーがそのまま上がる設計なら、それはそれで検知
         from shared_memory.utils import get_logger
+
         get_logger("tests").error(f"JSON corruption detected as expected: {e}")
     except Exception as e:
         # その他のハンドリングされたエラー

@@ -146,11 +146,11 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
                 sim = float(similarities[i])
                 count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
                 importance = calculate_importance(count, last)
-                
+
                 # Boost if keyword match exists
                 k_score = keyword_map.get(cid, 0.0)
                 final_score = (sim * 0.5) + (importance * 0.2) + (k_score * 0.3)
-                
+
                 results.append((cid, final_score))
                 seen_cids.add(cid)
 

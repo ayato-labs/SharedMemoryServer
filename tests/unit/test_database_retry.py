@@ -60,7 +60,7 @@ async def test_real_db_lock_contention():
     await init_db()
 
     # Connection 1: Hold a lock using a separate connection
-    # Note: Our singleton connection architecture might make this tricky 
+    # Note: Our singleton connection architecture might make this tricky
     # if they share the same object.
     # We'll use a direct aiosqlite connect to ensure it's a DIFFERENT connection object.
     from shared_memory.utils import get_db_path

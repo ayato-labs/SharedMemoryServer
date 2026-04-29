@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from shared_memory import server
@@ -36,6 +34,7 @@ async def test_mcp_tool_session_flow(mock_llm):
 
     # 3. インサイトの取得
     from shared_memory.tasks import wait_for_background_tasks
+
     await wait_for_background_tasks()
     insights = await server.get_insights(format="json")
     assert "facts" in insights

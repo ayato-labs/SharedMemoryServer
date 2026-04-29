@@ -21,6 +21,7 @@ class InterceptHandler(logging.Handler):
             depth += 1
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
+
 logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 
 # Configure Loguru for premium look
@@ -28,8 +29,8 @@ logger.remove()
 logger.add(
     sys.stderr,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
-           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-           "<level>{message}</level>",
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>",
     level="INFO",
 )
 
@@ -41,27 +42,31 @@ _REAL_STDOUT_FD = os.dup(sys.stdout.fileno())
 # This ensures even C-level printf() calls go to stderr.
 os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 
+
 class ProtectedStdout:
     """
     A wrapper for sys.stdout that protects the real MCP communication pipe.
     Everything written via sys.stdout.write (Python-level) goes to stderr.
     Only the .buffer attribute provides access to the real, isolated stdout FD.
     """
+
     def __init__(self, real_fd):
         import io
+
         # Create a clean, unbuffered binary stream for MCP
-        self.buffer = io.FileIO(real_fd, mode='wb')
-    
+        self.buffer = io.FileIO(real_fd, mode="wb")
+
     def write(self, data):
         # Redirect all Python-level print() to stderr
         sys.stderr.write(data)
-        
+
     def flush(self):
         sys.stderr.flush()
         self.buffer.flush()
 
     def fileno(self):
         return self.buffer.fileno()
+
 
 # Replace sys.stdout with our guard
 sys.stdout = ProtectedStdout(_REAL_STDOUT_FD)
@@ -87,25 +92,30 @@ except Exception as e:
     raise e
 
 # Create MCP server instance
+import threading
+import time
+
 import fastmcp.tools.function_tool
 from fastmcp.tools.base import ToolResult
 
-import time
-import threading
 _LAST_ACTIVITY_TIME = time.time()
+
 
 def update_activity():
     """Updates the last activity timestamp to prevent auto-shutdown."""
     global _LAST_ACTIVITY_TIME
     _LAST_ACTIVITY_TIME = time.time()
 
+
 def _inactivity_thread(timeout_seconds: int):
     """Thread that monitors inactivity and shuts down the server if exceeded."""
     if timeout_seconds <= 0:
         logger.info("Inactivity monitor disabled.")
         return
-        
-    logger.info(f"Inactivity monitor started. Timeout: {timeout_seconds}s ({timeout_seconds/60:.1f}m)")
+
+    logger.info(
+        f"Inactivity monitor started. Timeout: {timeout_seconds}s ({timeout_seconds / 60:.1f}m)"
+    )
     while True:
         time.sleep(min(30, timeout_seconds // 2 if timeout_seconds > 0 else 30))
         elapsed = time.time() - _LAST_ACTIVITY_TIME
@@ -119,8 +129,10 @@ def _inactivity_thread(timeout_seconds: int):
             os.kill(os.getpid(), signal.SIGTERM)
             break
 
+
 # Monkey-patch FunctionTool.run to allow extra arguments (compatibility with strict hosts)
 _original_run = fastmcp.tools.function_tool.FunctionTool.run
+
 
 async def _lenient_run(self, arguments: dict[str, Any]) -> ToolResult:
     """Sanitize arguments and refresh activity timestamp on every tool call."""
@@ -131,6 +143,7 @@ async def _lenient_run(self, arguments: dict[str, Any]) -> ToolResult:
         filtered_arguments = {k: v for k, v in arguments.items() if k in properties}
         return await _original_run(self, filtered_arguments)
     return await _original_run(self, arguments)
+
 
 fastmcp.tools.function_tool.FunctionTool.run = _lenient_run
 
@@ -182,19 +195,20 @@ def trigger_init():
         if loop.is_running():
             logger.info("Event loop is already running. Scheduling _background_init...")
             from shared_memory.tasks import create_background_task
+
             create_background_task(_background_init(), name="background_init")
         else:
             logger.info("Event loop exists but not running. Scheduling for startup...")
 
             def _start():
                 from shared_memory.tasks import create_background_task
+
                 create_background_task(_background_init(), name="background_init")
 
             loop.call_soon(_start)
     except Exception as e:
         logger.warning(
-            f"Could not schedule init on default loop: {e}. "
-            "Will fallback to tool-call trigger."
+            f"Could not schedule init on default loop: {e}. Will fallback to tool-call trigger."
         )
         _INIT_STARTED = False
 
@@ -207,15 +221,13 @@ def trigger_inactivity_watcher(timeout: int):
         return
 
     monitor_thread = threading.Thread(
-        target=_inactivity_thread, 
-        args=(timeout,), 
-        name="InactivityMonitor",
-        daemon=True
+        target=_inactivity_thread, args=(timeout,), name="InactivityMonitor", daemon=True
     )
     monitor_thread.start()
 
 
 _INIT_LOCK = asyncio.Lock()
+
 
 async def ensure_initialized():
     """Ensures the server is fully ready before tool execution."""
@@ -234,6 +246,7 @@ async def ensure_initialized():
 async def wait_for_background_tasks(timeout: float = 5.0):
     """Wait for all currently tracked background tasks to complete."""
     from shared_memory.tasks import wait_for_background_tasks as _wait
+
     await _wait(timeout=timeout)
 
 
@@ -251,7 +264,7 @@ async def lifespan(mcp_instance: FastMCP):
 
     # CLEANUP: Close persistent singleton connections on shutdown
     logger.info("Lifespan SHUTTING DOWN, closing connections...")
-    
+
     await wait_for_background_tasks(timeout=5.0)
     await close_all_connections()
 
@@ -272,7 +285,8 @@ async def _run_save_memory_background(entities, relations, observations, bank_fi
         logger.error(f"Background save_memory FAILED for agent {agent_id}: {e}", exc_info=True)
 
 
-from typing import Any, List, Dict, Optional
+from typing import Any
+
 
 @mcp.tool()
 async def save_memory(
@@ -294,14 +308,15 @@ async def save_memory(
     - bank_files: Markdown documentation mapping filename to content.
     """
     await ensure_initialized()
-    
+
     # Fire and forget
     from shared_memory.tasks import create_background_task
+
     create_background_task(
         _run_save_memory_background(entities, relations, observations, bank_files, agent_id),
-        name=f"save_memory_{agent_id}"
+        name=f"save_memory_{agent_id}",
     )
-    
+
     count_info = []
     if entities:
         count_info.append(f"{len(entities)} entities")
@@ -311,7 +326,7 @@ async def save_memory(
         count_info.append(f"{len(observations)} observations")
     if bank_files:
         count_info.append(f"{len(bank_files)} files")
-    
+
     msg = (
         f"Saved (initiated in background) for: "
         f"{', '.join(count_info) if count_info else 'nothing'}."
@@ -453,10 +468,13 @@ def main():
     parser.add_argument("--sse", action="store_true", help="Run with SSE transport")
     parser.add_argument("--port", type=int, default=8377, help="Port for SSE server")
     parser.add_argument(
-        "--timeout", 
-        type=int, 
-        default=1800, 
-        help="Auto-shutdown after N seconds of inactivity (default: 1800s / 30m). Set to 0 to disable."
+        "--timeout",
+        type=int,
+        default=1800,
+        help=(
+            "Auto-shutdown after N seconds of inactivity (default: 1800s / 30m). "
+            "Set to 0 to disable."
+        ),
     )
     args = parser.parse_args()
     # Determine transport

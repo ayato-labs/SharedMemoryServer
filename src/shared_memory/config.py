@@ -38,6 +38,7 @@ class Settings:
         # Load .env if possible
         try:
             from dotenv import load_dotenv
+
             load_dotenv()
         except ImportError:
             logger.debug("python-dotenv not installed; skipping .env loading")
@@ -54,7 +55,7 @@ class Settings:
         else:
             # Default to user home
             self._base_dir = Path.home() / ".shared_memory"
-        
+
         os.makedirs(self._base_dir, exist_ok=True)
         return self._base_dir
 
@@ -74,20 +75,25 @@ class Settings:
         try:
             config_paths = [
                 Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json",
-                Path.home() / "Library" / "Application Support" / "Claude"
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "Claude"
                 / "claude_desktop_config.json",
             ]
             for path in config_paths:
                 if path.exists():
                     with open(path, encoding="utf-8") as f:
                         settings_json = json.load(f)
-                    
+
                     # Search in mcpServers -> SharedMemoryServer -> env
-                    mcp_env = settings_json.get("mcpServers", {}).get(
-                        "SharedMemoryServer", {}
-                    ).get("env", {})
+                    mcp_env = (
+                        settings_json.get("mcpServers", {})
+                        .get("SharedMemoryServer", {})
+                        .get("env", {})
+                    )
                     api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get("GEMINI_API_KEY")
-                    
+
                     if api_key:
                         self._api_key = api_key.strip()
                         return self._api_key
@@ -101,6 +107,7 @@ class Settings:
         """推論や知識抽出に使用する現在の生成モデル名を返す。"""
         # Dynamic rotation support
         from shared_memory.ai_control import model_manager
+
         return model_manager.get_current_model()
 
     @property

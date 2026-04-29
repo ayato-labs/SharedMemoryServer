@@ -109,7 +109,7 @@ class AsyncSQLiteConnection:
                         except Exception as e:
                             logger.error(
                                 f"CRITICAL: Failed to establish main DB connection: {e}",
-                                exc_info=True
+                                exc_info=True,
                             )
                             raise
                     self.conn = _MAIN_CONNECTION

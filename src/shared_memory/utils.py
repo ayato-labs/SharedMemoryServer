@@ -245,8 +245,3 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
             f"Importance calculation failed for count={access_count}, last={last_accessed}", e
         )
         return 0.0
-
-
-
-
-
