@@ -75,3 +75,18 @@ async def test_memory_saving_pipeline_ai_rotation_true_integration():
                      result = await logic.save_memory_core(entities=entities)
                      assert "Saved 1 entities" in result
                      assert mock_client.aio.models.embed_content.call_count == 2
+
+@pytest.mark.asyncio
+async def test_memory_saving_pipeline_partial_failure():
+    """
+    Test the pipeline when one part (e.g. embeddings) fails.
+    """
+    entities = [{"name": "FailEntity", "description": "Fail"}]
+    
+    with patch("shared_memory.core.logic.compute_embeddings_bulk") as mock_emb:
+        mock_emb.side_effect = Exception("Embedding Service Unavailable")
+        
+        result = await logic.save_memory_core(entities=entities)
+        
+        assert "AI Error" in result
+        assert "Embedding Service Unavailable" in result
