@@ -42,7 +42,7 @@ jobs:
     name: Semantic Release
     needs: lint_and_test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
     steps:
@@ -74,7 +74,7 @@ jobs:
     name: Build Windows Assets
     needs: release
     # Only run when a new release is actually published
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.release.outputs.new_release_published == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
