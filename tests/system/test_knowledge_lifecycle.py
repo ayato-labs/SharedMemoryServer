@@ -1,8 +1,16 @@
-import pytest
-pytestmark = pytest.mark.system
 import json
-from shared_memory.api.server import save_memory, read_memory, get_insights, admin_run_knowledge_gc
+
+import pytest
+
+from shared_memory.api.server import (
+    admin_run_knowledge_gc,
+    get_insights,
+    read_memory,
+    save_memory,
+)
 from shared_memory.infra.database import init_db
+
+pytestmark = pytest.mark.system
 
 @pytest.mark.asyncio
 async def test_full_lifecycle_flow(db_conn, monkeypatch):

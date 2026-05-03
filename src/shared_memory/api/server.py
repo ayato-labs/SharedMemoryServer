@@ -22,9 +22,9 @@ logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 logger.info("Importing core submodules...")
 try:
     from shared_memory.core import graph as graph_module
+    from shared_memory.infra.database import retry_on_db_lock, init_db
     from shared_memory.core import logic as logic_module
     from shared_memory.core import thought_logic as thought_module
-    from shared_memory.infra.database import init_db
     logger.info("Core submodules imported successfully")
 except Exception:
     logger.exception("Import failure")
@@ -217,6 +217,8 @@ async def _patched_handle_post(self, scope, receive, send):
     return await _original_handle_post(self, scope, receive, send)
 
 SseServerTransport.handle_post_message = _patched_handle_post
+
+from unittest.mock import AsyncMock
 
 from contextlib import asynccontextmanager
 

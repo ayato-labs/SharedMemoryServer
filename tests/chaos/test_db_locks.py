@@ -1,16 +1,19 @@
-import pytest
-pytestmark = pytest.mark.chaos
 import asyncio
+
 import aiosqlite
-from shared_memory.infra.database import retry_on_db_lock, async_get_connection
+import pytest
+
+from shared_memory.infra.database import async_get_connection, retry_on_db_lock
+
+pytestmark = pytest.mark.chaos
 
 @pytest.mark.asyncio
 async def test_db_lock_retry_chaos():
     """
     Chaos Test: Force a DB lock and verify that retry_on_db_lock handles it.
     """
-    import tempfile
     import os
+    import tempfile
     
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = os.path.join(tmpdir, "chaos.db")

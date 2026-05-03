@@ -1,6 +1,13 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, UTC, timedelta
-from shared_memory.common.utils import calculate_importance, sanitize_filename, mask_sensitive_data
+
+from shared_memory.common.utils import (
+    calculate_importance,
+    mask_sensitive_data,
+    sanitize_filename,
+)
+
 
 def test_calculate_importance_basic():
     """Verify that importance decreases over time and increases with frequency."""

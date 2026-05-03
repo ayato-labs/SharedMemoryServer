@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from shared_memory.core.distiller import auto_distill_knowledge
+
 
 @pytest.mark.asyncio
 async def test_auto_distill_knowledge_logging_fix():

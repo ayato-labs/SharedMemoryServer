@@ -1,7 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-pytestmark = pytest.mark.unit
-from datetime import datetime, UTC, timedelta
+
 from shared_memory.ops.lifecycle import run_knowledge_gc_logic
+
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_run_knowledge_gc_logic_stale_items(db_conn):

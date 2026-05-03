@@ -1,7 +1,9 @@
 import pytest
-pytestmark = pytest.mark.unit
+
 from shared_memory.core.graph import extract_hashtags, save_tags
 from tests.unit.fake_client import FakeGeminiClient
+
+pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_extract_hashtags_success(monkeypatch):

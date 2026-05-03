@@ -1,7 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-pytestmark = pytest.mark.integration
-from unittest.mock import MagicMock, AsyncMock
+
 from shared_memory.core.search import perform_search
+
+pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_hybrid_search_with_tags_and_heat(monkeypatch, db_conn):
