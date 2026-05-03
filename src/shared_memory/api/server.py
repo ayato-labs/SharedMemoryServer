@@ -1,16 +1,12 @@
-
+import asyncio
+import json
 import os
 import sys
 import time
-import asyncio
-import json
 from typing import Any
-# import uvicorn (Unused)
-# from datetime import datetime (Unused)
-from starlette.applications import Starlette
-# from starlette.requests import Request (Unused)
 
-# Import common utils first to configure logging
+from starlette.applications import Starlette
+
 from shared_memory.common.utils import configure_logging, get_logger
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
@@ -25,9 +21,9 @@ logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 # Import core modules with verified paths
 logger.info("Importing core submodules...")
 try:
+    from shared_memory.core import graph as graph_module
     from shared_memory.core import logic as logic_module
     from shared_memory.core import thought_logic as thought_module
-    from shared_memory.core import graph as graph_module
     from shared_memory.infra.database import init_db
     logger.info("Core submodules imported successfully")
 except Exception:
