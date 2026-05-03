@@ -114,11 +114,8 @@ class AsyncSQLiteConnection:
                             await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
                             await _MAIN_CONNECTION.execute("PRAGMA cache_size = -2000")
                             logger.info("Main connection successfully established and configured.")
-                        except Exception as e:
-                            logger.error(
-                                f"CRITICAL: Failed to establish main DB connection: {e}",
-                                exc_info=True,
-                            )
+                        except Exception:
+                            logger.exception("CRITICAL: Failed to establish main DB connection")
                             raise
                     self.conn = _MAIN_CONNECTION
 
@@ -126,7 +123,7 @@ class AsyncSQLiteConnection:
         except Exception as e:
             from shared_memory.common.exceptions import DatabaseError
 
-            logger.error(f"Failed to connect to database at {self.db_path}: {e}", exc_info=True)
+            logger.exception("Failed to connect to database at {db_path}", db_path=self.db_path)
             log_error(f"Failed to connect to database at {self.db_path}", e)
             raise DatabaseError(f"Database connection failed: {e}") from e
 
@@ -292,8 +289,8 @@ async def init_db(force: bool = False):
                 )
             """)
             logger.info("Core tables (entities, relations, observations, bank_files) verified.")
-        except Exception as e:
-            logger.error(f"CRITICAL: Failed to create/verify core tables: {e}", exc_info=True)
+        except Exception:
+            logger.exception("CRITICAL: Failed to create/verify core tables")
             raise
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS embeddings (
@@ -359,7 +356,18 @@ async def init_db(force: bool = False):
                 meta_data TEXT
             )
         """)
-        # Troubleshooting Knowledge table (Decoupled Feature)
+        await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tag TEXT NOT NULL,
+                content_id TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                UNIQUE(tag, content_id, content_type)
+            )
+        """)
+        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag)")
+        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_content ON tags(content_id)")
+
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS troubleshooting_knowledge (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -396,6 +404,97 @@ async def init_db(force: bool = False):
         await _add_column_if_missing(cursor, "knowledge_metadata", "decay_rate REAL DEFAULT 0.01")
         await _add_column_if_missing(cursor, "search_stats", "hit_content_ids TEXT")
         await _add_column_if_missing(cursor, "search_stats", "avg_similarity REAL DEFAULT 0.0")
+
+        # --- Full Text Search (FTS5) Support ---
+        await cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
+                name, description, 
+                content='entities'
+            )
+        """)
+        await cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+                entity_name, content, 
+                content='observations', content_rowid='id'
+            )
+        """)
+        await cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS bank_files_fts USING fts5(
+                filename, content, 
+                content='bank_files'
+            )
+        """)
+
+        # FTS Triggers: entities
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS entities_ai AFTER INSERT ON entities BEGIN
+                INSERT INTO entities_fts(rowid, name, description) 
+                VALUES (new.rowid, new.name, new.description);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS entities_ad AFTER DELETE ON entities BEGIN
+                INSERT INTO entities_fts(entities_fts, rowid, name, description) 
+                VALUES('delete', old.rowid, old.name, old.description);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS entities_au AFTER UPDATE ON entities BEGIN
+                INSERT INTO entities_fts(entities_fts, rowid, name, description) 
+                VALUES('delete', old.rowid, old.name, old.description);
+                INSERT INTO entities_fts(rowid, name, description) 
+                VALUES (new.rowid, new.name, new.description);
+            END;
+        """)
+
+        # FTS Triggers: observations
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
+                INSERT INTO observations_fts(rowid, entity_name, content) 
+                VALUES (new.id, new.entity_name, new.content);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
+                INSERT INTO observations_fts(observations_fts, rowid, entity_name, content) 
+                VALUES('delete', old.id, old.entity_name, old.content);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
+                INSERT INTO observations_fts(observations_fts, rowid, entity_name, content) 
+                VALUES('delete', old.id, old.entity_name, old.content);
+                INSERT INTO observations_fts(rowid, entity_name, content) 
+                VALUES (new.id, new.entity_name, new.content);
+            END;
+        """)
+
+        # FTS Triggers: bank_files
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS bank_files_ai AFTER INSERT ON bank_files BEGIN
+                INSERT INTO bank_files_fts(rowid, filename, content) 
+                VALUES (new.rowid, new.filename, new.content);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS bank_files_ad AFTER DELETE ON bank_files BEGIN
+                INSERT INTO bank_files_fts(bank_files_fts, rowid, filename, content) 
+                VALUES('delete', old.rowid, old.filename, old.content);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS bank_files_au AFTER UPDATE ON bank_files BEGIN
+                INSERT INTO bank_files_fts(bank_files_fts, rowid, filename, content) 
+                VALUES('delete', old.rowid, old.filename, old.content);
+                INSERT INTO bank_files_fts(rowid, filename, content) 
+                VALUES (new.rowid, new.filename, new.content);
+            END;
+        """)
+
+        # Population: Ensure existing data is indexed
+        await cursor.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
+        await cursor.execute("INSERT INTO observations_fts(observations_fts) VALUES('rebuild')")
+        await cursor.execute("INSERT INTO bank_files_fts(bank_files_fts) VALUES('rebuild')")
 
         await conn.commit()
 

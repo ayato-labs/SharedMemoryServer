@@ -114,7 +114,8 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
         )
 
     except Exception as e:
-        logger.error(f"Failed to distill knowledge for session {session_id}: {e}", exc_info=True)
+        logger.exception("Failed to distill knowledge for session {session_id}", 
+                         session_id=session_id)
         log_error(f"Failed to distill knowledge for session {session_id}", e)
         # Note: We don't re-raise here to avoid crashing the thought process
         # because distillation is a background/secondary task.
@@ -171,5 +172,5 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
             )
             log_info(f"Incremental Distill: Saved {len(entities) + len(observations)} atoms.")
     except Exception as e:
-        logger.error(f"Incremental distillation failed for {session_id}: {e}", exc_info=True)
+        logger.exception("Incremental distillation failed for {session_id}", session_id=session_id)
         log_error(f"Incremental distillation failed for {session_id}", e)

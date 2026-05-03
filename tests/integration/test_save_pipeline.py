@@ -45,11 +45,11 @@ async def test_full_save_pipeline(mock_llm):
 @pytest.mark.asyncio
 async def test_save_pipeline_with_llm_conflict_response(mock_llm):
     """
-    結合テスト: LLMがコンフリクト（重複）を返した場合のパイプライン挙動。
+    結合テスト: LLMがコンフリクト(重複)を返した場合のパイプライン挙動。
     """
     await init_db(force=True)
 
-    # 1. 既存データの投入（これがないと衝突チェックがスキップされる）
+    # 1. 既存データの投入(これがないと衝突チェックがスキップされる)
     await logic.save_memory_core(
         entities=[{"name": "DuplicateNode", "description": "Existing context"}],
         observations=[{"entity_name": "DuplicateNode", "content": "Existing fact"}]

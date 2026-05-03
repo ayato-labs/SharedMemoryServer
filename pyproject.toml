@@ -3,6 +3,9 @@ name = "shared-memory-server"
 version = "0.1.0"
 dependencies = []
 
+[project.scripts]
+shared-memory = "shared_memory.api.server:main"
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

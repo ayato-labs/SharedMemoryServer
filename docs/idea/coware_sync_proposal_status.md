@@ -3,9 +3,9 @@
 ## 現在のステータス: **保留 (On Hold)** ⏸️
 
 ### 1. 提案の概要
-SharedMemoryServer 内の知識（Memory Bank および Knowledge Graph）を、チーム間でシームレスに同期するための `shared-memory-admin sync` コマンドの導入提案です。[coware-skills](https://github.com/shitianfang/coware-skills) の「エージェントがコードを書く前に共通仕様を自動同期する」というコンセプトを参考に、以下の要件を目指しました。
+SharedMemoryServer 内の知識(Memory Bank および Knowledge Graph)を、チーム間でシームレスに同期するための `shared-memory-admin sync` コマンドの導入提案です。[coware-skills](https://github.com/shitianfang/coware-skills) の「エージェントがコードを書く前に共通仕様を自動同期する」というコンセプトを参考に、以下の要件を目指しました。
 
-- **仕組み:** Gitリポジトリをバックエンドとして活用し、Markdownファイルを介してSQLite DBを再構築（Hydration）する。
+- **仕組み:** Gitリポジトリをバックエンドとして活用し、Markdownファイルを介してSQLite DBを再構築(Hydration)する。
 - **目的:** 複数AIエージェント/開発者の間での「認識のズレ」を解消し、コンフリクトを未然に防ぐ。
 - **方針:** 「巨人の肩の上に乗る」—— 独自の同期基盤は作らず、既存のGitエコシステムを搾取・活用する。
 
@@ -20,7 +20,7 @@ SharedMemoryServer 内の知識（Memory Bank および Knowledge Graph）を、
 | **システムアーキテクト** | Gitベースの同期は堅牢だが、DBとMarkdownの二重管理に伴う「完全なシリアライズ」は非常に工数が高い。 |
 | **AIエンジニア** | テキストベースの同期はLLMと相性が良いが、不完全な競合マーカーが知識に混入するリスクの考慮が必要。 |
 | **セキュリティ** | 既存のGit認証を流用できる点は極めて優れている。追加のSaaS導入なしで機密情報を守れる。 |
-| **DevOps** | 手動CLIコマンドへの依存は必ず「同期し忘れ」を生む。UXの面で自動化（バックグラウンド処理）が必要。 |
+| **DevOps** | 手動CLIコマンドへの依存は必ず「同期し忘れ」を生む。UXの面で自動化(バックグラウンド処理)が必要。 |
 | **プロダクトマネージャー** | チームでのAI利用という課題は熱いが、現状の個人開発ワークフローでは「早すぎる最適化」の懸念がある。 |
 
 ---
@@ -30,9 +30,9 @@ SharedMemoryServer 内の知識（Memory Bank および Knowledge Graph）を、
 慎重な分析の結果、本機能の実装を現時点で開始せず、保留とする決定を下しました。
 
 1. **技術的負債の優先順位:** 
-   既存のコードベースに返済すべき技術的負債（非同期処理の管理、パス操作の不徹底、DB接続の分散）が存在しており、これらを解決する前に複雑な同期層を追加するのは「Garbage in, garbage out」のリスクを高めると判断しました。
+   既存のコードベースに返済すべき技術的負債(非同期処理の管理、パス操作の不徹底、DB接続の分散)が存在しており、これらを解決する前に複雑な同期層を追加するのは「Garbage in, garbage out」のリスクを高めると判断しました。
 2. **シリアライゼーションの複雑性:** 
-   現在、Markdownとして存在するのは一部の `bank_files` のみです。Knowledge Graph（11個のテーブル）を透過的にMarkdown化し、Gitで競合解決させるロジックの実装は、当初の予想以上に重いワークロードであることが判明しました。
+   現在、Markdownとして存在するのは一部の `bank_files` のみです。Knowledge Graph(11個のテーブル)を透過的にMarkdown化し、Gitで競合解決させるロジックの実装は、当初の予想以上に重いワークロードであることが判明しました。
 3. **「巨人の肩」の再定義:** 
    SQLiteの分散同期が真に必要になった場合、[Turso (LibSQL)](https://turso.tech/) のような既存の分散DBサービスを活用する方が、自前でGit同期層を作るよりも「巨人の肩に乗る」という基本原則に合致しています。
 4. **ニーズの未検証:** 
@@ -44,9 +44,9 @@ SharedMemoryServer 内の知識（Memory Bank および Knowledge Graph）を、
 
 本提案は完全に却下されたわけではなく、以下の「負債返済」および「フェーズ分け」の後に再検討します。
 
-1. **Phase 1 (完了):** 既存コードのリファクタリング（admin_cli, bank, databaseの整理）。
+1. **Phase 1 (完了):** 既存コードのリファクタリング(admin_cli, bank, databaseの整理)。
 2. **Phase 2:** 知識DB全体を単一のJSON/YAMLファイルにエクスポート/インポートする「ポータビリティ層」の構築。
-3. **Phase 3:** チーム利用のニーズが顕在化した際、TursoへのDB移行、またはGitベースの自動同期（Auto-Sync Hook）の最小実装を検討。
+3. **Phase 3:** チーム利用のニーズが顕在化した際、TursoへのDB移行、またはGitベースの自動同期(Auto-Sync Hook)の最小実装を検討。
 
 ---
 > [!NOTE]

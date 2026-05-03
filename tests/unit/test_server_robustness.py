@@ -24,7 +24,7 @@ async def test_ensure_initialized_waits(fake_llm):
 
     asyncio.create_task(finish_init_delayed())
 
-    # ensure_initialized を呼び出し（待機が発生するはず）
+    # ensure_initialized を呼び出し(待機が発生するはず)
     # タイムアウトを設定して無限ループを防ぐ
     await asyncio.wait_for(server.ensure_initialized(), timeout=1.0)
 

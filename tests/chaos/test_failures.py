@@ -14,7 +14,7 @@ async def test_corrupt_llm_json_response(mock_llm):
     """異常系: LLMが不正な形式のJSONを返した場合の挙動を検証"""
     entities = [{"name": "CorruptNode", "description": "Testing JSON corruption"}]
 
-    # 不正なJSON（閉じカッコ不足など）をセット
+    # 不正なJSON(閉じカッコ不足など)をセット
     mock_llm.models.set_response("generate_content", '{"conflict": true, "reason": "broken json...')
 
     # システムがクラッシュせず、適切に例外またはエラーメッセージを返すことを確認
@@ -65,6 +65,6 @@ async def test_concurrent_write_pressure(fake_llm):
     # 20個の同時書き込みを投げる
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 少なくともいくつかは成功し、失敗した場合も致命的なクラッシュ（セグフォ等）がないことを確認
+    # 少なくともいくつかは成功し、失敗した場合も致命的なクラッシュ(セグフォ等)がないことを確認
     success_count = sum(1 for r in results if isinstance(r, str) and "Saved" in r)
     assert success_count > 0

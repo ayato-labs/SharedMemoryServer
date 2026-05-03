@@ -75,9 +75,44 @@ async def init_thoughts_db(force: bool = False):
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thought_timestamp ON thought_history (timestamp)"
         )
+        # --- Full Text Search (FTS5) Support for Thoughts ---
+        await conn.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS thought_history_fts USING fts5(
+                session_id, thought_number, thought, 
+                content='thought_history', content_rowid='id'
+            )
+        """)
+
+        # FTS Triggers for thought_history
+        await conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS thought_history_ai AFTER INSERT ON thought_history BEGIN
+                INSERT INTO thought_history_fts(rowid, session_id, thought_number, thought) 
+                VALUES (new.id, new.session_id, new.thought_number, new.thought);
+            END;
+        """)
+        await conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS thought_history_ad AFTER DELETE ON thought_history BEGIN
+                INSERT INTO thought_history_fts(thought_history_fts, rowid, 
+                                                session_id, thought_number, thought) 
+                VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
+            END;
+        """)
+        await conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS thought_history_au AFTER UPDATE ON thought_history BEGIN
+                INSERT INTO thought_history_fts(thought_history_fts, rowid, 
+                                                session_id, thought_number, thought) 
+                VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
+                INSERT INTO thought_history_fts(rowid, session_id, thought_number, thought) 
+                VALUES (new.id, new.session_id, new.thought_number, new.thought);
+            END;
+        """)
+
+        # Population: Ensure existing thoughts are indexed
+        await conn.execute("INSERT INTO thought_history_fts(thought_history_fts) VALUES('rebuild')")
+
         await conn.commit()
         _THOUGHTS_INITIALIZED = True
-        log_info("Thoughts database initialization successful.")
+        log_info("Thoughts database initialization successful (FTS5 enabled).")
 
 
 @retry_on_db_lock()
@@ -90,12 +125,13 @@ async def process_thought_core(
     revises_thought: int | None = None,
     branch_from_thought: int | None = None,
     branch_id: str | None = None,
-    session_id: str = "default_session",
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Implements the core logic for sequential thinking with security,
     validation, and persistence.
     """
+    session_id = session_id or "default_session"
     try:
         start_total = time.perf_counter()
 
@@ -227,7 +263,8 @@ async def process_thought_core(
         total_dur = time.perf_counter() - start_total
         logger.info(
             f"PERF [process_thought_core]: session={session_id} "
-            f"total={total_dur:.3f}s (init={dur_init:.3f}s, db_insert={dur_db:.3f}s, salvage={dur_salvage:.3f}s)"
+            f"total={total_dur:.3f}s (init={dur_init:.3f}s, db_insert={dur_db:.3f}s, "
+            f"salvage={dur_salvage:.3f}s)"
         )
 
         return {
@@ -245,9 +282,10 @@ async def process_thought_core(
 
 
 async def get_thought_history(
-    session_id: str = "default_session",
+    session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Retrieves the thought history for a specific session."""
+    session_id = session_id or "default_session"
     try:
         async with await async_get_thoughts_connection() as conn:
             conn.row_factory = aiosqlite.Row

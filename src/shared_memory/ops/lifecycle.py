@@ -106,15 +106,20 @@ async def run_knowledge_gc_logic(age_days: int = 180, dry_run: bool = False):
     Automated Garbage Collection: Move stale active knowledge to inactive.
     Criteria:
     1. Not accessed for > age_days
-    2. Stability/Importance score < 0.1
     """
     async with await async_get_connection() as conn:
-        # Get metadata for stale items
+        # Get metadata for stale items from knowledge_metadata
+        # and also consider items that have NO metadata (never accessed since creation)
         cursor = await conn.execute(
-            "SELECT content_id FROM knowledge_metadata WHERE "
-            "julianday('now') - julianday(last_accessed) > ? "
-            "AND importance_score < 0.1",
-            (age_days,),
+            """
+            SELECT content_id FROM knowledge_metadata WHERE
+            julianday('now') - julianday(last_accessed) > ?
+            UNION
+            SELECT name as content_id FROM entities WHERE
+            julianday('now') - julianday(created_at) > ?
+            AND name NOT IN (SELECT content_id FROM knowledge_metadata)
+            """,
+            (age_days, age_days),
         )
         stale_ids = [r[0] for r in await cursor.fetchall()]
 

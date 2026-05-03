@@ -178,3 +178,11 @@ def temp_env(env_vars):
     finally:
         os.environ.clear()
         os.environ.update(old_env)
+@pytest.fixture
+async def db_conn():
+    """Provides a connection to the test database."""
+    from shared_memory.infra.database import async_get_connection
+    async with await async_get_connection() as conn:
+        yield conn
+    # We don't close it here because it's a singleton connection managed by infra.database
+    # setup_teardown_db will close it.

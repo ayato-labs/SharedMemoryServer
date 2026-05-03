@@ -137,10 +137,9 @@ async def save_memory_core(
     try:
         await init_db()
     except Exception as e:
-        msg = f"Critical Error: Could not initialize database. {e}"
-        logger.error(msg, exc_info=True)
-        log_error(msg)
-        return msg
+        logger.exception("Critical Error: Could not initialize database")
+        log_error("Critical Error: Could not initialize database", e)
+        return f"Critical Error: Could not initialize database. {e}"
 
     # --- Normalization (Handle string shorthands and synonyms) ---
     entities = normalize_entities(entities)
@@ -176,32 +175,53 @@ async def save_memory_core(
     all_embedding_texts = entity_texts + bank_texts
     logger.info(f"Prepared {len(all_embedding_texts)} embedding inputs")
 
-    # 1.2 Prepare Tasks (Embeddings and Conflict Checks)
+    # 1.2 Prepare Tasks (Embeddings and Hashtags)
     tasks = []
     if all_embedding_texts:
         logger.debug("Adding compute_embeddings_bulk task")
         tasks.append(compute_embeddings_bulk(all_embedding_texts))
     else:
-        tasks.append(asyncio.sleep(0, result=[]))  # Dummy task
+        tasks.append(asyncio.sleep(0, result=[]))
 
-    # 1.3 Execute Parallel AI Calls (Embeddings only for now)
-    logger.info("Phase 1.1 (Embeddings) GATHERING")
+    # Add Hashtag Extraction Tasks
+    hashtag_tasks = []
+    for e in entities:
+        desc = e.get("description", "")
+        if len(desc) > 10:
+            hashtag_tasks.append(graph.extract_hashtags(f"{e.get('name')}: {desc}"))
+        else:
+            hashtag_tasks.append(asyncio.sleep(0, result=[]))
+
+    for obs in observations:
+        content = obs.get("content", "")
+        if len(content) > 10:
+            hashtag_tasks.append(graph.extract_hashtags(content))
+        else:
+            hashtag_tasks.append(asyncio.sleep(0, result=[]))
+
+    # 1.3 Execute Parallel AI Calls
+    logger.info("Phase 1.1 (Embeddings & Tags) GATHERING")
     try:
-        # We only run embeddings in parallel here.
-        # Conflict checks are moved inside the semaphore to prevent race conditions.
-        all_vectors = await (tasks[0] if tasks else asyncio.sleep(0, result=[]))
+        results_gathering = await asyncio.gather(
+            tasks[0],
+            asyncio.gather(*hashtag_tasks)
+        )
+        all_vectors = results_gathering[0]
+        all_extracted_tags = results_gathering[1]
     except Exception as e:
-        msg = f"AI Error: Embedding computation failed. {e}"
-        logger.error(f"Phase 1.1 FAILED: {msg}", exc_info=True)
-        log_error(msg)
-        return msg
+        logger.exception("Phase 1.1 FAILED (AI computation)")
+        log_error("AI computation failed", e)
+        return f"AI Error: AI computation failed. {e}"
 
     ai_duration = time.perf_counter() - ai_start_time
     logger.info(f"Phase 1.1 COMPLETE. Duration: {ai_duration:.2f}s")
 
-    # Distribute Vectors
+    # Distribute Results
     precomputed_entity_vectors = all_vectors[: len(entity_texts)]
     precomputed_bank_vectors = all_vectors[len(entity_texts) :]
+
+    entity_tags = all_extracted_tags[: len(entities)]
+    observation_tags = all_extracted_tags[len(entities) :]
 
     # --- Phase 2: Sequential Write (Conflict Checks + DB Write) ---
     logger.info("Phase 2 (Protected) START")
@@ -269,6 +289,9 @@ async def save_memory_core(
                                 precomputed_vectors=precomputed_entity_vectors,
                             )
                         )
+                        # Save entity tags
+                        for e, tags in zip(entities, entity_tags, strict=True):
+                            await graph.save_tags(e.get("name"), "entity", tags, conn)
                     if relations:
                         logger.info(f"Saving {len(relations)} relations...")
                         results.append(await graph.save_relations(relations, agent_id, conn))
@@ -281,6 +304,13 @@ async def save_memory_core(
                             precomputed_conflicts=precomputed_observations_conflicts,
                         )
                         results.append(res)
+                        # Save observation tags
+                        for obs, tags in zip(observations, observation_tags, strict=True):
+                            # In observation save, we don't have a stable ID until insert,
+                            # but we can use entity_name + content as a proxy or just skip if no ID.
+                            # Better: use content_id = hash(content) or similar if needed.
+                            # For simplicity, we use entity_name as the anchor.
+                            await graph.save_tags(obs.get("entity_name"), "observation", tags, conn)
                         if conflicts:
                             logger.warning(f"Conflicts detected: {len(conflicts)}")
                             results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
@@ -299,19 +329,18 @@ async def save_memory_core(
                     await conn.commit()
                     logger.info("Database transaction COMMITTED.")
                 except aiosqlite.Error as e:
-                    logger.error(f"DB Transaction Error: {e}", exc_info=True)
+                    logger.exception("DB Transaction Error")
                     await conn.rollback()
                     log_error("Database transaction failed in save_memory_core", e)
                     return f"Database Error: Transaction failed. {e}"
                 except Exception as e:
-                    logger.error(f"Unexpected error during DB phase: {e}", exc_info=True)
+                    logger.exception("Unexpected error during DB phase")
                     await conn.rollback()
                     log_error("Unexpected error in save_memory_core", e)
                     return f"Internal Error: {e}"
     except Exception as e:
-        msg = f"Critical Error: Failed to acquire DB connection. {e}"
-        logger.error(msg, exc_info=True)
-        return msg
+        logger.exception("Critical Error: Failed to acquire DB connection")
+        return f"Critical Error: Failed to acquire DB connection. {e}"
 
     db_duration = time.perf_counter() - db_start_time
     total_duration = time.perf_counter() - start_time
@@ -390,7 +419,8 @@ async def get_value_report_core(format_type: str = "markdown"):
     :param format_type: 'markdown' for human reading, 'json' for UI/API integration.
     """
     if format_type == "json":
-        return await InsightEngine.get_summary_metrics()
+        metrics_data = await InsightEngine.get_summary_metrics()
+        return json.dumps(metrics_data, indent=2, ensure_ascii=False)
 
     metrics_data = await InsightEngine.get_summary_metrics()
     return InsightEngine.generate_report_markdown(metrics_data)

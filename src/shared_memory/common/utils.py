@@ -2,20 +2,48 @@ import asyncio
 import math
 import os
 import re
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from loguru import logger
 
 from shared_memory.common.exceptions import SecurityError
 
-# Global flag for structured logging (defined in config)
-_STRUCTURED_LOGGING = False
 
-
-def set_structured_logging(enabled: bool):
-    global _STRUCTURED_LOGGING
-    _STRUCTURED_LOGGING = enabled
-
+def configure_logging():
+    """
+    Configures Loguru to output JSON to a file and human-readable text to stderr.
+    """
+    logger.remove()
+    
+    # 1. Human-readable output to stderr (Development)
+    stderr_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+        "<level>{level:7}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
+    )
+    logger.add(
+        sys.stderr,
+        format=stderr_format,
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        colorize=True,
+    )
+    
+    # 2. Structured JSON output to file (Production/Audit)
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    logger.add(
+        "logs/server.jsonl",
+        format="{message}",
+        level="DEBUG",
+        serialize=True,  # This makes it JSON
+        rotation="10 MB",
+        retention="30 days",
+    )
+    logger.info("Logging configured: stderr (colored) and logs/server.jsonl (JSON)")
 
 def get_logger(name: str):
     """
@@ -32,7 +60,9 @@ def log_info(msg: str):
 def log_error(msg: str, error: Exception | None = None):
     """Abstraction for logging error messages with optional exception details."""
     if error:
-        logger.exception(f"{msg}: {error}")
+        # Use loguru's native formatting or just pass msg 
+        # to avoid KeyError on braces in error string
+        logger.opt(exception=error).error(msg)
     else:
         logger.error(msg)
 

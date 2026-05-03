@@ -53,6 +53,7 @@ async def salvage_related_knowledge(
         return final_results
 
     except Exception as e:
-        logger.error(f"Salvage failure (FastPath) for session {session_id}: {e}", exc_info=True)
+        logger.exception("Salvage failure (FastPath) for session {session_id}", 
+                         session_id=session_id)
         log_error(f"Salvage failure for session {session_id}", e)
         return []
