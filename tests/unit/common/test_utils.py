@@ -1,7 +1,5 @@
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from shared_memory.common.utils import (
     calculate_importance,
     mask_sensitive_data,

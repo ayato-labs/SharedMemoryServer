@@ -1,9 +1,10 @@
 import asyncio
 
 import aiosqlite
+
 import pytest
 
-from shared_memory.infra.database import async_get_connection, retry_on_db_lock
+from shared_memory.infra.database import retry_on_db_lock
 
 pytestmark = pytest.mark.chaos
 
