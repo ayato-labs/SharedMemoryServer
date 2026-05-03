@@ -25,7 +25,11 @@ async def test_full_lifecycle_flow(db_conn, monkeypatch):
     
     # 1. Save
     await save_memory(
-        entities=[{"name": "LifecycleTarget", "entity_type": "feature", "description": "System test content"}]
+        entities=[{
+            "name": "LifecycleTarget", 
+            "entity_type": "feature", 
+            "description": "System test content"
+        }]
     )
     
     # 2. Read (Update heat)
@@ -46,7 +50,9 @@ async def test_full_lifecycle_flow(db_conn, monkeypatch):
     
     # 5. Manually force staleness and run GC
     await db_conn.execute(
-        "UPDATE knowledge_metadata SET last_accessed = '2020-01-01T00:00:00Z' WHERE content_id = 'LifecycleTarget'"
+        "UPDATE knowledge_metadata "
+        "SET last_accessed = '2020-01-01T00:00:00Z' "
+        "WHERE content_id = 'LifecycleTarget'"
     )
     await db_conn.commit()
     

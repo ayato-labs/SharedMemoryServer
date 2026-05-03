@@ -59,7 +59,8 @@ def log_info(msg: str):
 def log_error(msg: str, error: Exception | None = None):
     """Abstraction for logging error messages with optional exception details."""
     if error:
-        # Use loguru's native formatting or just pass msg to avoid KeyError on braces in error string
+        # Use loguru's native formatting or just pass msg 
+        # to avoid KeyError on braces in error string
         logger.opt(exception=error).error(msg)
     else:
         logger.error(msg)

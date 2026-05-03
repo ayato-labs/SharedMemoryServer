@@ -4,11 +4,11 @@ import sys
 import time
 import asyncio
 import json
-import uvicorn
-from typing import Any, Sequence
-from datetime import datetime
+from typing import Any
+# import uvicorn (Unused)
+# from datetime import datetime (Unused)
 from starlette.applications import Starlette
-from starlette.requests import Request
+# from starlette.requests import Request (Unused)
 
 # Import common utils first to configure logging
 from shared_memory.common.utils import configure_logging, get_logger
@@ -204,7 +204,7 @@ from mcp.server.sse import SseServerTransport
 _original_handle_post = SseServerTransport.handle_post_message
 
 async def _patched_handle_post(self, scope, receive, send):
-    from starlette.requests import Request
+    # from starlette.requests import Request (Unused)
     # We can peek at the scope for query params without consuming the body
     query_string = scope.get("query_string", b"").decode()
     session_id = None

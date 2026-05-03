@@ -52,7 +52,10 @@ async def test_ai_outage_graceful_degradation(monkeypatch, db_conn):
     from shared_memory.core.search import perform_search
     
     # Setup data
-    await db_conn.execute("INSERT INTO entities (name, entity_type, description) VALUES ('FallbackItem', 'test', 'Keyword match only')")
+    await db_conn.execute(
+        "INSERT INTO entities (name, entity_type, description) "
+        "VALUES ('FallbackItem', 'test', 'Keyword match only')"
+    )
     await db_conn.commit()
     
     # Mock AI to fail

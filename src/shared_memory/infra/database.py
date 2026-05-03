@@ -428,7 +428,8 @@ async def init_db(force: bool = False):
         # FTS Triggers: entities
         await cursor.execute("""
             CREATE TRIGGER IF NOT EXISTS entities_ai AFTER INSERT ON entities BEGIN
-                INSERT INTO entities_fts(rowid, name, description) VALUES (new.rowid, new.name, new.description);
+                INSERT INTO entities_fts(rowid, name, description) 
+                VALUES (new.rowid, new.name, new.description);
             END;
         """)
         await cursor.execute("""
@@ -449,7 +450,8 @@ async def init_db(force: bool = False):
         # FTS Triggers: observations
         await cursor.execute("""
             CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
-                INSERT INTO observations_fts(rowid, entity_name, content) VALUES (new.id, new.entity_name, new.content);
+                INSERT INTO observations_fts(rowid, entity_name, content) 
+                VALUES (new.id, new.entity_name, new.content);
             END;
         """)
         await cursor.execute("""
@@ -470,7 +472,8 @@ async def init_db(force: bool = False):
         # FTS Triggers: bank_files
         await cursor.execute("""
             CREATE TRIGGER IF NOT EXISTS bank_files_ai AFTER INSERT ON bank_files BEGIN
-                INSERT INTO bank_files_fts(rowid, filename, content) VALUES (new.rowid, new.filename, new.content);
+                INSERT INTO bank_files_fts(rowid, filename, content) 
+                VALUES (new.rowid, new.filename, new.content);
             END;
         """)
         await cursor.execute("""

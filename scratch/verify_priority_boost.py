@@ -15,16 +15,25 @@ from shared_memory.infra.embeddings import compute_embedding
 from shared_memory.common.utils import batch_cosine_similarity
 
 # --- ターゲットキーワード (トラブルシューティング用) ---
-PRIORITY_KEYWORDS = ["error", "bug", "fail", "trouble", "issue", "locked", "exception", "失敗", "エラー", "バグ", "不具合"]
+PRIORITY_KEYWORDS = [
+    "error", "bug", "fail", "trouble", "issue", "locked", "exception", 
+    "失敗", "エラー", "バグ", "不具合"
+]
 
 async def setup_mock_data():
     """検証用のトラブルシューティングデータをDBに挿入"""
     async with await async_get_connection() as conn:
         # テスト用データの挿入 (既存チェックなしで上書き気味に)
         test_data = [
-            ("SQLite_Locked_Fix", "entity", "SQLite 'database is locked' errors occur when multiple processes write simultaneously. Fix by using WAL mode and retry logic."),
-            ("Gemini_Quota_Issue", "entity", "Gemini API failure with 429 error is caused by quota limits. Implement AIRateLimiter to throttle requests."),
-            ("Circular_Import_Bug", "entity", "Syntax error or Import error in server.py is often due to circular imports between server and logic modules."),
+            ("SQLite_Locked_Fix", "entity", 
+             "SQLite 'database is locked' errors occur when multiple processes write "
+             "simultaneously. Fix by using WAL mode and retry logic."),
+            ("Gemini_Quota_Issue", "entity", 
+             "Gemini API failure with 429 error is caused by quota limits. "
+             "Implement AIRateLimiter to throttle requests."),
+            ("Circular_Import_Bug", "entity", 
+             "Syntax error or Import error in server.py is often due to circular "
+             "imports between server and logic modules."),
         ]
         
         for name, type, desc in test_data:
