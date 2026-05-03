@@ -85,8 +85,6 @@ from mcp.types import (
 )
 
 
-
-
 def _sanitize_mcp_dict(d: Any) -> Any:
     if isinstance(d, dict):
         new_d = {}
@@ -228,9 +226,6 @@ SseServerTransport.handle_post_message = _patched_handle_post
 
 
 from contextlib import asynccontextmanager
-
-
-
 
 
 @asynccontextmanager

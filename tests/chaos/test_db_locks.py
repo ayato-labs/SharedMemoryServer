@@ -1,7 +1,6 @@
 import asyncio
 
 import aiosqlite
-
 import pytest
 
 from shared_memory.infra.database import retry_on_db_lock

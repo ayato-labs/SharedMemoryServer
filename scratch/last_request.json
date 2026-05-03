@@ -1,1 +1,0 @@
-root=CallToolRequest(method='tools/call', params=CallToolRequestParams(task=None, meta=Meta(progressToken='0c87955b-94c1-48b4-8576-2836bc39560c:1005'), name='read_memory', arguments={'query': 'test final fix validation'}), jsonrpc='2.0', id=13)

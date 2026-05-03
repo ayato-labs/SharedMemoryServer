@@ -11,7 +11,6 @@ from loguru import logger
 from shared_memory.common.exceptions import SecurityError
 
 
-
 def configure_logging():
     """
     Configures Loguru to output JSON to a file and human-readable text to stderr.
