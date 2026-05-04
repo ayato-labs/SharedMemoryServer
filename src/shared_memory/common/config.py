@@ -125,6 +125,21 @@ class Settings:
         """ハッシュタグ抽出においてAIを使用するかロジックを使用するかの文字数閾値。"""
         return int(os.environ.get("HASHTAG_AI_THRESHOLD", "100"))
 
+    @property
+    def max_observations_per_entity(self) -> int:
+        """1エンティティにつき取得する最大観察事項数。"""
+        return int(os.environ.get("MAX_OBSERVATIONS_PER_ENTITY", "10"))
+
+    @property
+    def global_read_entity_limit(self) -> int:
+        """クエリなしのread_memoryで取得するエンティティの最大数。"""
+        return int(os.environ.get("GLOBAL_READ_ENTITY_LIMIT", "30"))
+
+    @property
+    def search_limit_default(self) -> int:
+        """ハイブリッド検索におけるデフォルトの取得上限。"""
+        return int(os.environ.get("SEARCH_LIMIT_DEFAULT", "10"))
+
 
 # Singleton instance
 settings = Settings()

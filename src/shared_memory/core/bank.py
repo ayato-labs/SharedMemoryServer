@@ -22,7 +22,7 @@ BANK_FILES = {
     "productContext.md": "Why this project exists and its scope.",
     "activeContext.md": "What we are working on now and recent decisions.",
     "systemPatterns.md": "Architecture, design patterns, and technical decisions.",
-    "techContext.md": "Tech stack, dependencies, and constraints.",
+    "techContext.md": "Tech stack, dependencies, and some constraints.",
     "progress.md": "Status, roadmap, and what's next.",
     "decisionLog.md": "Record of significant technical choices.",
 }
@@ -150,6 +150,20 @@ async def save_bank_files(
 async def read_bank_data(query: str | None = None):
     # Lock for disk read to ensure atomicity
     logger.info(f"read_bank_data START query={query}")
+    
+    if not query:
+        # Step 0: Metadata-only mode to prevent global dump
+        logger.info("read_bank_data: No query provided, returning file list only.")
+        async with await async_get_connection() as conn:
+            cursor = await conn.execute(
+                "SELECT filename, last_synced FROM bank_files WHERE status = 'active'"
+            )
+            files = await cursor.fetchall()
+            return {
+                f["filename"]: f"[Summary] Available for reading. Last updated: {f['last_synced']}" 
+                for f in files
+            }
+
     async with GlobalLock(BANK_LOCK_NAME):
         logger.debug(f"GlobalLock ACQUIRED query={query}")
         bank_dir = get_bank_dir()
@@ -169,10 +183,10 @@ async def read_bank_data(query: str | None = None):
                         path = safe_path_join(bank_dir, filename)
                         async with aiofiles.open(path, encoding="utf-8") as f:
                             content = await f.read()
-                            if not query or query.lower() in content.lower():
+                            # Search in content
+                            if query.lower() in content.lower() or query.lower() in filename.lower():
                                 bank_data[filename] = content
                                 found_files.add(filename)
-                                # update_access expects its own connection or nothing
                                 await update_access(filename)
                     except (Exception, ValueError) as e:
                         log_error(f"Failed to read bank file {filename}", e)
@@ -185,8 +199,7 @@ async def read_bank_data(query: str | None = None):
             db_files = await cursor.fetchall()
             for filename, content in db_files:
                 if filename not in found_files:
-                    if not query or query.lower() in content.lower():
-                        # Mark as recovered to avoid confusion
+                    if query.lower() in content.lower() or query.lower() in filename.lower():
                         bank_data[f"{filename} [RECOVERED]"] = content
         logger.info(f"read_bank_data COMPLETE query={query}")
         return bank_data

@@ -3,12 +3,14 @@ import datetime
 import json
 import re
 
+from shared_memory.common.config import settings
 from shared_memory.common.utils import (
     batch_cosine_similarity,
     calculate_importance,
     get_logger,
     log_error,
 )
+from shared_memory.core.ai_control import AIRateLimiter
 from shared_memory.core.bank import read_bank_data
 from shared_memory.core.graph import get_graph_data
 from shared_memory.infra.database import (
@@ -31,6 +33,14 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
     - Only searches for ACTIVE status items.
     """
     async with await async_get_connection() as conn:
+        # FTS5 MATCH queries have special syntax. We sanitize the query to prevent syntax errors.
+        # We keep alphanumeric and spaces, replacing everything else with space.
+        safe_query = re.sub(r"[^\w\s]", " ", query).strip()
+        if not safe_query:
+            # If no alphanumeric words remain, fallback to raw query but wrap in quotes
+            escaped_query = query.replace('"', '""')
+            safe_query = f'"{escaped_query}"'
+
         query_words = re.findall(r"\w+", query.lower())
         if not query_words:
             return []
@@ -50,7 +60,7 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col}, bm25({fts_table}) "
                     f"FROM {fts_table} WHERE {fts_table} MATCH ?",
-                    (query,)
+                    (safe_query,),
                 )
                 for row_id, content, rank in await cursor.fetchall():
                     # BM25 returns smaller values for better matches; 
@@ -96,7 +106,7 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                     "SELECT session_id, thought_number, thought, bm25(thought_history_fts) "
                     "FROM thought_history_fts WHERE thought_history_fts MATCH ? "
                     "AND session_id != ?",
-                    (query, exclude_session_id or ""),
+                    (safe_query, exclude_session_id or ""),
                 )
                 for sess_id, t_num, thought, rank in await t_cursor.fetchall():
                     score = max(0.1, abs(rank) * 1.0)
@@ -135,8 +145,10 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
         return formatted_results
 
 
-async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20):
+async def perform_search(query: str, limit: int | None = None, candidate_limit: int = 20):
     """Hybrid search logic (Semantic + Keyword) - Optimized with parallelism."""
+    if limit is None:
+        limit = settings.search_limit_default
     logger.info(f"perform_search START query={query}")
     start_search = datetime.datetime.now()
     
@@ -236,23 +248,46 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     if not cids:
         return {"entities": [], "relations": [], "observations": []}
     placeholders = ",".join(["?"] * len(cids))
+    # Field filtering: Only return what is necessary for reasoning
     cursor = await conn.execute(
-        f"SELECT * FROM entities WHERE name IN ({placeholders}) AND status = 'active'", cids
+        f"SELECT name, entity_type, description, importance FROM entities "
+        f"WHERE name IN ({placeholders}) AND status = 'active'", cids
     )
     entities = await cursor.fetchall()
+    
+    # Capping Observations: Fetch recent observations and group them
     cursor = await conn.execute(
-        f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
+        f"SELECT entity_name, content, timestamp FROM observations "
+        f"WHERE entity_name IN ({placeholders}) AND status = 'active' "
+        f"ORDER BY timestamp DESC",
         cids,
     )
-    obs = await cursor.fetchall()
+    all_obs = await cursor.fetchall()
+    
+    # Slice observations in Python to respect settings.max_observations_per_entity
+    obs_by_entity = {}
+    for o in all_obs:
+        ename = o["entity_name"]
+        if ename not in obs_by_entity:
+            obs_by_entity[ename] = []
+        if len(obs_by_entity[ename]) < settings.max_observations_per_entity:
+            obs_by_entity[ename].append({
+                "entity": ename,
+                "content": o["content"],
+                "at": o["timestamp"]
+            })
+    
+    final_obs = []
+    for obs_list in obs_by_entity.values():
+        final_obs.extend(obs_list)
 
     matched_names = [e["name"] for e in entities]
     relations = []
     if matched_names:
         p2 = ",".join(["?"] * len(matched_names))
         cursor = await conn.execute(
-            f"SELECT * FROM relations WHERE (subject IN ({p2}) OR object IN ({p2})) "
-            "AND status = 'active'",
+            f"SELECT subject, object, predicate FROM relations "
+            f"WHERE (subject IN ({p2}) OR object IN ({p2})) AND status = 'active'",
             matched_names + matched_names,
         )
         relations = await cursor.fetchall()
@@ -260,9 +295,7 @@ async def get_graph_data_by_cids(cids: list[str], conn):
     return {
         "entities": [dict(e) for e in entities],
         "relations": [dict(r) for r in relations],
-        "observations": [
-            {"entity": o["entity_name"], "content": o["content"], "at": o["timestamp"]} for o in obs
-        ],
+        "observations": final_obs,
     }
 
 
@@ -325,7 +358,12 @@ async def synthesize_knowledge(entity_name: str):
             client = get_gemini_client()
             if not client:
                 return "Error: Gemini client not available."
-            response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=prompt)
+            
+            await AIRateLimiter.throttle()
+            response = await client.aio.models.generate_content(
+                model=settings.generative_model, 
+                contents=prompt
+            )
             return response.text
         except Exception as e:
             log_error(f"Synthesis failed for {entity_name}", e)

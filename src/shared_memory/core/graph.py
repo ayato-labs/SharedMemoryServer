@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 from collections import Counter
@@ -11,7 +10,7 @@ from shared_memory.common.utils import (
     log_error,
     mask_sensitive_data,
 )
-from shared_memory.core.ai_control import AIRateLimiter
+from shared_memory.core.ai_control import AIRateLimiter, retry_on_ai_quota
 from shared_memory.infra.database import async_get_connection
 from shared_memory.infra.embeddings import (
     compute_embeddings_bulk,
@@ -68,6 +67,7 @@ def extract_hashtags_logic(content: str, max_tags: int = 5) -> list[str]:
     return [f"#{word}" for word, _ in counts.most_common(max_tags)]
 
 
+@retry_on_ai_quota()
 async def extract_hashtags_ai(content: str) -> list[str]:
     """
     Extracts up to 5 thematic hashtags using AI.
@@ -75,40 +75,36 @@ async def extract_hashtags_ai(content: str) -> list[str]:
     if not content or len(content) < 10:
         return []
 
-    try:
-        client = get_gemini_client()
-        if not client:
-            return []
-
-        prompt = (
-            "Extract up to 5 highly relevant keywords or hashtags from the following text. "
-            "Normalize them to lowercase and remove spaces within tags. "
-            "Output MUST be a JSON list of strings (e.g. ['#python', '#mcp']).\n\n"
-            f"TEXT:\n{content}"
-        )
-
-        await AIRateLimiter.throttle()
-        response = await client.aio.models.generate_content(
-            model=settings.generative_model,
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
-        )
-        tags = json.loads(response.text)
-        if isinstance(tags, list):
-            # Clean and normalize tags
-            cleaned = []
-            for t_raw in tags:
-                # Normalize: lowercase, ensure starts with #, no spaces
-                t_clean = str(t_raw).strip().lower().replace(" ", "")
-                if not t_clean.startswith("#"):
-                    t_clean = f"#{t_clean}"
-                if len(t_clean) > 1:
-                    cleaned.append(t_clean)
-            return cleaned[:5]
+    client = get_gemini_client()
+    if not client:
         return []
-    except Exception as e:
-        logger.warning(f"Hashtag extraction failed: {e}")
-        return []
+
+    prompt = (
+        "Extract up to 5 highly relevant keywords or hashtags from the following text. "
+        "Normalize them to lowercase and remove spaces within tags. "
+        "Output MUST be a JSON list of strings (e.g. ['#python', '#mcp']).\n\n"
+        f"TEXT:\n{content}"
+    )
+
+    await AIRateLimiter.throttle()
+    response = await client.aio.models.generate_content(
+        model=settings.generative_model,
+        contents=prompt,
+        config={"response_mime_type": "application/json"},
+    )
+    tags = json.loads(response.text)
+    if isinstance(tags, list):
+        # Clean and normalize tags
+        cleaned = []
+        for t_raw in tags:
+            # Normalize: lowercase, ensure starts with #, no spaces
+            t_clean = str(t_raw).strip().lower().replace(" ", "")
+            if not t_clean.startswith("#"):
+                t_clean = f"#{t_clean}"
+            if len(t_clean) > 1:
+                cleaned.append(t_clean)
+        return cleaned[:5]
+    return []
 
 
 async def save_tags(content_id: str, content_type: str, tags: list[str], conn):
@@ -164,6 +160,7 @@ async def check_conflict(entity_name: str, new_contents: list[str], agent_id: st
         raise e
 
 
+@retry_on_ai_quota()
 async def _check_conflicts_internal(
     entity_name: str, new_contents: list[str], agent_id: str, conn, client
 ):
@@ -192,35 +189,18 @@ async def _check_conflicts_internal(
     # Enforce Rate Limiting
     await AIRateLimiter.throttle()
 
+    response = await client.aio.models.generate_content(
+        model=settings.generative_model,
+        contents=prompt,
+        config={"response_mime_type": "application/json"},
+    )
+    data = json.loads(response.text)
+    
     results = []
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = await client.aio.models.generate_content(
-                model=settings.generative_model,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-            data = json.loads(response.text)
-            if isinstance(data, list) and len(data) == len(new_contents):
-                results = data
-                break
-            elif isinstance(data, dict):
-                # Robustness fallback: If AI returns a single object instead of a list of one,
-                # wrap it. This handles many legacy mocks and simpler LLM behaviors.
-                results = [data] * len(new_contents)
-                break
-        except Exception as e:
-            error_str = str(e).lower()
-            if (
-                "429" in error_str or "resource_exhausted" in error_str
-            ) and attempt < max_retries - 1:
-                wait_time = (2**attempt) + 1
-                logger.warning(f"Conflict Check Rate Limit (429): Retrying in {wait_time}s...")
-                await asyncio.sleep(wait_time)
-                continue
-            log_error("Conflict check failed during AI call", e)
-            raise e
+    if isinstance(data, list) and len(data) == len(new_contents):
+        results = data
+    elif isinstance(data, dict):
+        results = [data] * len(new_contents)
 
     if not results:
         return [(False, None)] * len(new_contents)
@@ -520,18 +500,21 @@ async def save_observations(
 async def get_graph_data(query: str | None = None):
     async with await async_get_connection() as conn:
         if query:
+            # Fallback keyword search
             cursor = await conn.execute(
-                "SELECT * FROM entities WHERE "
-                "(name LIKE ? OR description LIKE ? OR entity_type LIKE ?) AND status = 'active'",
-                (f"%{query}%", f"%{query}%", f"%{query}%"),
+                "SELECT name, entity_type, description, importance FROM entities WHERE "
+                "(name LIKE ? OR description LIKE ? OR entity_type LIKE ?) AND status = 'active' "
+                "LIMIT ?",
+                (f"%{query}%", f"%{query}%", f"%{query}%", settings.global_read_entity_limit),
             )
             matched_entities = await cursor.fetchall()
             entity_matched_names = [e["name"] for e in matched_entities]
 
             # Also search observations directly
             cursor = await conn.execute(
-                "SELECT * FROM observations WHERE content LIKE ? AND status = 'active'",
-                (f"%{query}%",),
+                "SELECT entity_name, content, timestamp FROM observations "
+                "WHERE content LIKE ? AND status = 'active' LIMIT ?",
+                (f"%{query}%", settings.global_read_entity_limit * 2),
             )
             direct_observations = await cursor.fetchall()
             obs_matched_entity_names = list(set([o["entity_name"] for o in direct_observations]))
@@ -543,58 +526,95 @@ async def get_graph_data(query: str | None = None):
 
             placeholders = ",".join(["?"] * len(all_matched_names))
             cursor = await conn.execute(
-                f"SELECT * FROM relations WHERE (subject IN ({placeholders}) "
+                f"SELECT subject, object, predicate FROM relations WHERE (subject IN ({placeholders}) "
                 f"OR object IN ({placeholders})) AND status = 'active'",
                 all_matched_names + all_matched_names,
             )
             relations = await cursor.fetchall()
 
-            # For observations, we take the union of direct matches
-            # and those linked to matched entities
+            # For observations, we fetch and then cap in Python
             cursor = await conn.execute(
-                "SELECT * FROM observations WHERE entity_name IN "
-                f"({placeholders}) AND status = 'active'",
+                "SELECT entity_name, content, timestamp FROM observations WHERE entity_name IN "
+                f"({placeholders}) AND status = 'active' ORDER BY timestamp DESC",
                 all_matched_names,
             )
-            linked_observations = await cursor.fetchall()
+            all_potential_obs = await cursor.fetchall()
 
-            # Combine and de-duplicate observations by content/entity
-            final_obs_map = {}
-            for o in list(direct_observations) + list(linked_observations):
-                key = (o["entity_name"], o["content"])
-                if key not in final_obs_map:
-                    final_obs_map[key] = o
+            # Combine direct matches and linked ones, then cap per entity
+            obs_by_entity = {}
+            for o in list(direct_observations) + list(all_potential_obs):
+                ename = o["entity_name"]
+                if ename not in obs_by_entity:
+                    obs_by_entity[ename] = {}
+                
+                # Deduplicate by content
+                content = o["content"]
+                if content not in obs_by_entity[ename]:
+                    if len(obs_by_entity[ename]) < settings.max_observations_per_entity:
+                        obs_by_entity[ename][content] = {
+                            "entity": ename,
+                            "content": content,
+                            "at": o["timestamp"],
+                        }
 
-            final_observations = list(final_obs_map.values())
+            final_observations = []
+            for entity_obs in obs_by_entity.values():
+                final_observations.extend(entity_obs.values())
 
             return {
                 "entities": [dict(e) for e in matched_entities],
                 "relations": [dict(r) for r in relations],
-                "observations": [
-                    {
-                        "entity": o["entity_name"],
-                        "content": o["content"],
-                        "at": o["timestamp"],
-                    }
-                    for o in final_observations
-                ],
+                "observations": final_observations,
             }
         else:
-            cursor = await conn.execute("SELECT * FROM entities WHERE status = 'active'")
+            # Global Read: Return most recent entities
+            cursor = await conn.execute(
+                "SELECT name, entity_type, description, importance FROM entities "
+                "WHERE status = 'active' ORDER BY updated_at DESC LIMIT ?",
+                (settings.global_read_entity_limit,)
+            )
             entities = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM relations WHERE status = 'active'")
+            entity_names = [e["name"] for e in entities]
+            
+            if not entity_names:
+                return {"entities": [], "relations": [], "observations": []}
+                
+            placeholders = ",".join(["?"] * len(entity_names))
+            cursor = await conn.execute(
+                f"SELECT subject, object, predicate FROM relations "
+                f"WHERE (subject IN ({placeholders}) OR object IN ({placeholders})) "
+                f"AND status = 'active'",
+                entity_names + entity_names,
+            )
             relations = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM observations WHERE status = 'active'")
-            observations = await cursor.fetchall()
+            
+            cursor = await conn.execute(
+                f"SELECT entity_name, content, timestamp FROM observations "
+                f"WHERE entity_name IN ({placeholders}) AND status = 'active' "
+                f"ORDER BY timestamp DESC",
+                entity_names
+            )
+            all_obs = await cursor.fetchall()
+            
+            # Cap per entity
+            obs_by_entity = {}
+            for o in all_obs:
+                ename = o["entity_name"]
+                if ename not in obs_by_entity:
+                    obs_by_entity[ename] = []
+                if len(obs_by_entity[ename]) < settings.max_observations_per_entity:
+                    obs_by_entity[ename].append({
+                        "entity": ename,
+                        "content": o["content"],
+                        "at": o["timestamp"],
+                    })
+            
+            final_observations = []
+            for entity_obs in obs_by_entity.values():
+                final_observations.extend(entity_obs)
+
             return {
                 "entities": [dict(e) for e in entities],
                 "relations": [dict(r) for r in relations],
-                "observations": [
-                    {
-                        "entity": o["entity_name"],
-                        "content": o["content"],
-                        "at": o["timestamp"],
-                    }
-                    for o in observations
-                ],
+                "observations": final_observations,
             }
