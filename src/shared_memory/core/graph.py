@@ -135,7 +135,8 @@ async def check_conflict(
     entity_name: str, new_contents: list[str], agent_id: str, conn=None
 ) -> list[tuple[bool, str | None]]:
     """
-    Checks if a list of new observations contradicts existing knowledge about an entity using Gemini.
+    Checks if a list of new observations contradicts existing knowledge about an
+    entity using Gemini.
     Returns a list of (is_conflict, reason) tuples.
     """
     if not new_contents:

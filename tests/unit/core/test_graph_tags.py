@@ -14,7 +14,9 @@ async def test_extract_hashtags_success(monkeypatch):
     
     monkeypatch.setattr("shared_memory.core.graph.get_gemini_client", lambda: fake_client)
     
-    tags = await extract_hashtags("This is a post about AI and Machine Learning.")
+    # Use a long string to exceed settings.hashtag_ai_threshold (default 100)
+    long_content = "This is a post about AI and Machine Learning. " * 5
+    tags = await extract_hashtags(long_content)
     
     assert "#ai" in tags
     assert "#machinelearning" in tags # Normalization test

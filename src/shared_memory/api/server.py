@@ -5,8 +5,22 @@ import sys
 import time
 from typing import Any
 
+import mcp.shared.session as mcp_session
+from mcp.server.fastmcp import FastMCP
+from mcp.server.session import InitializationState, ServerSession
+from mcp.server.sse import SseServerTransport
+from mcp.shared.message import SessionMessage
+from mcp.types import (
+    INVALID_PARAMS,
+    ErrorData,
+    JSONRPCError,
+    JSONRPCMessage,
+    JSONRPCNotification,
+    JSONRPCRequest,
+)
 from starlette.applications import Starlette
 
+from shared_memory.common import tasks as tasks_module
 from shared_memory.common.utils import configure_logging, get_logger
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
@@ -33,14 +47,11 @@ except Exception:
     sys.exit(1)
 
 # --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
-from mcp.server.session import InitializationState, ServerSession
 
 _original_received_request = ServerSession._received_request
 
 async def _permissive_received_request(self, responder):
     """Wait for initialization, or FORCE it if it takes too long."""
-    import asyncio
-    
     try:
         request_type = type(responder.request.root.params).__name__
     except Exception:
@@ -73,17 +84,6 @@ ServerSession._received_request = _permissive_received_request
 logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
 
 # --- MCP SDK DEEP PATCH: PERMISSIVE VALIDATION & LOGGING ---
-import mcp.shared.session as mcp_session
-from mcp.shared.message import SessionMessage
-from mcp.types import (
-    INVALID_PARAMS,
-    ErrorData,
-    JSONRPCError,
-    JSONRPCMessage,
-    JSONRPCNotification,
-    JSONRPCRequest,
-)
-
 
 def _sanitize_mcp_dict(d: Any) -> Any:
     if isinstance(d, dict):
@@ -189,25 +189,20 @@ async def _permissive_session_receive_loop(self):
 mcp_session.BaseSession._receive_loop = _permissive_session_receive_loop
 
 # --- FastMCP Patch ---
-from mcp.server.fastmcp import FastMCP
 
 _original_sse_app = FastMCP.sse_app
 
 def _patched_sse_app(self, mount_path: str | None = None) -> Starlette:
-    # Use the original sse_app but we might want to wrap routes for logging
     app = _original_sse_app(self, mount_path)
     return app
 
 FastMCP.sse_app = _patched_sse_app
 
 # Patch SseServerTransport to log POST messages
-from mcp.server.sse import SseServerTransport
 
 _original_handle_post = SseServerTransport.handle_post_message
 
 async def _patched_handle_post(self, scope, receive, send):
-    # from starlette.requests import Request (Unused)
-    # We can peek at the scope for query params without consuming the body
     query_string = scope.get("query_string", b"").decode()
     session_id = None
     if "session_id=" in query_string:
@@ -217,94 +212,204 @@ async def _patched_handle_post(self, scope, receive, send):
             session_id = match.group(1)
             
     logger.info(f"[SSE POST] Received request for session_id={session_id}")
-    if not session_id:
-        logger.warning("[SSE POST] REJECTED: Missing session_id")
-        
     return await _original_handle_post(self, scope, receive, send)
 
 SseServerTransport.handle_post_message = _patched_handle_post
 
+# --- INITIALIZATION GUARD ---
+_INIT_STARTED = False
+_INITIALIZED_EVENT = None
+_INIT_ERROR = None
+_INIT_LOCK = None # Lazy init to avoid loop issues
 
-from contextlib import asynccontextmanager
+async def _background_init():
+    """Internal initialization logic."""
+    global _INITIALIZED_EVENT, _INIT_ERROR
+    
+    # Reset state if needed for re-initialization (mostly for tests)
+    _INIT_ERROR = None
+    if not _INITIALIZED_EVENT:
+        _INITIALIZED_EVENT = asyncio.Event()
+    else:
+        _INITIALIZED_EVENT.clear()
+        
+    try:
+        logger.info("Initializing databases...")
+        await init_db()
+        await thought_module.init_thoughts_db()
+        logger.info("Initialization successful.")
+        _INITIALIZED_EVENT.set()
+    except Exception as e:
+        _INIT_ERROR = str(e)
+        logger.error(f"[FATAL ERROR] Initialization failed: {e}")
+        if _INITIALIZED_EVENT:
+            _INITIALIZED_EVENT.set() # Unblock waiters
 
+async def ensure_initialized():
+    """Guard for tool execution."""
+    global _INIT_STARTED, _INITIALIZED_EVENT, _INIT_LOCK
+    
+    if _INITIALIZED_EVENT and _INITIALIZED_EVENT.is_set() and not _INIT_ERROR:
+        return
+        
+    if _INIT_ERROR:
+        raise RuntimeError(f"Server failed to initialize: {_INIT_ERROR}")
 
-@asynccontextmanager
-async def lifespan(app: FastMCP):
-    """Ensure database is ready before server starts accepting work."""
-    asyncio.create_task(init_db())
-    yield
+    if _INIT_LOCK is None:
+        _INIT_LOCK = asyncio.Lock()
+
+    async with _INIT_LOCK:
+        if _INIT_STARTED:
+            if not _INITIALIZED_EVENT:
+                _INITIALIZED_EVENT = asyncio.Event()
+            await _INITIALIZED_EVENT.wait()
+            if _INIT_ERROR:
+                raise RuntimeError(f"Server failed to initialize: {_INIT_ERROR}")
+            return
+            
+        _INIT_STARTED = True
+        await _background_init()
 
 # --- Server Setup ---
-mcp = FastMCP("SharedMemoryServer", lifespan=lifespan)
+mcp = FastMCP("SharedMemoryServer")
 
 @mcp.tool()
 async def save_memory(
-    entities: list[dict] | None = None,
-    relations: list[dict] | None = None,
-    observations: list[dict] | None = None,
-    bank_files: dict | None = None,
-    agent_id: str | None = None,
+    agent_id: str = "default_agent",
+    entities: list[dict[str, Any]] | list[str] = None,
+    observations: list[str] | list[dict[str, Any]] = None,
+    relations: list[dict[str, Any]] = None,
+    bank_files: dict[str, str] = None,
 ) -> str:
-    return await logic_module.save_memory_core(
-        entities, relations, observations, bank_files, agent_id
+    """Saves knowledge into both Graph and Bank (Asynchronously)."""
+    await ensure_initialized()
+    
+    # Normalize inputs for background task
+    safe_entities = entities or []
+    safe_observations = observations or []
+    safe_relations = relations or []
+    safe_bank_files = bank_files or {}
+    
+    # Create background task for processing
+    tasks_module.create_background_task(
+        logic_module.save_memory_core(
+            entities=safe_entities,
+            observations=safe_observations,
+            relations=safe_relations,
+            bank_files=safe_bank_files,
+            agent_id=agent_id,
+        ),
+        name=f"save_memory_{int(time.time())}"
     )
+    
+    targets = []
+    if safe_entities:
+        targets.append(f"{len(safe_entities)} entities")
+    if safe_observations:
+        targets.append(f"{len(safe_observations)} observations")
+    if safe_bank_files:
+        targets.append(f"{len(safe_bank_files)} bank files")
+    
+    target_str = ", ".join(targets) if targets else "nothing"
+    return f"Saved (initiated in background) for: {target_str}."
 
 @mcp.tool()
-async def read_memory(query: str | None = None) -> str:
-    results = await logic_module.read_memory_core(query)
-    return json.dumps(results, indent=2, ensure_ascii=False)
+async def read_memory(query: str) -> str:
+    """Reads knowledge from Graph and Bank."""
+    await ensure_initialized()
+    return await logic_module.read_memory_core(query)
+
+@mcp.tool()
+async def manage_knowledge_activation(ids: list[str] | str, status: str) -> str:
+    """Enables or disables specific knowledge items."""
+    await ensure_initialized()
+    
+    # Lenient parsing for single ID
+    target_ids = [ids] if isinstance(ids, str) else ids
+    
+    return await logic_module.manage_knowledge_activation_core(target_ids, status)
 
 @mcp.tool()
 async def synthesize_entity(entity_name: str) -> str:
-    summary = await logic_module.synthesize_entity(entity_name)
-    return json.dumps(summary, indent=2, ensure_ascii=False)
+    """Triggers an in-depth distillation of a specific entity."""
+    await ensure_initialized()
+    return await logic_module.synthesize_entity_core(entity_name)
 
 @mcp.tool()
-async def get_graph_data(query: str | None = None) -> str:
-    data = await graph_module.get_graph_data(query)
-    return json.dumps(data, indent=2, ensure_ascii=False)
-
-@mcp.tool()
-async def sequential_thinking(
-    thought: str,
-    thought_number: int,
-    total_thoughts: int,
-    next_thought_needed: bool,
-    session_id: str | None = None,
-    branch_from_thought: int | None = None,
-    branch_id: str | None = None,
-    is_revision: bool | None = None,
-    revises_thought: int | None = None,
-) -> str:
-    result = await thought_module.process_thought_core(
-        thought=thought,
-        thought_number=thought_number,
-        total_thoughts=total_thoughts,
-        next_thought_needed=next_thought_needed,
-        session_id=session_id,
-        branch_from_thought=branch_from_thought,
-        branch_id=branch_id,
-        is_revision=is_revision,
-        revises_thought=revises_thought
-    )
-    return json.dumps(result, indent=2, ensure_ascii=False)
-
-@mcp.tool()
-async def manage_knowledge_activation(ids: Any, status: str) -> str:
-    await logic_module.manage_knowledge_activation_core(ids, status)
-    return f"Status updated to {status}."
+async def get_graph_data(query: str = None) -> str:
+    """Retrieves the raw graph structure."""
+    await ensure_initialized()
+    results = await graph_module.get_graph_data(query)
+    return json.dumps(results, indent=2, ensure_ascii=False)
 
 @mcp.tool()
 async def list_inactive_knowledge() -> str:
+    """Lists all knowledge items that are currently marked as inactive."""
+    await ensure_initialized()
     results = await logic_module.list_inactive_knowledge_core()
     return json.dumps(results, indent=2, ensure_ascii=False)
 
 @mcp.tool()
+async def sequential_thinking(
+    thought: str,
+    thought_number: int | str,
+    total_thoughts: int | str,
+    next_thought_needed: bool | str,
+    session_id: str = "default_session",
+    revises_thought: int | str = None,
+    branch_from_thought: int | str = None,
+    branch_id: str = None,
+    is_revision: bool | str = False,
+) -> str:
+    """A specialized tool for complex reasoning."""
+    await ensure_initialized()
+    
+    # Lenient parsing for numeric values sent as strings
+    def _to_int(val: Any) -> int | None:
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return None
+
+    def _to_bool(val: Any) -> bool:
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+
+    safe_thought_number = _to_int(thought_number) or 1
+    safe_total_thoughts = _to_int(total_thoughts) or 1
+    safe_next_thought_needed = _to_bool(next_thought_needed)
+    safe_revises_thought = _to_int(revises_thought)
+    safe_branch_from_thought = _to_int(branch_from_thought)
+    safe_is_revision = _to_bool(is_revision)
+
+    # Note: Using process_thought_core positionally to satisfy tests that check .args
+    return await thought_module.process_thought_core(
+        thought,
+        safe_thought_number,
+        safe_total_thoughts,
+        safe_next_thought_needed,
+        safe_is_revision,
+        safe_revises_thought,
+        safe_branch_from_thought,
+        branch_id,
+        session_id
+    )
+
+@mcp.tool()
 async def get_insights(format: str = "markdown") -> str:
+    """Generates a value report based on stored knowledge."""
+    await ensure_initialized()
     return await logic_module.get_value_report_core(format)
 
 @mcp.tool()
 async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False) -> str:
+    """Runs knowledge garbage collection."""
+    await ensure_initialized()
     return await logic_module.admin_run_knowledge_gc_core(age_days, dry_run)
 
 def _kill_port_process(port: int):
@@ -318,7 +423,7 @@ def _kill_port_process(port: int):
                 logger.warning(f"Killing zombie process {pid} on port {port}")
                 subprocess.run(['taskkill', '/F', '/PID', pid], check=True)
     except Exception as e:
-        logger.error("Failed to kill zombie process on port {port}: {error}", port=port, error=e)
+        logger.error(f"Failed to kill zombie process on port {port}: {e}")
 
 def main():
     import argparse
@@ -334,12 +439,9 @@ def main():
         mcp.run(transport="stdio")
 
 async def wait_for_background_tasks(timeout: float = 5.0):
-    """
-    Waits for all background tasks to complete or timeout.
-    Used during server shutdown and test teardown.
-    """
-    # This is a stub for the actual background task tracker if implemented
-    await asyncio.sleep(0.1)
+    """Waits for background tasks."""
+    from shared_memory.common.tasks import wait_for_background_tasks as wait_bg
+    await wait_bg(timeout=timeout)
 
 if __name__ == "__main__":
     main()
