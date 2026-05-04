@@ -25,6 +25,22 @@ from shared_memory.infra.embeddings import (
 logger = get_logger("search")
 
 
+def sanitize_fts_query(query: str) -> str:
+    """
+    Sanitizes a query string for FTS5 MATCH clause.
+    Extracts alphanumeric words and wraps them in double quotes to prevent
+    special characters (like hyphens) from being interpreted as operators.
+    """
+    if not query:
+        return ""
+    # Extract words (supporting Unicode)
+    words = re.findall(r"\w+", query)
+    if not words:
+        return ""
+    # Join with spaces, wrapping each in double quotes
+    return " ".join(f'"{w}"' for w in words)
+
+
 async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id: str = None):
     """
     Improved Keyword Search Logic:
@@ -44,13 +60,18 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
             ("bank_files_fts", "bank_files", "filename", "content"),
         ]
 
+        # Sanitize query for FTS5
+        safe_query = sanitize_fts_query(query)
+
         for fts_table, source_name, id_col, content_col in fts_sources:
+            if not safe_query:
+                break
             try:
                 # Use MATCH for fast full-text searching and BM25 for ranking
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col}, bm25({fts_table}) "
                     f"FROM {fts_table} WHERE {fts_table} MATCH ?",
-                    (query,)
+                    (safe_query,)
                 )
                 for row_id, content, rank in await cursor.fetchall():
                     # BM25 returns smaller values for better matches; 
@@ -91,13 +112,14 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
 
         # 2. Search Thoughts DB using FTS5
         try:
-            async with await async_get_thoughts_connection() as t_conn:
-                t_cursor = await t_conn.execute(
-                    "SELECT session_id, thought_number, thought, bm25(thought_history_fts) "
-                    "FROM thought_history_fts WHERE thought_history_fts MATCH ? "
-                    "AND session_id != ?",
-                    (query, exclude_session_id or ""),
-                )
+            if safe_query:
+                async with await async_get_thoughts_connection() as t_conn:
+                    t_cursor = await t_conn.execute(
+                        "SELECT session_id, thought_number, thought, bm25(thought_history_fts) "
+                        "FROM thought_history_fts WHERE thought_history_fts MATCH ? "
+                        "AND session_id != ?",
+                        (safe_query, exclude_session_id or ""),
+                    )
                 for sess_id, t_num, thought, rank in await t_cursor.fetchall():
                     score = max(0.1, abs(rank) * 1.0)
                     key = ("thought_history", f"{sess_id}#{t_num}")
