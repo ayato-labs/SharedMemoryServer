@@ -9,7 +9,7 @@ from shared_memory.infra.database import async_get_connection, init_db
 
 @pytest.mark.asyncio
 async def test_bank_save_and_read():
-    """Verify saving to and reading from the memory bank."""
+    \"\"\"Verify saving to and reading from the memory bank.\"\"\"
     await init_db(force=True)
     filename = "test_node.md"
     content = "# Test Node\nThis is a test."
@@ -20,7 +20,7 @@ async def test_bank_save_and_read():
         await save_bank_files({filename: content}, agent_id, conn)
 
     # Read
-    data = await read_bank_data()
+    data = await read_bank_data(query=filename)
     assert filename in data
     assert data[filename] == content
 
@@ -31,7 +31,7 @@ async def test_bank_save_and_read():
 
 @pytest.mark.asyncio
 async def test_bank_status_check():
-    """Verify that only active files are read."""
+    \"\"\"Verify that only active files are read.\"\"\"
     await init_db(force=True)
     filename = "inactive.md"
     content = "I am inactive"
@@ -46,5 +46,5 @@ async def test_bank_status_check():
     await manage_knowledge_activation_logic([filename], "inactive")
 
     # Read should not find it
-    data = await read_bank_data()
+    data = await read_bank_data(query=filename)
     assert filename not in data
