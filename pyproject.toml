@@ -12,6 +12,7 @@ dependencies = [
     "faiss-cpu>=1.7.4",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "fastmcp>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,9 @@ test = [
 
 [project.scripts]
 shared-memory = "shared_memory.api.server:main"
+
+[tool.uv]
+package = true
 
 [tool.ruff]
 line-length = 100
