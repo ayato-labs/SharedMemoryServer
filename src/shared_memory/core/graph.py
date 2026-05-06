@@ -17,6 +17,7 @@ from shared_memory.infra.embeddings import (
     compute_embeddings_bulk,
     get_gemini_client,
 )
+from shared_memory.infra.llm import get_llm_provider
 
 logger = get_logger("graph")
 
@@ -216,12 +217,21 @@ async def _check_conflicts_internal(
                     "VALUES (?, ?, ?, ?, ?)",
                     (entity_name, existing_text, new_contents[i], reason, agent_id),
                 )
-
         await conn.commit()
         return final_results
     except Exception as e:
         log_error("Conflict check failed during AI call", e)
-        raise e
+        # Record failure as a conflict so a human can decide
+        reason = f"Conflict check failed (AI error): {e}"
+        for content in new_contents:
+            await conn.execute(
+                "INSERT INTO conflicts "
+                "(entity_name, existing_content, new_content, reason, agent_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (entity_name, existing_text, content, reason, agent_id),
+            )
+        await conn.commit()
+        return [(True, reason)] * len(new_contents)
 
 
 

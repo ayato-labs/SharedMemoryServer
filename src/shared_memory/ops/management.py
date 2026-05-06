@@ -5,8 +5,10 @@ import shutil
 
 import numpy as np
 
-from shared_memory.common.utils import calculate_importance, get_db_path, log_error
+from shared_memory.common.utils import calculate_importance, get_db_path, log_error, get_logger
 from shared_memory.infra.database import async_get_connection
+
+logger = get_logger("management")
 
 
 async def create_snapshot_logic(name: str, description: str = ""):
@@ -212,3 +214,69 @@ async def list_snapshots_logic():
         )
         rows = await cursor.fetchall()
         return [{"id": r[0], "name": r[1], "timestamp": r[2]} for r in rows]
+
+
+async def get_unresolved_conflicts_logic():
+    """Returns all unresolved knowledge conflicts."""
+    async with await async_get_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT id, entity_name, existing_content, new_content, reason, agent_id, detected_at "
+            "FROM conflicts WHERE resolved = 0 ORDER BY detected_at DESC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "entity": r[1],
+                "existing": r[2],
+                "proposed": r[3],
+                "reason": r[4],
+                "agent": r[5],
+                "detected_at": r[6],
+            }
+            for r in rows
+        ]
+
+
+async def resolve_conflict_logic(conflict_id: int, action: str):
+    """
+    Resolves a conflict.
+    action="approve": Promotes proposed content to observations.
+    action="reject": Marks as resolved without saving.
+    """
+    async with await async_get_connection() as conn:
+        try:
+            cursor = await conn.execute(
+                "SELECT entity_name, new_content, agent_id FROM conflicts WHERE id = ?",
+                (conflict_id,),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return f"Error: Conflict ID {conflict_id} not found."
+
+            entity_name, new_content, agent_id = row
+
+            if action == "approve":
+                # Promote to observations
+                await conn.execute(
+                    "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
+                    (entity_name, new_content, agent_id),
+                )
+                # Update importance
+                await conn.execute(
+                    "UPDATE entities SET importance = MIN(importance + 1, 10), "
+                    "updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+                    (entity_name,),
+                )
+                logger.info(f"Conflict {conflict_id} APPROVED and promoted to observations.")
+
+            # Mark as resolved
+            await conn.execute(
+                "UPDATE conflicts SET resolved = 1 WHERE id = ?", (conflict_id,)
+            )
+            await conn.commit()
+            return f"Conflict {conflict_id} {action}ed successfully."
+        except Exception as e:
+            await conn.rollback()
+            log_error(f"Failed to resolve conflict {conflict_id}", e)
+            return f"Error: Resolution failed: {e}"

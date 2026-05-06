@@ -28,7 +28,8 @@ try:
         thought_logic as thought_module,
     )
     from shared_memory.infra.database import init_db
-    logger.info("Core submodules imported successfully")
+    from shared_memory.api.dashboard import router as dashboard_router
+    logger.info("Core submodules and Dashboard router imported successfully")
 except Exception:
     logger.exception("Import failure")
     sys.exit(1)
@@ -198,6 +199,8 @@ def _patched_sse_app(self, mount_path: str | None = None) -> Starlette:
     # Use the original sse_app but we might want to wrap routes for logging
     app = _original_sse_app(self, mount_path)
     app.add_middleware(AuthMiddleware)
+    # Mount Dashboard routes
+    app.mount("/", dashboard_router)
     return app
 
 FastMCP.sse_app = _patched_sse_app
