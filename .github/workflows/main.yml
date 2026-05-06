@@ -3,8 +3,20 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'LICENSE'
+      - 'COMMERCIAL.md'
+      - '.gitignore'
   pull_request:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'LICENSE'
+      - 'COMMERCIAL.md'
+      - '.gitignore'
 
 permissions:
   contents: write
@@ -26,7 +38,6 @@ jobs:
       - name: Install dependencies
         run: |
           if [ ! -d ".venv" ]; then uv venv; fi
-          ls -la
           uv pip install -e "./[test]"
           uv pip install ruff pytest-timeout
       - name: Lint
@@ -34,9 +45,14 @@ jobs:
           uv run ruff check .
       - name: Run Tests
         run: |
-          # Only run curated tests (unit/integration/system) to ensure stability and isolate resource leaks
-          # Use pytest-timeout to catch individual test hangs without blocking the whole job
-          uv run pytest tests/unit/ tests/integration/ tests/system/ -v --durations=10 --timeout=120
+          # Tiered Testing: PRs only run fast unit tests. Full tests run on main.
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Running lightweight unit tests for PR..."
+            uv run pytest tests/unit/ -v --timeout=60
+          else
+            echo "Running full test suite for main/push..."
+            uv run pytest tests/unit/ tests/integration/ tests/system/ -v --durations=10 --timeout=120
+          fi
 
   release:
     name: Semantic Release
