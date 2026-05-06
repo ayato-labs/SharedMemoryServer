@@ -1,26 +1,86 @@
 import asyncio
 import json
-import logging
 import sys
-import time
 from typing import Any
 
 from fastmcp import FastMCP
 from starlette.applications import Starlette
 
-from shared_memory.common.utils import configure_logging, get_logger
 from shared_memory.api.auth import AuthMiddleware, get_current_user
+from shared_memory.common.utils import configure_logging, get_logger
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
 # Force all OS-level stdout to stderr to prevent breaking the MCP pipe
 sys.stdout = sys.stderr
 
-# --- MCP Protocol and FastMCP Patches ---
-from mcp.types import JSONRPCError, JSONRPCRequest, JSONRPCResponse
+configure_logging()
+logger = get_logger("server")
+
+logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+
+# Import core modules with verified paths
+logger.info("Importing core submodules...")
+try:
+    from shared_memory.api.dashboard import router as dashboard_router
+    from shared_memory.core import (
+        graph as graph_module,
+        logic as logic_module,
+        thought_logic as thought_module,
+    )
+    from shared_memory.infra.database import init_db
+
+    logger.info("Core submodules and Dashboard router imported successfully")
+except Exception:
+    logger.exception("Import failure")
+    sys.exit(1)
+
+# --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
+from mcp.server.session import InitializationState, ServerSession
+
+_original_received_request = ServerSession._received_request
+
+
+async def _permissive_received_request(self, responder):
+    \"\"\"Wait for initialization, or FORCE it if it takes too long.\"\"\"
+    import asyncio
+
+    try:
+        request_type = type(responder.request.root.params).__name__
+    except Exception:
+        request_type = "UnknownRequest"
+
+    logger.info(f"[MCP SESSION][{id(self)}] Received {request_type}")
+
+    if "InitializeRequest" in request_type:
+        return await _original_received_request(self, responder)
+
+    # Wait for InitializeRequest to be processed
+    retries = 0
+    while self._initialization_state in (
+        InitializationState.NotInitialized,
+        InitializationState.Initializing,
+    ):
+        if retries >= 40:  # 2.0 seconds
+            logger.warning(
+                f"[MCP SESSION][{id(self)}] TIMEOUT waiting for initialization. "
+                "FORCING INITIALIZED state."
+            )
+            self._initialization_state = InitializationState.Initialized
+            break
+        await asyncio.sleep(0.05)
+        retries += 1
+
+    return await _original_received_request(self, responder)
+
+
+ServerSession._received_request = _permissive_received_request
+logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
+
+# --- MCP SDK DEEP PATCH: PERMISSIVE VALIDATION & LOGGING ---
 
 
 def _sanitize_mcp_dict(d: Any) -> Any:
-    """Recursively converts all string numbers to actual numbers for MCP validation."""
+    \"\"\"Recursively converts all string numbers to actual numbers for MCP validation.\"\"\"
     if isinstance(d, dict):
         return {k: _sanitize_mcp_dict(v) for k, v in d.items()}
     elif isinstance(d, list):
@@ -36,17 +96,19 @@ def _sanitize_mcp_dict(d: Any) -> Any:
 
 
 # Patch FastMCP session handling to be more resilient to string/number mismatches
-from mcp.server.fastmcp.server import RequestResponder, _original_sse_app
+_original_http_app = FastMCP.http_app
 
 
-def _patched_sse_app(self, mount_path: str | None = None) -> Starlette:
-    # Use the original sse_app but we might want to wrap routes for logging
-    app = _original_sse_app(self, mount_path)
+def _patched_http_app(self, *args, **kwargs) -> Starlette:
+    # Use the original http_app but we want to mount our Dashboard and Auth
+    app = _original_http_app(self, *args, **kwargs)
     app.add_middleware(AuthMiddleware)
+    # Mount Dashboard routes
+    app.mount("/", dashboard_router)
     return app
 
 
-FastMCP.sse_app = _patched_sse_app
+FastMCP.http_app = _patched_http_app
 
 # Patch SseServerTransport to log POST messages
 from mcp.server.sse import SseServerTransport
@@ -55,7 +117,6 @@ _original_handle_post = SseServerTransport.handle_post_message
 
 
 async def _patched_handle_post(self, scope, receive, send):
-    # from starlette.requests import Request (Unused)
     # We can peek at the scope for query params without consuming the body
     query_string = scope.get("query_string", b"").decode()
     session_id = None
@@ -78,26 +139,10 @@ SseServerTransport.handle_post_message = _patched_handle_post
 
 from contextlib import asynccontextmanager
 
-# Delay imports to avoid circular dependency
-from shared_memory.core import (
-    graph as graph_module,
-)
-from shared_memory.core import (
-    logic as logic_module,
-)
-from shared_memory.core import (
-    thought_logic as thought_module,
-)
-from shared_memory.infra.database import init_db
-
-# Configure logging at the entry point
-configure_logging()
-logger = get_logger("api_server")
-
 
 @asynccontextmanager
 async def lifespan(app: FastMCP):
-    """Ensure database is ready before server starts accepting work."""
+    \"\"\"Ensure database is ready before server starts accepting work.\"\"\"
     asyncio.create_task(init_db())
     yield
 
@@ -114,8 +159,10 @@ async def save_memory(
     bank_files: dict | None = None,
     agent_id: str | None = None,
 ) -> str:
-    user = agent_id or get_current_user() or "default_agent"
-    return await logic_module.save_memory_core(entities, relations, observations, bank_files, user)
+    user = agent_id or get_current_user() or \"default_agent\"
+    return await logic_module.save_memory_core(
+        entities, relations, observations, bank_files, user
+    )
 
 
 @mcp.tool()
@@ -148,7 +195,7 @@ async def sequential_thinking(
     is_revision: bool | None = None,
     revises_thought: int | None = None,
 ) -> str:
-    user = get_current_user() or "default_agent"
+    user = get_current_user() or \"default_agent\"
     result = await thought_module.process_thought_core(
         thought=thought,
         thought_number=thought_number,
@@ -167,7 +214,7 @@ async def sequential_thinking(
 @mcp.tool()
 async def manage_knowledge_activation(ids: Any, status: str) -> str:
     await logic_module.manage_knowledge_activation_core(ids, status)
-    return f"Status updated to {status}."
+    return f\"Status updated to {status}.\"
 
 
 @mcp.tool()
@@ -177,7 +224,7 @@ async def list_inactive_knowledge() -> str:
 
 
 @mcp.tool()
-async def get_insights(format: str = "markdown") -> str:
+async def get_insights(format: str = \"markdown\") -> str:
     return await logic_module.get_value_report_core(format)
 
 
@@ -190,40 +237,41 @@ def _kill_port_process(port: int):
     try:
         import subprocess
 
-        cmd = f"netstat -ano | findstr :{port}"
+        cmd = f\"netstat -ano | findstr :{port}\"
         output = subprocess.check_output(cmd, shell=True).decode()
-        for line in output.strip().split("\n"):
-            if "LISTENING" in line:
+        for line in output.strip().split(\"\n\"):
+            if \"LISTENING\" in line:
                 pid = line.strip().split()[-1]
-                logger.warning(f"Killing zombie process {pid} on port {port}")
-                subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
+                logger.warning(f\"Killing zombie process {pid} on port {port}\")
+                subprocess.run([\"taskkill\", \"/F\", \"/PID\", pid], check=True)
     except Exception as e:
-        logger.error("Failed to kill zombie process on port {port}: {error}", port=port, error=e)
+        logger.error(
+            \"Failed to kill zombie process on port {port}: {error}\", port=port, error=e
+        )
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sse", action="store_true")
-    parser.add_argument("--port", type=int, default=8377)
+    parser.add_argument(\"--sse\", action=\"store_true\")
+    parser.add_argument(\"--port\", type=int, default=8377)
     args = parser.parse_args()
     if args.sse:
         _kill_port_process(args.port)
-        mcp.settings.port = args.port
-        mcp.run(transport="sse")
+        mcp.run(transport=\"sse\", port=args.port)
     else:
-        mcp.run(transport="stdio")
+        mcp.run(transport=\"stdio\")
 
 
 async def wait_for_background_tasks(timeout: float = 5.0):
-    """
+    \"\"\"
     Waits for all background tasks to complete or timeout.
     Used during server shutdown and test teardown.
-    """
+    \"\"\"
     # This is a stub for the actual background task tracker if implemented
     await asyncio.sleep(0.1)
 
 
-if __name__ == "__main__":
+if __name__ == \"__main__\":
     main()
