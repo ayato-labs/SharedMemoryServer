@@ -1,96 +1,116 @@
-# SharedMemoryServer: The Central Nervous System for Cross-Agent Intelligence 🧠✨
+# SharedMemoryServer 🧠
+
+**The Centralized Knowledge Hub for AI-Driven Development Teams**
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Commercial](https://img.shields.io/badge/Commercial-Available-brightgreen)](COMMERCIAL.md)
 [![Status](https://img.shields.io/badge/Status-Production--Ready-blue)](CHANGELOG.md)
 
-> **"Why can't your AI agents share the same design principles?"**
-
-If you've ever felt that **Cursor** knows your code, but **Claude Code** (in the terminal) is hallucinating the design, or **Gemini CLI** has forgotten the last 10 decisions you made — you've experienced **"AI Multi-Personality Disorder."**
-
-SharedMemoryServer is the solution: A production-grade **Blackboard Architecture** for MCP that provides a persistent, structured, and evolving memory hub for ALL your AI tools simultaneously.
+> 🇯🇵 [日本語の説明はこちら](#-日本語)
 
 ---
 
-## 🎯 The Core Problem: Intelligence Fragmentation
-Modern AI development isn't limited by context windows; it's limited by **Knowledge Decay** and **Context Silos**.
-- **Naive RAG** fails to maintain logical structures (A depends on B).
-- **Ephemeral Sessions** lose the "Why" behind a decision.
-- **Disconnected Tools** lead to inconsistent code styles and architectural drift.
+## The Problem
 
-**SharedMemoryServer** bridges this gap by acting as the "Sea Horse" (Hippocampus) for your agentic ecosystem.
+AI-driven development made your team 10x faster.
+But **knowledge sharing** didn't keep up.
 
----
+- Cursor knows your coding conventions — but **Claude Code doesn't**.
+- Gemini CLI resolved a critical bug yesterday — but **Cursor forgot by today**.
+- Your team decided on an architecture — but **every AI tool proposes a different one**.
 
-## 🏗️ Technical Pillars
+The faster you ship, the faster your AI tools **diverge**. Design decisions scatter across isolated sessions. Architectural drift becomes invisible until it's too late.
 
-### 1. Hybrid Intelligence Store (Graph + Bank)
-- **Logic Graph**: Maintains entities and relations (e.g., "Module X depends on Service Y") to ensure logical consistency.
-- **Memory Bank**: Stores deep context (Markdown files) for architectural blueprints and technical specifications.
+This is **"AI Multi-Personality Disorder"** — and it's the hidden cost of high-velocity AI development.
 
-### 2. Cognitive Lifecycle Management
-- **Ripening**: Knowledge that is frequently accessed is boosted and preserved as a long-term asset.
-- **Decay & GC**: Stale or low-signal "noise" is automatically archived to keep the context window high-signal (S/N ratio optimization).
+## The Solution
 
-### 3. Thought Distillation (Sequential Thinking)
-Integrated with the **Sequential Thinking** protocol, the server doesn't just store data; it captures the *reasoning process*.
-- **Salvage**: Automatically retrieves relevant past context during an agent's reasoning steps.
-- **Accretion**: Distills the outcome of a session back into the core memory bank, ensuring knowledge grows with every task.
+**SharedMemoryServer** is a centralized, local-first MCP server that gives all your AI tools a single shared memory.
 
-### 4. Performance & Governance
-- **Compute-then-Write**: Heavy AI processing (Embeddings, Conflict Detection) happens outside DB transactions to ensure <50ms locking.
-- **Local-First Privacy**: SQLite + FAISS (or local fastembed) ensures your proprietary design never leaves your host.
-- **Traceability**: Comprehensive audit logs and "Reasoning Provenance" for every piece of knowledge.
-
----
-
-## 📊 Architecture at a Glance
+One server. Every tool reads from it. Every tool writes to it. **Design decisions persist. Context survives. Your team's AI agents finally speak the same language.**
 
 ```mermaid
-graph TD
-    subgraph "Cross-Agent Access"
-        A1[Cursor] --> M[SharedMemoryServer]
-        A2[Claude Code] --> M
-        A3[Gemini CLI] --> M
+graph LR
+    subgraph "Your AI Tools"
+        A1["🖥️ Cursor"]
+        A2["⌨️ Claude Code"]
+        A3["🔧 Gemini CLI"]
     end
-    subgraph "The Sea Horse (Hippocampus)"
-        M --> B1[Graph Logic]
-        M --> B2[Memory Bank MD]
-        M --> B3[Thought Log]
+    subgraph "SharedMemoryServer"
+        M["📋 Shared Blackboard"]
+        M --> G["Logic Graph"]
+        M --> B["Memory Bank"]
+        M --> T["Thought Log"]
     end
-    subgraph "Lifecycle"
-        B1 & B2 --> D{Distillation}
-        D --> B1
-        B1 --> G[Garbage Collection]
-    end
+    A1 <-->|MCP| M
+    A2 <-->|MCP| M
+    A3 <-->|MCP| M
 ```
 
----
+## Why This Works
 
-## ⚡ Quick Start
+### 1. Hybrid Intelligence Store
+| Layer | What it stores | Why it matters |
+|-------|---------------|----------------|
+| **Logic Graph** | Entities & relations (`"Module X depends on Service Y"`) | Preserves logical structure that RAG loses |
+| **Memory Bank** | Deep context as Markdown files | Stores architectural blueprints, post-mortems, specs |
 
-### 1. Install
+### 2. Knowledge Lifecycle Management
+- **Ripening**: Frequently accessed knowledge is boosted as a long-term asset.
+- **Decay & GC**: Stale noise is automatically archived — your context stays high-signal.
+
+### 3. Thought Distillation
+Integrated with **Sequential Thinking**, the server captures *reasoning processes*, not just conclusions.
+- **Salvage**: Past decisions resurface exactly when an agent needs them.
+- **Accretion**: Each session's insights are distilled back into shared memory.
+
+### 4. Built for Speed & Privacy
+- **Compute-then-Write**: AI processing runs outside DB transactions → <50ms lock time.
+- **Local-First**: SQLite + FAISS. Your proprietary context never leaves your machine.
+- **Zero API Key Required**: Ships with local `fastembed` — no cloud dependency needed.
+
+## Quick Start
+
 ```bash
+# Install
 uv pip install -e .
-```
 
-### 2. Run as a Central Hub (SSE Mode)
-Recommended for keeping Cursor and Terminal tools in sync:
-```bash
+# Run as a shared hub (SSE mode — recommended for multi-tool setups)
 uv run shared-memory --sse --port 8377
 ```
 
-### 3. Verify
-Run the high-integrity test suite (Chaos, System, Unit):
-```bash
-uv run pytest tests -v
-```
+Then point your MCP-compatible tools (Cursor, Claude Code, Gemini CLI) at `http://localhost:8377`.
+
+## Governance & Licensing
+
+- **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
+- **Commercial**: For proprietary integrations or SaaS, a [Commercial License](COMMERCIAL.md) is available.
 
 ---
 
-## 🛡️ Governance & Licensing
-- **Open Source**: Licensed under [AGPL-3.0](LICENSE).
-- **Commercial**: For proprietary integrations or SaaS use, a [Commercial License](COMMERCIAL.md) is available.
+## 🇯🇵 日本語
+
+### AI駆動開発が速くなりすぎて、「情報共有」が壊れていませんか？
+
+AI駆動開発によって開発速度は圧倒的に向上しました。
+しかしその結果、チーム内の情報共有が追いつかなくなるという新しい問題が生まれています。
+
+- Cursorに教えた設計ルールを、Gemini CLIは知らない
+- 昨日Claudeと決めた方針を、今日のCursorは忘れている
+- プロジェクトが大きくなるほど、AIごとの「常識のズレ」が拡大する
+
+これが**「AIの多重人格障害」**です。
+
+### 解決策：中央集権型のナレッジ共有MCPサーバー
+
+**SharedMemoryServer** は、すべてのAIツールが同じ「黒板（ブラックボード）」を読み書きできる、ローカルファーストの共有メモリサーバーです。
+
+一度教えた設計思想は、どのAIツールからでも参照できます。チームの暗黙知を、AIが忘れない場所に置く。それがこのプロジェクトの目的です。
+
+**個人での複数AIエージェント間の知識共有にも使えます。**
+
+詳しい設計思想は [概念的要件定義書](docs/概念的要件定義書.md) をご覧ください。
 
 ---
-*SharedMemoryServer: Elevating AI agents from "disposable assistants" to "permanent engineering assets".*
+
+*SharedMemoryServer: Making AI agents remember what your team already decided.*
