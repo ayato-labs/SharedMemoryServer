@@ -257,6 +257,18 @@ def main():
     parser.add_argument(\"--sse\", action=\"store_true\")
     parser.add_argument(\"--port\", type=int, default=8377)
     args = parser.parse_args()
+
+    # --- LLM CONFIG CHECK ---
+    from shared_memory.common.config import settings
+    if settings.llm_provider == "ollama":
+        logger.info(f"LLM Provider: Ollama (Model: {settings.generative_model})")
+    elif settings.llm_provider == "gemini":
+        logger.info("LLM Provider: Google Gemini")
+    else:
+        logger.warning(
+            "NO LLM PROVIDER CONFIGURED. Knowledge distillation will be disabled. "
+            "Please check README.md for setup instructions."
+        )
     if args.sse:
         _kill_port_process(args.port)
         mcp.run(transport=\"sse\", port=args.port)

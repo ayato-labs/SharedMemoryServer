@@ -83,6 +83,24 @@ uv run shared-memory --sse --port 8377
 
 Then point your MCP-compatible tools (Cursor, Claude Code, Gemini CLI) at `http://localhost:8377`.
 
+### LLM Setup (Required for Distillation)
+
+To enable knowledge distillation and automated insights, you need at least one LLM provider configured:
+
+- **Option A: Google Gemini (Recommended)**
+  - Set the `GOOGLE_API_KEY` environment variable.
+  - The server will automatically detect and use Gemini if the key is present.
+
+- **Option B: Local Ollama**
+  - Install [Ollama](https://ollama.com/).
+  - Run the following command to download the required model:
+    ```bash
+    ollama pull llama3.1
+    ```
+  - Ensure Ollama is running (`ollama serve`) before starting the server.
+
+If neither is configured, core graph operations will still work, but **automated knowledge extraction from thoughts will be disabled**.
+
 ### Authentication Setup
 
 To enable secure multi-agent access:
