@@ -73,7 +73,7 @@ Integrated with **Sequential Thinking**, the server captures *reasoning processe
 ### 5. Transparency & Governance (Trust Layer)
 - **Transparency Dashboard**: Real-time audit logs and system health monitoring at `/:port/history`.
 - **Human-in-the-Loop**: Staging contradiction detection. Review and approve AI-suggested knowledge.
-- **Audit Trails**: Every memory save is logged with its author.
+- **Audit Trails**: Every memory save is logged with its author, enabling clear traceability for team-scale AI development.
 - **Usage Guide**: [English](docs/DASHBOARD_USAGE.md) / [日本語](docs/DASHBOARD_USAGE_JA.md)
 
 ## Benchmarks: LongMemEval

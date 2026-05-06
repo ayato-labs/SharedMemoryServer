@@ -95,14 +95,14 @@ async def init_thoughts_db(force: bool = False):
         await conn.execute("""
             CREATE TRIGGER IF NOT EXISTS thought_history_ad AFTER DELETE ON thought_history BEGIN
                 INSERT INTO thought_history_fts(thought_history_fts, rowid, 
-                                                session_id, thought_number, thought) 
+                                                 session_id, thought_number, thought) 
                 VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
             END;
         """)
         await conn.execute("""
             CREATE TRIGGER IF NOT EXISTS thought_history_au AFTER UPDATE ON thought_history BEGIN
                 INSERT INTO thought_history_fts(thought_history_fts, rowid, 
-                                                session_id, thought_number, thought) 
+                                                 session_id, thought_number, thought) 
                 VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
                 INSERT INTO thought_history_fts(rowid, session_id, thought_number, thought) 
                 VALUES (new.id, new.session_id, new.thought_number, new.thought);
@@ -285,9 +285,7 @@ async def process_thought_core(
         raise DatabaseError(f"Reasoning persistence failed: {e}") from e
 
 
-async def get_thought_history(
-    session_id: str | None = None,
-) -> list[dict[str, Any]]:
+async def get_thought_history(session_id: str | None = None) -> list[dict[str, Any]]:
     """Retrieves the thought history for a specific session."""
     session_id = session_id or "default_session"
     try:
