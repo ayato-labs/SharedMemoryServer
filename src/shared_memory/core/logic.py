@@ -209,9 +209,9 @@ async def save_memory_core(
         )
         all_vectors = results_gathering[0]
         all_extracted_tags = results_gathering[1]
-    except Exception:
+    except Exception as e:
         local_logger.exception("Phase 1.1 FAILED (AI computation)")
-        return "AI Error: AI computation failed."
+        return f"AI Error: AI computation failed: {e}"
 
     ai_duration = time.perf_counter() - ai_start_time
     local_logger.info(f"Phase 1.1 (AI) complete in {ai_duration:.2f}s")

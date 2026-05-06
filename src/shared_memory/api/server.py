@@ -280,13 +280,27 @@ def main():
         mcp.run(transport="stdio")
 
 
+    async def ensure_initialized(self):
+        """
+        Explicitly ensures the database and infrastructure are initialized.
+        Used primarily by system tests to synchronize state.
+        """
+        logger.info("Server: Ensuring initialization...")
+        await init_db()
+        await thought_module.init_thoughts_db()
+        logger.info("Server: Initialization complete.")
+
+
 async def wait_for_background_tasks(timeout: float = 5.0):
     """
     Waits for all background tasks to complete or timeout.
     Used during server shutdown and test teardown.
     """
-    # This is a stub for the actual background task tracker if implemented
-    await asyncio.sleep(0.1)
+    from shared_memory.common.tasks import (
+        wait_for_background_tasks as wait_tasks,
+    )
+
+    await wait_tasks(timeout=timeout)
 
 
 if __name__ == "__main__":

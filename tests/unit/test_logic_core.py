@@ -61,7 +61,7 @@ async def test_save_memory_core_ai_failure(fake_llm):
 
     # In Phase 1, if embed_content fails, the whole save_memory_core returns early with "AI Error"
     assert "AI Error" in result
-    assert "API Timeout" in result
+    assert "AI computation failed: API Timeout" in result
 
     # Verify nothing was saved (as it returned before Phase 2)
     search_result = await read_memory_core(query="FailNode")
