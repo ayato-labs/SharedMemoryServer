@@ -1,0 +1,5 @@
+{
+  "cursor_user": "secret-key-for-cursor",
+  "gemini_agent": "secret-key-for-gemini",
+  "claude_code": "secret-key-for-claude"
+}

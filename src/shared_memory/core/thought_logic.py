@@ -56,6 +56,7 @@ async def init_thoughts_db(force: bool = False):
                 branch_id TEXT,
                 distilled BOOLEAN DEFAULT 0,
                 meta_data TEXT,
+                agent_id TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -63,6 +64,7 @@ async def init_thoughts_db(force: bool = False):
         cursor = await conn.cursor()
         await _add_column_if_missing(cursor, "thought_history", "distilled BOOLEAN DEFAULT 0")
         await _add_column_if_missing(cursor, "thought_history", "meta_data TEXT")
+        await _add_column_if_missing(cursor, "thought_history", "agent_id TEXT")
 
         # Indices for performance and efficient sequence lookups
         await conn.execute(
@@ -93,14 +95,14 @@ async def init_thoughts_db(force: bool = False):
         await conn.execute("""
             CREATE TRIGGER IF NOT EXISTS thought_history_ad AFTER DELETE ON thought_history BEGIN
                 INSERT INTO thought_history_fts(thought_history_fts, rowid, 
-                                                session_id, thought_number, thought) 
+                                                 session_id, thought_number, thought) 
                 VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
             END;
         """)
         await conn.execute("""
             CREATE TRIGGER IF NOT EXISTS thought_history_au AFTER UPDATE ON thought_history BEGIN
                 INSERT INTO thought_history_fts(thought_history_fts, rowid, 
-                                                session_id, thought_number, thought) 
+                                                 session_id, thought_number, thought) 
                 VALUES('delete', old.id, old.session_id, old.thought_number, old.thought);
                 INSERT INTO thought_history_fts(rowid, session_id, thought_number, thought) 
                 VALUES (new.id, new.session_id, new.thought_number, new.thought);
@@ -126,6 +128,7 @@ async def process_thought_core(
     branch_from_thought: int | None = None,
     branch_id: str | None = None,
     session_id: str | None = None,
+    agent_id: str = "default_agent",
 ) -> dict[str, Any]:
     """
     Implements the core logic for sequential thinking with security,
@@ -177,8 +180,8 @@ async def process_thought_core(
                 INSERT INTO thought_history (
                     session_id, thought_number, total_thoughts, thought,
                     next_thought_needed, is_revision, revises_thought,
-                    branch_from_thought, branch_id, meta_data
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    branch_from_thought, branch_id, agent_id, meta_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     session_id,
@@ -190,6 +193,7 @@ async def process_thought_core(
                     revises_thought,
                     branch_from_thought,
                     branch_id,
+                    agent_id,
                     json.dumps({"env": "development", "timestamp": datetime.now().isoformat()}),
                 ),
             )
@@ -281,9 +285,7 @@ async def process_thought_core(
         raise DatabaseError(f"Reasoning persistence failed: {e}") from e
 
 
-async def get_thought_history(
-    session_id: str | None = None,
-) -> list[dict[str, Any]]:
+async def get_thought_history(session_id: str | None = None) -> list[dict[str, Any]]:
     """Retrieves the thought history for a specific session."""
     session_id = session_id or "default_session"
     try:
