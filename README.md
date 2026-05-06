@@ -1,58 +1,87 @@
-# SharedMemoryServer: State Governance for Agentic Intelligence 🚀
+# SharedMemoryServer: The Central Nervous System for Cross-Agent Intelligence 🧠✨
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Commercial](https://img.shields.io/badge/Commercial-Available-brightgreen)](COMMERCIAL.md)
+[![Status](https://img.shields.io/badge/Status-Production--Ready-blue)](CHANGELOG.md)
 
-SharedMemoryServer is a production-grade infrastructure designed to govern **Inference-time Latency** and **System Entropy** in complex Agentic Workflows. It provides a persistent, high-integrity context layer that survives ephemeral session boundaries.
+> **"Why can't your AI agents share the same design principles?"**
 
-## 🎯 Core Value
-This project demonstrates verified proof of:
-- **State Governance**: Managing reasoning continuity across sessions.
-- **Architectural Determinism**: Enforcing data integrity through atomic synchronization.
-- **Intelligence Provenance**: Quantifying the maturity and reuse of knowledge assets.
-- **Team-Scale Knowledge Hub**: Centralizing agentic memory across developers via a persistent SSE server.
+If you've ever felt that **Cursor** knows your code, but **Claude Code** (in the terminal) is hallucinating the design, or **Gemini CLI** has forgotten the last 10 decisions you made — you've experienced **"AI Multi-Personality Disorder."**
+
+SharedMemoryServer is the solution: A production-grade **Blackboard Architecture** for MCP that provides a persistent, structured, and evolving memory hub for ALL your AI tools simultaneously.
 
 ---
 
-## 🏗️ Architecture at a Glance
-SharedMemoryServer utilizes a **Compute-then-Write** pattern to eliminate database lock contention, ensuring high performance even with multiple simultaneous agents.
+## 🎯 The Core Problem: Intelligence Fragmentation
+Modern AI development isn't limited by context windows; it's limited by **Knowledge Decay** and **Context Silos**.
+- **Naive RAG** fails to maintain logical structures (A depends on B).
+- **Ephemeral Sessions** lose the "Why" behind a decision.
+- **Disconnected Tools** lead to inconsistent code styles and architectural drift.
+
+**SharedMemoryServer** bridges this gap by acting as the "Sea Horse" (Hippocampus) for your agentic ecosystem.
+
+---
+
+## 🏗️ Technical Pillars
+
+### 1. Hybrid Intelligence Store (Graph + Bank)
+- **Logic Graph**: Maintains entities and relations (e.g., "Module X depends on Service Y") to ensure logical consistency.
+- **Memory Bank**: Stores deep context (Markdown files) for architectural blueprints and technical specifications.
+
+### 2. Cognitive Lifecycle Management
+- **Ripening**: Knowledge that is frequently accessed is boosted and preserved as a long-term asset.
+- **Decay & GC**: Stale or low-signal "noise" is automatically archived to keep the context window high-signal (S/N ratio optimization).
+
+### 3. Thought Distillation (Sequential Thinking)
+Integrated with the **Sequential Thinking** protocol, the server doesn't just store data; it captures the *reasoning process*.
+- **Salvage**: Automatically retrieves relevant past context during an agent's reasoning steps.
+- **Accretion**: Distills the outcome of a session back into the core memory bank, ensuring knowledge grows with every task.
+
+### 4. Performance & Governance
+- **Compute-then-Write**: Heavy AI processing (Embeddings, Conflict Detection) happens outside DB transactions to ensure <50ms locking.
+- **Local-First Privacy**: SQLite + FAISS (or local fastembed) ensures your proprietary design never leaves your host.
+- **Traceability**: Comprehensive audit logs and "Reasoning Provenance" for every piece of knowledge.
+
+---
+
+## 📊 Architecture at a Glance
 
 ```mermaid
 graph TD
-    subgraph "Parallel AI Compute"
-        A[Agent Request] --> B1[Gemini Embeddings]
-        A --> B2[Conflict Detection]
+    subgraph "Cross-Agent Access"
+        A1[Cursor] --> M[SharedMemoryServer]
+        A2[Claude Code] --> M
+        A3[Gemini CLI] --> M
     end
-    B1 & B2 --> C{Orchestrator}
-    subgraph "Atomic Sync"
-        C --> D[SQLite Transaction]
-        C --> E[Memory Bank MD]
+    subgraph "The Sea Horse (Hippocampus)"
+        M --> B1[Graph Logic]
+        M --> B2[Memory Bank MD]
+        M --> B3[Thought Log]
+    end
+    subgraph "Lifecycle"
+        B1 & B2 --> D{Distillation}
+        D --> B1
+        B1 --> G[Garbage Collection]
     end
 ```
-
-👉 **[Deep Dive into Architecture](docs/architecture.md)**
 
 ---
 
 ## ⚡ Quick Start
 
-### 1. Installation
+### 1. Install
 ```bash
 uv pip install -e .
 ```
 
-### 2. Execution
-- **Mode A (SSE - Recommended)**: Centralized hub for team collaboration.
-  ```bash
-  uv run shared-memory --sse --port 8377
-  ```
-- **Mode B (STDIO)**: Isolated local use.
-  ```bash
-  uv run shared-memory
-  ```
+### 2. Run as a Central Hub (SSE Mode)
+Recommended for keeping Cursor and Terminal tools in sync:
+```bash
+uv run shared-memory --sse --port 8377
+```
 
-### 3. Verification
-Run the 16-test suite covering Chaos, System, and Unit scenarios:
+### 3. Verify
+Run the high-integrity test suite (Chaos, System, Unit):
 ```bash
 uv run pytest tests -v
 ```
@@ -60,13 +89,8 @@ uv run pytest tests -v
 ---
 
 ## 🛡️ Governance & Licensing
-
-This project is dual-licensed to ensure both community openness and commercial sustainability:
-
-- **Open Source**: Licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE). Any network service provided using this software must release its source code.
-- **Commercial**: For SaaS use cases or proprietary integration without AGPL-3.0 obligations, a [Commercial License](COMMERCIAL.md) is available.
-
-**Contributing:** We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) and note that a [CLA agreement](CLA.md) is required for all pull requests.
+- **Open Source**: Licensed under [AGPL-3.0](LICENSE).
+- **Commercial**: For proprietary integrations or SaaS use, a [Commercial License](COMMERCIAL.md) is available.
 
 ---
-*Built to elevate AI Agents from "Simple Assistants" to "Systematic Thinking Assets".*
+*SharedMemoryServer: Elevating AI agents from "disposable assistants" to "permanent engineering assets".*
