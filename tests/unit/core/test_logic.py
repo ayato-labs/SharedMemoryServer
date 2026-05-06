@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 import pytest
 
@@ -62,6 +62,8 @@ async def test_save_memory_core_basic(fake_client):
 @pytest.mark.asyncio
 async def test_save_memory_core_ai_error():
     # Simulate AI failure by patching the bulk computation directly
-    with patch("shared_memory.core.logic.compute_embeddings_bulk", side_effect=Exception("AI Down")):
+    with patch(
+        "shared_memory.core.logic.compute_embeddings_bulk", side_effect=Exception("AI Down")
+    ):
         result = await logic.save_memory_core(entities=["ErrorEntity"])
         assert "AI Error" in result

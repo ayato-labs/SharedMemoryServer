@@ -138,7 +138,12 @@ def mock_llm(request):
     client.aio.models.embed_content = AsyncMock()
     mock_embedding = MagicMock()
     mock_embedding.values = [0.1] * 768
-    client.aio.models.embed_content.return_value.embeddings = [mock_embedding] * 100
+    
+    class FakeEmbeddingResponse:
+        def __init__(self, embeddings):
+            self.embeddings = embeddings
+
+    client.aio.models.embed_content.return_value = FakeEmbeddingResponse([mock_embedding] * 100)
 
     model_obj = MagicMock()
     model_obj.name = "models/gemini-2.0-flash-exp"
