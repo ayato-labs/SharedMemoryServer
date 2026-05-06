@@ -78,32 +78,71 @@ async def check_disk_usage() -> dict[str, Any]:
     }
 
 
-async def check_api_connectivity() -> dict[str, Any]:
+async def check_provider_health() -> dict[str, Any]:
     """
-    Verifies connectivity to the embedding service.
+    Verifies connectivity and readiness of the configured LLM and Embedding providers.
     """
-    from shared_memory.infra.embeddings import get_gemini_client
+    from shared_memory.common.config import settings
+    from shared_memory.infra.llm import get_llm_provider
+    from shared_memory.infra.embeddings import compute_embedding
 
-    start_time = time.time()
+    results = {}
+    
+    # 1. Check Embedding Engine
+    emb_start = time.time()
     try:
-        client = get_gemini_client()
-        # Ping by listing models or similar lightweight operation
-        # Note: listing models consumes a bit of quota but is safer than a dummy embed
-        models = client.models.list()
-        # Just check if we can iterate at least one
-        next(iter(models))
-        status = "healthy"
-        error = None
+        # Lightweight test: embed a tiny string
+        # FastEmbed is local, so this checks if the model is loaded
+        # Gemini checks network connectivity
+        vec = await compute_embedding("health_check")
+        results["embedding"] = {
+            "engine": settings.embedding_engine,
+            "status": "healthy" if vec else "unhealthy",
+            "latency_ms": (time.time() - emb_start) * 1000,
+        }
     except Exception as e:
-        status = "unhealthy"
-        error = str(e)
+        results["embedding"] = {
+            "engine": settings.embedding_engine,
+            "status": "unhealthy",
+            "error": str(e),
+        }
 
-    return {
-        "service": "Google Gemini API",
-        "status": status,
-        "latency_ms": (time.time() - start_time) * 1000,
-        "error": error,
-    }
+    # 2. Check LLM Provider
+    llm_start = time.time()
+    try:
+        provider = get_llm_provider()
+        # We don't want to generate a full response, so we just check if it's reachable
+        # For Ollama, we check the base URL. For Gemini, we check the client.
+        if settings.llm_provider == "ollama":
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{settings.ollama_base_url}/api/tags") as resp:
+                    if resp.status == 200:
+                        status = "healthy"
+                    else:
+                        status = "unhealthy"
+        else:
+            # Gemini health check (Legacy logic)
+            from shared_memory.infra.embeddings import get_gemini_client
+            client = get_gemini_client()
+            if client:
+                status = "healthy"
+            else:
+                status = "unhealthy"
+        
+        results["llm"] = {
+            "provider": settings.llm_provider,
+            "status": status,
+            "latency_ms": (time.time() - llm_start) * 1000,
+        }
+    except Exception as e:
+        results["llm"] = {
+            "provider": settings.llm_provider,
+            "status": "unhealthy",
+            "error": str(e),
+        }
+
+    return results
 
 
 async def get_comprehensive_diagnostics() -> dict[str, Any]:
@@ -112,7 +151,7 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
     """
     db = await check_db_health()
     disk = await check_disk_usage()
-    api = await check_api_connectivity()
+    providers = await check_provider_health()
 
     overall_status = "healthy"
     issues = []
@@ -123,12 +162,16 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
         overall_status = "warning"
         free_gb = disk["free"] / (1024**3)
         issues.append(
-            f"Low disk space on host drive. Remaining: {free_gb:.1f} GB. "
-            "Note: This is a system-level resource issue, not database bloat."
+            f"Low disk space on host drive. Remaining: {free_gb:.1f} GB."
         )
-    if api["status"] != "healthy":
+    
+    if providers["embedding"]["status"] != "healthy":
         overall_status = "unhealthy"
-        issues.append(f"Gemini API connectivity issue: {api['error']}")
+        issues.append(f"Embedding ({providers['embedding']['engine']}) is unhealthy")
+    
+    if providers["llm"]["status"] != "healthy":
+        overall_status = "unhealthy"
+        issues.append(f"LLM Provider ({providers['llm']['provider']}) is unreachable")
 
     from datetime import datetime
 
@@ -138,5 +181,9 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
         "db_status": "healthy" if db["status"] == "healthy" else "unhealthy",
         "disk_status": "healthy" if disk["percent_free"] > 5 else "warning",
         "issues": issues,
-        "components": {"database": db, "storage": disk, "api": api},
+        "components": {
+            "database": db, 
+            "storage": disk, 
+            "providers": providers
+        },
     }

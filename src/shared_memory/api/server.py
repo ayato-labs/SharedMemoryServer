@@ -8,6 +8,7 @@ from typing import Any
 from starlette.applications import Starlette
 
 from shared_memory.common.utils import configure_logging, get_logger
+from shared_memory.api.auth import AuthMiddleware, get_current_user
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
 # Force all OS-level stdout to stderr to prevent breaking the MCP pipe
@@ -196,6 +197,7 @@ _original_sse_app = FastMCP.sse_app
 def _patched_sse_app(self, mount_path: str | None = None) -> Starlette:
     # Use the original sse_app but we might want to wrap routes for logging
     app = _original_sse_app(self, mount_path)
+    app.add_middleware(AuthMiddleware)
     return app
 
 FastMCP.sse_app = _patched_sse_app
@@ -245,8 +247,9 @@ async def save_memory(
     bank_files: dict | None = None,
     agent_id: str | None = None,
 ) -> str:
+    user = agent_id or get_current_user() or "default_agent"
     return await logic_module.save_memory_core(
-        entities, relations, observations, bank_files, agent_id
+        entities, relations, observations, bank_files, user
     )
 
 @mcp.tool()
@@ -276,6 +279,7 @@ async def sequential_thinking(
     is_revision: bool | None = None,
     revises_thought: int | None = None,
 ) -> str:
+    user = get_current_user() or "default_agent"
     result = await thought_module.process_thought_core(
         thought=thought,
         thought_number=thought_number,
@@ -285,7 +289,8 @@ async def sequential_thinking(
         branch_from_thought=branch_from_thought,
         branch_id=branch_id,
         is_revision=is_revision,
-        revises_thought=revises_thought
+        revises_thought=revises_thought,
+        agent_id=user
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 

@@ -10,22 +10,19 @@ from shared_memory.infra.embeddings import get_gemini_client
 logger = get_logger("distiller")
 
 
+from shared_memory.infra.llm import get_llm_provider
+
+
 @retry_on_ai_quota(max_retries=3)
 async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str, Any]]):
     """
-    Analyzes thought history using Gemini to extract structured knowledge.
+    Analyzes thought history using the configured LLM to extract structured knowledge.
     """
     if not thought_history:
         return
 
-    client = get_gemini_client()
-    if not client:
-        log_info(
-            f"Cannot distill knowledge for session {session_id}: "
-            "Gemini client not initialized (API key missing)"
-        )
-        return
-
+    provider = get_llm_provider()
+    
     # 1. Format thoughts for the prompt
     formatted_thoughts = "\n".join(
         [f"Step {t['thought_number']}: {t['thought']}" for t in thought_history]
@@ -69,28 +66,16 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
     """
 
     try:
-        # Enforce Rate Limiting (Generation task)
-        await AIRateLimiter.throttle(task_type="generation")
-
-        # Use centralized model from settings
-        response = await client.aio.models.generate_content(
-            model=settings.generative_model,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-            },
+        system_instruction = "You are a high-precision knowledge extraction engine. Output only structured JSON."
+        
+        response_text = await provider.generate_content(
+            prompt=prompt,
+            system_instruction=system_instruction
         )
 
-        raw_text = response.text.strip()
-
-        # Strip markdown if present
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```", 2)[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:].strip()
-            raw_text = raw_text.strip()
-
-        extracted_data = json.loads(raw_text)
+        import re
+        clean_json = re.sub(r"```json|```", "", response_text).strip()
+        extracted_data = json.loads(clean_json)
 
         # 2. Save extracted knowledge to the graph
         entities = extracted_data.get("entities", [])
@@ -114,11 +99,8 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
         )
 
     except Exception as e:
-        logger.exception("Failed to distill knowledge for session {session_id}", 
-                         session_id=session_id)
+        logger.exception(f"Failed to distill knowledge for session {session_id}")
         log_error(f"Failed to distill knowledge for session {session_id}", e)
-        # Note: We don't re-raise here to avoid crashing the thought process
-        # because distillation is a background/secondary task.
 
 
 @retry_on_ai_quota(max_retries=3)
@@ -127,9 +109,7 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
     Extracts atomic knowledge from a single thought step (Real-time).
     Runs asynchronously to avoid blocking the reasoning flow.
     """
-    client = get_gemini_client()
-    if not client:
-        return
+    provider = get_llm_provider()
 
     prompt = f"""
     Analyze the following SINGLE THOUGHT from a reasoning process.
@@ -149,15 +129,16 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
     }}
     """
     try:
-        # Enforce Rate Limiting (Generation task)
-        await AIRateLimiter.throttle(task_type="generation")
-
-        response = await client.aio.models.generate_content(
-            model=settings.generative_model,
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
+        system_instruction = "You are a high-precision knowledge extraction engine. Output only structured JSON."
+        
+        response_text = await provider.generate_content(
+            prompt=prompt,
+            system_instruction=system_instruction
         )
-        extracted = json.loads(response.text)
+        
+        import re
+        clean_json = re.sub(r"```json|```", "", response_text).strip()
+        extracted = json.loads(clean_json)
 
         entities = extracted.get("entities", [])
         relations = extracted.get("relations", [])
@@ -172,5 +153,5 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
             )
             log_info(f"Incremental Distill: Saved {len(entities) + len(observations)} atoms.")
     except Exception as e:
-        logger.exception("Incremental distillation failed for {session_id}", session_id=session_id)
+        logger.exception(f"Incremental distillation failed for {session_id}")
         log_error(f"Incremental distillation failed for {session_id}", e)

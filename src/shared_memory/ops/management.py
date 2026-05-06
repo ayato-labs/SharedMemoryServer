@@ -7,7 +7,6 @@ import numpy as np
 
 from shared_memory.common.utils import calculate_importance, get_db_path, log_error
 from shared_memory.infra.database import async_get_connection
-from shared_memory.infra.embeddings import get_gemini_client
 
 
 async def create_snapshot_logic(name: str, description: str = ""):
@@ -159,7 +158,13 @@ async def get_memory_health_logic():
                 health["entities_count"] + health["bank_files_cached"] - health["embeddings_count"]
             )
 
-            health["semantic_search_active"] = get_gemini_client() is not None
+            # Check if semantic search is functionally active
+            from shared_memory.common.config import settings
+            if settings.embedding_engine == "fastembed":
+                health["semantic_search_active"] = True
+            else:
+                from shared_memory.infra.embeddings import get_gemini_client
+                health["semantic_search_active"] = get_gemini_client() is not None
 
             # Gaps & Bias
             cursor = await conn.execute("""

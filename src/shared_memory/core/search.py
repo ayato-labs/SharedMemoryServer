@@ -17,18 +17,15 @@ from shared_memory.infra.database import (
     log_search_stat,
     update_access,
 )
-from shared_memory.infra.embeddings import (
-    compute_embedding,
-    get_gemini_client,
-)
+from shared_memory.infra.embeddings import compute_embedding
+from shared_memory.infra.llm import get_llm_provider
 
 logger = get_logger("search")
 
 
 async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id: str = None):
     """
-    Improved Keyword Search Logic:
-    - Only searches for ACTIVE status items.
+    Improved Keyword Search Logic using FTS5 and basic scoring.
     """
     async with await async_get_connection() as conn:
         query_words = re.findall(r"\w+", query.lower())
@@ -46,18 +43,13 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
 
         for fts_table, source_name, id_col, content_col in fts_sources:
             try:
-                # Use MATCH for fast full-text searching and BM25 for ranking
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col}, bm25({fts_table}) "
                     f"FROM {fts_table} WHERE {fts_table} MATCH ?",
                     (query,)
                 )
                 for row_id, content, rank in await cursor.fetchall():
-                    # BM25 returns smaller values for better matches; 
-                    # we convert it to a positive score (higher is better)
                     score = max(0.1, abs(rank) * 1.5)
-                    
-                    # Boost if the query is an exact match for the ID/Name
                     if query.lower() == str(row_id).lower():
                         score += 15.0
 
@@ -66,7 +58,6 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                     scored_results[key] = (current_score + score, str(content))
             except Exception as e:
                 logger.debug(f"FTS5 search failed for {fts_table}: {e}")
-                # Fallback to a simpler LIKE if FTS fails for some reason
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col} FROM {source_name} "
                     f"WHERE ({content_col} LIKE ? OR {id_col} LIKE ?) AND status = 'active'",
@@ -84,12 +75,12 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
             [f"#{w}" for w in query_words]
         )
         for cid, ctype, tag in await cursor.fetchall():
-            score = 15.0  # High score for explicit tag match
+            score = 15.0
             key = (ctype + "s" if not ctype.endswith("s") else ctype, cid)
             current_score, content = scored_results.get(key, (0.0, f"Matched tag: {tag}"))
             scored_results[key] = (current_score + score, content)
 
-        # 2. Search Thoughts DB using FTS5
+        # 2. Search Thoughts DB
         try:
             async with await async_get_thoughts_connection() as t_conn:
                 t_cursor = await t_conn.execute(
@@ -105,30 +96,16 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                     scored_results[key] = (current_score + score, str(thought))
         except Exception as e:
             logger.debug(f"FTS5 thought search failed: {e}")
-            # Fallback for thoughts
-            async with await async_get_thoughts_connection() as t_conn:
-                t_cursor = await t_conn.execute(
-                    "SELECT session_id, thought_number, thought FROM thought_history "
-                    "WHERE thought LIKE ? AND session_id != ?",
-                    (f"%{query}%", exclude_session_id or ""),
-                )
-                for sess_id, t_num, thought in await t_cursor.fetchall():
-                    key = ("thought_history", f"{sess_id}#{t_num}")
-                    current_score, _ = scored_results.get(key, (0.0, ""))
-                    scored_results[key] = (current_score + 1.5, str(thought))
 
         sorted_items = sorted(scored_results.items(), key=lambda x: x[1][0], reverse=True)
-
         formatted_results = []
         for (source, row_id), (score, content) in sorted_items[:limit]:
-            formatted_results.append(
-                {
-                    "source": source,
-                    "id": row_id,
-                    "score": round(score, 2),
-                    "content": content,
-                }
-            )
+            formatted_results.append({
+                "source": source,
+                "id": row_id,
+                "score": round(score, 2),
+                "content": content,
+            })
 
         hit_ids = [r["id"] for r in formatted_results]
         await log_search_stat(query, len(formatted_results), hit_ids=hit_ids)
@@ -136,20 +113,15 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
 
 
 async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20):
-    """Hybrid search logic (Semantic + Keyword) - Optimized with parallelism."""
+    """Hybrid search logic (Semantic + Keyword)."""
     logger.info(f"perform_search START query={query}")
     start_search = datetime.datetime.now()
     
-    # --- Parallel Step 1: Trigger long-running tasks ---
-    # We run embedding computation and keyword search in parallel.
-    # Note: compute_embedding uses external API (Gemini), keyword search uses SQLite.
     task_vector = asyncio.create_task(compute_embedding(query))
     task_keyword = asyncio.create_task(perform_keyword_search(query))
 
     try:
         async with await async_get_connection() as conn:
-            # --- Parallel Step 2: Fetch current embeddings while waiting for tasks ---
-            # This fetches the entire embedding map for similarity calculation.
             cursor = await conn.execute("""
                 SELECT e.content_id, e.vector
                 FROM embeddings e
@@ -159,18 +131,12 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
             """)
             all_rows = await cursor.fetchall()
 
-            # --- Step 3: Wait for parallel tasks to complete ---
             query_vector = await task_vector
             keyword_results = await task_keyword
             
-            if not query_vector:
-                # Fallback to basic search if embedding fails
+            if not query_vector or not all_rows:
                 return await get_graph_data(query), await read_bank_data(query)
 
-            if not all_rows:
-                return await get_graph_data(query), await read_bank_data(query)
-
-            # --- Step 4: Compute similarity and combine results ---
             all_cids = [r[0] for r in all_rows]
             all_vectors = [json.loads(r[1]) for r in all_rows]
             similarities = batch_cosine_similarity(query_vector, all_vectors)
@@ -180,7 +146,6 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
             )
             metadata = await cursor.fetchall()
             meta_map = {m[0]: (m[1], m[2]) for m in metadata}
-
             keyword_map = {r["id"]: r["score"] for r in keyword_results}
 
             results = []
@@ -190,12 +155,8 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
                 sim = float(similarities[i])
                 count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
                 importance = calculate_importance(count, last)
-
                 k_score = keyword_map.get(cid, 0.0)
-                # Weighted fusion (Semantic 40%, Keyword 30%, Importance 15%, Tag Match 15%)
-                # Tags are already partially in k_score but we could boost them here if needed.
                 final_score = (sim * 0.4) + (importance * 0.15) + (k_score * 0.45)
-
                 results.append((cid, final_score))
                 seen_cids.add(cid)
 
@@ -207,18 +168,14 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
                     results.append((cid, final_score))
 
             results.sort(key=lambda x: x[1], reverse=True)
-            # Step 5: Respect the limit and filter by threshold
             top_results = [r for r in results[:limit] if r[1] > 0.05]
             top_cids = [r[0] for r in top_results]
 
-            # Update access for top results
             for cid in top_cids:
                 await update_access(cid, conn=conn)
 
-            # Fetch detailed data in parallel
             graph_task = asyncio.create_task(get_graph_data_by_cids(top_cids, conn))
             bank_task = asyncio.create_task(get_bank_data_by_cids(top_cids, conn))
-            
             graph_data, bank_data = await asyncio.gather(graph_task, bank_task)
 
             dur = (datetime.datetime.now() - start_search).total_seconds()
@@ -291,6 +248,7 @@ async def search_memory_logic(query: str, limit: int = 10):
 
 
 async def synthesize_knowledge(entity_name: str):
+    """Legacy synthesis function refactored to use LlmProvider."""
     async with await async_get_connection() as conn:
         try:
             cursor = await conn.execute("SELECT * FROM entities WHERE name = ?", (entity_name,))
@@ -310,6 +268,7 @@ async def synthesize_knowledge(entity_name: str):
             )
             rels = await cursor.fetchall()
 
+            provider = get_llm_provider()
             prompt = (
                 "You are a Knowledge Synthesis Engine. Summarize everything known about "
                 f"'{entity_name}'.\n\n"
@@ -322,11 +281,38 @@ async def synthesize_knowledge(entity_name: str):
                     [f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels]
                 )
             )
-            client = get_gemini_client()
-            if not client:
-                return "Error: Gemini client not available."
-            response = client.models.generate_content(model="gemini-2.0-flash-exp", contents=prompt)
-            return response.text
+            
+            system_instruction = "You are a high-precision knowledge synthesis engine. Distill technical facts with absolute accuracy."
+            summary = await provider.generate_content(prompt=prompt, system_instruction=system_instruction)
+            return summary
         except Exception as e:
-            log_error(f"Synthesis failed for {entity_name}", e)
+            logger.error(f"Synthesis failed for {entity_name}: {e}")
             return f"Error: {e}"
+
+
+async def synthesize_entity_detailed(entity_name: str, observations: list[dict]) -> str:
+    """
+    Synthesizes multiple observations about an entity into a coherent summary.
+    Uses the configured LLM provider (Ollama or Gemini).
+    """
+    if not observations:
+        return f"No observations found for {entity_name}."
+
+    provider = get_llm_provider()
+    prompt = f"""
+    Entity: {entity_name}
+    Observations:
+    {json.dumps(observations, indent=2)}
+
+    Task: Create a single, high-density technical summary of this entity based on the observations.
+    Identify any conflicts or changes over time.
+    Return only the summary.
+    """
+    system_instruction = "You are a high-precision knowledge synthesis engine. Distill technical facts with absolute accuracy."
+
+    try:
+        summary = await provider.generate_content(prompt=prompt, system_instruction=system_instruction)
+        return summary
+    except Exception as e:
+        logger.error(f"Synthesis failed: {e}")
+        return f"[Synthesis Error] {str(e)}"

@@ -76,10 +76,7 @@ async def extract_hashtags_ai(content: str) -> list[str]:
         return []
 
     try:
-        client = get_gemini_client()
-        if not client:
-            return []
-
+        provider = get_llm_provider()
         prompt = (
             "Extract up to 5 highly relevant keywords or hashtags from the following text. "
             "Normalize them to lowercase and remove spaces within tags. "
@@ -87,18 +84,19 @@ async def extract_hashtags_ai(content: str) -> list[str]:
             f"TEXT:\n{content}"
         )
 
-        await AIRateLimiter.throttle()
-        response = await client.aio.models.generate_content(
-            model=settings.generative_model,
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
+        system_instruction = "You are a specialized keyword extraction engine. Return only a JSON list."
+        
+        response_text = await provider.generate_content(
+            prompt=prompt,
+            system_instruction=system_instruction
         )
-        tags = json.loads(response.text)
+        # Handle cases where the model might wrap the JSON in code blocks
+        clean_json = re.sub(r"```json|```", "", response_text).strip()
+        tags = json.loads(clean_json)
+        
         if isinstance(tags, list):
-            # Clean and normalize tags
             cleaned = []
             for t_raw in tags:
-                # Normalize: lowercase, ensure starts with #, no spaces
                 t_clean = str(t_raw).strip().lower().replace(" ", "")
                 if not t_clean.startswith("#"):
                     t_clean = f"#{t_clean}"
@@ -137,27 +135,22 @@ async def save_tags(content_id: str, content_type: str, tags: list[str], conn):
 
 async def check_conflict(entity_name: str, new_contents: list[str], agent_id: str, conn=None):
     """
-    Checks if a list of new observations contradicts existing knowledge using Gemini.
+    Checks if a list of new observations contradicts existing knowledge using the configured LLM.
     Returns a list of (is_conflict, reason) tuples.
     """
     if not new_contents:
         return []
 
     try:
-        client = get_gemini_client()
-        if not client:
-            log_error("Conflict check aborted: Gemini client not initialized (check API key)")
-            return [(False, None)] * len(new_contents)
-
         logger.info(f"Checking conflicts for entity='{entity_name}' ({len(new_contents)} items)")
         if conn is None:
             async with await async_get_connection() as managed_conn:
                 return await _check_conflicts_internal(
-                    entity_name, new_contents, agent_id, managed_conn, client
+                    entity_name, new_contents, agent_id, managed_conn
                 )
         else:
             return await _check_conflicts_internal(
-                entity_name, new_contents, agent_id, conn, client
+                entity_name, new_contents, agent_id, conn
             )
     except Exception as e:
         log_error("Conflict check failed", e)
@@ -165,7 +158,7 @@ async def check_conflict(entity_name: str, new_contents: list[str], agent_id: st
 
 
 async def _check_conflicts_internal(
-    entity_name: str, new_contents: list[str], agent_id: str, conn, client
+    entity_name: str, new_contents: list[str], agent_id: str, conn
 ):
     # Fetch up to 5 most recent observations for richer context
     cursor = await conn.execute(
@@ -189,60 +182,46 @@ async def _check_conflicts_internal(
         '[{"conflict": bool, "reason": "string"}, ...]'
     )
 
-    # Enforce Rate Limiting
-    await AIRateLimiter.throttle()
+    provider = get_llm_provider()
+    system_instruction = "You are a rigorous Fact-Checking Engine. Identify logical contradictions with precision."
 
-    results = []
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = await client.aio.models.generate_content(
-                model=settings.generative_model,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-            data = json.loads(response.text)
-            if isinstance(data, list) and len(data) == len(new_contents):
-                results = data
-                break
-            elif isinstance(data, dict):
-                # Robustness fallback: If AI returns a single object instead of a list of one,
-                # wrap it. This handles many legacy mocks and simpler LLM behaviors.
-                results = [data] * len(new_contents)
-                break
-        except Exception as e:
-            error_str = str(e).lower()
-            if (
-                "429" in error_str or "resource_exhausted" in error_str
-            ) and attempt < max_retries - 1:
-                wait_time = (2**attempt) + 1
-                logger.warning(f"Conflict Check Rate Limit (429): Retrying in {wait_time}s...")
-                await asyncio.sleep(wait_time)
-                continue
-            log_error("Conflict check failed during AI call", e)
-            raise e
+    try:
+        response_text = await provider.generate_content(
+            prompt=prompt,
+            system_instruction=system_instruction
+        )
+        clean_json = re.sub(r"```json|```", "", response_text).strip()
+        data = json.loads(clean_json)
+        
+        results = []
+        if isinstance(data, list) and len(data) == len(new_contents):
+            results = data
+        elif isinstance(data, dict):
+            results = [data] * len(new_contents)
+        
+        if not results:
+            return [(False, None)] * len(new_contents)
 
-    if not results:
-        return [(False, None)] * len(new_contents)
+        final_results = []
+        for i, item in enumerate(results):
+            is_conflict = item.get("conflict", False)
+            reason = item.get("reason") if is_conflict else None
+            final_results.append((is_conflict, reason))
 
-    final_results = []
-    for i, item in enumerate(results):
-        is_conflict = item.get("conflict", False)
-        reason = item.get("reason") if is_conflict else None
-        final_results.append((is_conflict, reason))
+            if is_conflict:
+                logger.warning(f"CONFLICT DETECTED in '{entity_name}': {reason}")
+                await conn.execute(
+                    "INSERT INTO conflicts "
+                    "(entity_name, existing_content, new_content, reason, agent_id) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (entity_name, existing_text, new_contents[i], reason, agent_id),
+                )
 
-        if is_conflict:
-            logger.warning(f"CONFLICT DETECTED in '{entity_name}': {reason}")
-            # Log to DB
-            await conn.execute(
-                "INSERT INTO conflicts "
-                "(entity_name, existing_content, new_content, reason, agent_id) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (entity_name, existing_text, new_contents[i], reason, agent_id),
-            )
-
-    await conn.commit()
-    return final_results
+        await conn.commit()
+        return final_results
+    except Exception as e:
+        log_error("Conflict check failed during AI call", e)
+        raise e
 
 
 

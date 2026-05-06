@@ -67,7 +67,9 @@ Integrated with **Sequential Thinking**, the server captures *reasoning processe
 ### 4. Built for Speed & Privacy
 - **Compute-then-Write**: AI processing runs outside DB transactions → <50ms lock time.
 - **Local-First**: SQLite + FAISS. Your proprietary context never leaves your machine.
-- **Zero API Key Required**: Ships with local `fastembed` — no cloud dependency needed.
+- **Multi-Agent Auth**: Secure your hub with API keys. Track exactly which agent (Cursor, Claude, or Gemini) contributed which piece of knowledge.
+- **Audit Trails**: Every memory save is logged with its author, enabling clear traceability for team-scale AI development.
+- **Zero Cloud Dependency**: Ships with local `fastembed` — no external API required for core logic.
 
 ## Quick Start
 
@@ -80,6 +82,28 @@ uv run shared-memory --sse --port 8377
 ```
 
 Then point your MCP-compatible tools (Cursor, Claude Code, Gemini CLI) at `http://localhost:8377`.
+
+### Authentication Setup
+
+To enable secure multi-agent access:
+1. Create `data/auth.json` with your credentials:
+```json
+{
+  "cursor_user": "your-secret-key-1",
+  "gemini_agent": "your-secret-key-2"
+}
+```
+2. In your tool configuration (e.g., `mcp_config.json`), inject the key via environment variables:
+```json
+"SharedMemoryServer": {
+  "command": "npx",
+  "args": ["-y", "mcp-remote", "http://localhost:8377/sse"],
+  "env": {
+    "SHARED_MEMORY_API_KEY": "your-secret-key-1",
+    "SHARED_MEMORY_ACCOUNT": "cursor_user"
+  }
+}
+```
 
 ## Governance & Licensing
 

@@ -7,19 +7,23 @@ from shared_memory.common.utils import get_logger
 logger = get_logger("config")
 
 # ==========================================
-# Generative AI Models (LLM Only)
+# AI Model Configuration (LLM & Embeddings)
 # ==========================================
-# List of models for fallback. Primary is first.
+
+# Default Engines (Local-first)
+DEFAULT_EMBEDDING_ENGINE = "fastembed"
+DEFAULT_LLM_PROVIDER = "ollama"
+
+# Gemini Settings (Optional)
 GOOGLE_AI_MODELS = ["gemma-4-31b-it", "gemma-4-26b-a4b-it"]
-
-# Primary model for backward compatibility
-GOOGLE_GENERATIVE_MODEL = GOOGLE_AI_MODELS[0]
-
-# ==========================================
-# Embedding Model (STRICTLY FIXED)
-# ==========================================
-# NEVER rotate embedding models as it breaks vector search compatibility.
 GOOGLE_EMBEDDING_MODEL = "models/gemini-embedding-001"
+
+# Ollama Settings (Local host)
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+
+# FastEmbed Settings (Local vectorization)
+FASTEMBED_DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
 
 
 class Settings:
@@ -103,17 +107,45 @@ class Settings:
         return None
 
     @property
+    def embedding_engine(self) -> str:
+        """使用するEmbeddingエンジンを返す (fastembed or gemini)。"""
+        engine = os.environ.get("EMBEDDING_ENGINE", DEFAULT_EMBEDDING_ENGINE).lower()
+        # Force gemini if API key is present and engine is explicitly gemini,
+        # otherwise default to fastembed.
+        if engine == "gemini" and self.api_key:
+            return "gemini"
+        return "fastembed"
+
+    @property
+    def llm_provider(self) -> str:
+        """使用するLLMプロバイダーを返す (ollama or gemini)。"""
+        provider = os.environ.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).lower()
+        if provider == "gemini" and self.api_key:
+            return "gemini"
+        return "ollama"
+
+    @property
     def generative_model(self) -> str:
         """推論や知識抽出に使用する現在の生成モデル名を返す。"""
-        # Dynamic rotation support
+        if self.llm_provider == "ollama":
+            return OLLAMA_DEFAULT_MODEL
+
+        # Dynamic rotation support for Gemini
         from shared_memory.core.ai_control import model_manager
 
         return model_manager.get_current_model()
 
     @property
     def embedding_model(self) -> str:
-        """埋め込みベクトル生成に使用するモデル名を返す(固定)。"""
-        return GOOGLE_EMBEDDING_MODEL
+        """埋め込みベクトル生成に使用するモデル名を返す。"""
+        if self.embedding_engine == "gemini":
+            return GOOGLE_EMBEDDING_MODEL
+        return FASTEMBED_DEFAULT_MODEL
+
+    @property
+    def ollama_base_url(self) -> str:
+        """OllamaのAPIベースURLを返す。"""
+        return OLLAMA_BASE_URL
 
     @property
     def enable_structured_logging(self) -> bool:

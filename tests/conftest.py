@@ -72,14 +72,20 @@ async def setup_teardown_db(request):
 def fake_llm_client():
     """Deterministic LLM stub for Unit Tests (No MagicMock)."""
     from tests.unit.fake_client import FakeGeminiClient
+    from shared_memory.infra.llm import LlmProvider
 
     client = FakeGeminiClient()
+    
+    # Wrap client to behave like LlmProvider if needed
+    class FakeProvider(LlmProvider):
+        async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+            resp = client.models.generate_content(model="fake", contents=prompt)
+            return resp.text
+
+    provider = FakeProvider()
 
     patches = [
-        patch("shared_memory.infra.embeddings.get_gemini_client", return_value=client),
-        patch("shared_memory.core.distiller.get_gemini_client", return_value=client),
-        patch("shared_memory.core.graph.get_gemini_client", return_value=client),
-        patch("shared_memory.core.search.get_gemini_client", return_value=client),
+        patch("shared_memory.infra.llm.get_llm_provider", return_value=provider),
     ]
 
     for p in patches:
@@ -104,13 +110,20 @@ def mock_llm(request):
         return
 
     client = MagicMock()
-    # ... (rest of the MagicMock setup)
+    # Mock for LlmProvider interface
+    client.generate_content = AsyncMock()
+    client.generate_content.return_value = json.dumps(
+        {"conflict": False, "reason": "No conflict detected in mock."}
+    )
+
+    # Backward compatibility for tests that still expect .models structure
     client.models.generate_content.return_value.text = json.dumps(
         {"conflict": False, "reason": "No conflict detected in mock."}
     )
 
     def set_response(method, text):
         if method == "generate_content":
+            client.generate_content.return_value = text
             client.models.generate_content.return_value.text = text
             client.aio.models.generate_content.return_value.text = text
 
@@ -136,10 +149,7 @@ def mock_llm(request):
     client.aio.models.list.return_value = [model_obj]
 
     patches = [
-        patch("shared_memory.infra.embeddings.get_gemini_client", return_value=client),
-        patch("shared_memory.core.distiller.get_gemini_client", return_value=client),
-        patch("shared_memory.core.graph.get_gemini_client", return_value=client),
-        patch("shared_memory.core.search.get_gemini_client", return_value=client),
+        patch("shared_memory.infra.llm.get_llm_provider", return_value=client),
     ]
 
     for p in patches:

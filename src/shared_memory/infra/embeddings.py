@@ -4,8 +4,6 @@ import os
 import time
 from typing import Any
 
-from google import genai
-
 from shared_memory.common.config import settings
 from shared_memory.common.utils import get_logger
 from shared_memory.core.ai_control import AIRateLimiter, retry_on_ai_quota
@@ -13,17 +11,29 @@ from shared_memory.infra.database import async_get_connection, retry_on_db_lock
 
 logger = get_logger("embeddings")
 
+# Lazy load fastembed to avoid overhead if not used
+_fastembed_model = None
 
-def _get_text_hash(text: str) -> str:
-    """Returns MD5 hash of the text for caching."""
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+def get_fastembed_model():
+    global _fastembed_model
+    if _fastembed_model is None:
+        try:
+            from fastembed import TextEmbedding
+            logger.info(f"Initializing FastEmbed with model: {settings.embedding_model}")
+            _fastembed_model = TextEmbedding(model_name=settings.embedding_model)
+        except ImportError:
+            logger.error("fastembed not installed. Please install it to use local embeddings.")
+            raise
+    return _fastembed_model
 
 
 def get_gemini_client():
     """
     Returns a Gemini API client using the key from config or environment.
     """
-    api_key = os.environ.get("GOOGLE_API_KEY") or settings.api_key
+    from google import genai
+    api_key = settings.api_key
     if not api_key:
         return None
     return genai.Client(api_key=api_key)
@@ -42,17 +52,10 @@ async def compute_embedding(
     text_list: str | list[str], conn: Any = None
 ) -> list[float] | list[list[float]]:
     """
-    Computes text embeddings using the Gemini API (Async).
-    Handles both single strings and lists of strings.
+    Computes text embeddings using the configured engine (FastEmbed or Gemini).
     """
-    # 0. Support for single string input
     is_single = isinstance(text_list, str)
     items = [text_list] if is_single else text_list
-
-    client = get_gemini_client()
-    if not client:
-        fallback = [([0.0] * 768) for _ in items]
-        return fallback[0] if is_single else fallback
 
     # 1. Filter out empty strings
     valid_entries = []
@@ -61,20 +64,26 @@ async def compute_embedding(
             valid_entries.append((i, txt[:10000]))
 
     if not valid_entries:
-        fallback = [([0.0] * 768) for _ in items]
+        # Return dummy vectors if no text
+        dim = 384 if settings.embedding_engine == "fastembed" else 768
+        fallback = [([0.0] * dim) for _ in items]
         return fallback[0] if is_single else fallback
 
-    logger.info(f"Computing embeddings for {len(items)} items...")
+    logger.info(f"Computing embeddings for {len(items)} items using {settings.embedding_engine}...")
     results = [None] * len(items)
     to_compute = []
     compute_map = []
+
+    # Cache key includes model name to prevent collisions between different engines
+    engine_prefix = settings.embedding_engine
+    model_name = settings.embedding_model
 
     async def _process_cache(db):
         for original_idx, txt in valid_entries:
             content_hash = _get_text_hash(txt)
             cursor = await db.execute(
-                "SELECT vector FROM embedding_cache WHERE content_hash = ?",
-                (content_hash,),
+                "SELECT vector FROM embedding_cache WHERE content_hash = ? AND model_name = ?",
+                (content_hash, model_name),
             )
             row = await cursor.fetchone()
             if row:
@@ -84,7 +93,6 @@ async def compute_embedding(
                 compute_map.append((original_idx, content_hash))
 
     if conn:
-        # DO NOT use 'async with conn' for already open thread-based connections
         await _process_cache(conn)
     else:
         async with await async_get_connection() as db:
@@ -92,27 +100,38 @@ async def compute_embedding(
 
     if not to_compute:
         logger.info(f"All {len(items)} embeddings retrieved from CACHE.")
-        final_results = [r if r is not None else ([0.0] * 768) for r in results]
+        dim = 384 if settings.embedding_engine == "fastembed" else 768
+        final_results = [r if r is not None else ([0.0] * dim) for r in results]
         return final_results[0] if is_single else final_results
 
     logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
-    start_api = time.perf_counter()
+    
+    # 2. Compute via chosen engine
+    computed_vectors = []
+    if settings.embedding_engine == "fastembed":
+        model = get_fastembed_model()
+        # FastEmbed is sync but fast, no need for async overhead here
+        computed_vectors = list(model.embed(to_compute))
+        # Convert ndarray to list
+        computed_vectors = [v.tolist() for v in computed_vectors]
+    else:
+        # Gemini API
+        client = get_gemini_client()
+        if not client:
+            raise ValueError("Gemini engine selected but API key is missing.")
+        
+        await AIRateLimiter.throttle(task_type="embedding")
+        response = await client.aio.models.embed_content(
+            model=model_name,
+            contents=to_compute,
+            config={"task_type": "RETRIEVAL_DOCUMENT"},
+        )
+        computed_vectors = [emb.values for emb in response.embeddings]
 
-    # Enforce Rate Limiting (Embedding task)
-    await AIRateLimiter.throttle(task_type="embedding")
-
-    response = await client.aio.models.embed_content(
-        model=settings.embedding_model,
-        contents=to_compute,
-        config={"task_type": "RETRIEVAL_DOCUMENT"},
-    )
-
-    api_duration = time.perf_counter() - start_api
-    logger.info(f"Gemini API (Embeddings) COMPLETE. Duration: {api_duration:.2f}s")
-
+    # 3. Save results to cache
     async def _save_cache(db_conn):
         for idx, (original_idx, content_hash) in enumerate(compute_map):
-            vector = response.embeddings[idx].values
+            vector = computed_vectors[idx]
             results[original_idx] = vector
             await db_conn.execute(
                 """
@@ -120,7 +139,7 @@ async def compute_embedding(
                 (content_hash, vector, model_name)
                 VALUES (?, ?, ?)
             """,
-                (content_hash, json.dumps(vector), settings.embedding_model),
+                (content_hash, json.dumps(vector), model_name),
             )
         await db_conn.commit()
 
@@ -131,5 +150,11 @@ async def compute_embedding(
             await _save_cache(db)
 
     # Ensure all slots are filled
-    final_results = [r if r is not None else ([0.0] * 768) for r in results]
+    dim = 384 if settings.embedding_engine == "fastembed" else 768
+    final_results = [r if r is not None else ([0.0] * dim) for r in results]
     return final_results[0] if is_single else final_results
+
+
+def _get_text_hash(text: str) -> str:
+    """Returns MD5 hash of the text for caching."""
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
