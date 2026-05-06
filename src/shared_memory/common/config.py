@@ -20,7 +20,7 @@ GOOGLE_EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 # Ollama Settings (Local host)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
 
 # FastEmbed Settings (Local vectorization)
 FASTEMBED_DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
@@ -119,10 +119,17 @@ class Settings:
     @property
     def llm_provider(self) -> str:
         """使用するLLMプロバイダーを返す (ollama or gemini)。"""
-        provider = os.environ.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).lower()
-        if provider == "gemini" and self.api_key:
+        # 1. Explicit environment variable
+        env_provider = os.environ.get("LLM_PROVIDER")
+        if env_provider:
+            return env_provider.lower()
+
+        # 2. Prefer Gemini if API Key is present (Auto-detect)
+        if self.api_key:
             return "gemini"
-        return "ollama"
+
+        # 3. Fallback to default
+        return DEFAULT_LLM_PROVIDER
 
     @property
     def generative_model(self) -> str:

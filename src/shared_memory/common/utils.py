@@ -12,53 +12,73 @@ from shared_memory.common.exceptions import SecurityError
 
 
 def configure_logging():
-    """
-    Configures Loguru to output JSON to a file and human-readable text to stderr.
-    """
+    \"\"\"
+    Configures Loguru to output JSON to files and human-readable text to stderr.
+    - Keeps only the last 2 execution logs (logs/server.jsonl).
+    - Isolates all errors to a separate file (logs/error.log).
+    \"\"\"
     logger.remove()
-    
+
     # 1. Human-readable output to stderr (Development)
+    # Using a cleaner format for stderr
     stderr_format = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-        "<level>{level:7}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-        "<level>{message}</level>"
+        \"<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | \"
+        \"<level>{level:7}</level> | \"
+        \"<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - \"
+        \"<level>{message}</level>\"
     )
     logger.add(
         sys.stderr,
         format=stderr_format,
-        level=os.environ.get("LOG_LEVEL", "INFO"),
+        level=os.environ.get(\"LOG_LEVEL\", \"INFO\"),
         colorize=True,
+        backtrace=True,
+        diagnose=True,
     )
-    
-    # 2. Structured JSON output to file (Production/Audit)
-    log_dir = Path("logs")
+
+    log_dir = Path(\"logs\")
     log_dir.mkdir(exist_ok=True)
-    
+
+    # 2. Main Structured JSON log (Rotates at 10MB, keep 2 runs)
     logger.add(
-        "logs/server.jsonl",
-        format="{message}",
-        level="DEBUG",
-        serialize=True,  # This makes it JSON
-        rotation="10 MB",
-        retention="30 days",
+        \"logs/server.jsonl\",
+        format=\"{message}\",
+        level=\"DEBUG\",
+        serialize=True,
+        rotation=\"10 MB\",              # More resilient on Windows than startup-forced
+        retention=2,                   # Keep only the last 2 execution logs
+        encoding=\"utf-8\",
     )
-    logger.info("Logging configured: stderr (colored) and logs/server.jsonl (JSON)")
+
+    # 3. Isolated Error Log (Captures ONLY Error/Critical, persistent)
+    logger.add(
+        \"logs/error.log\",
+        format=\"{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:7} | {name}:{function}:{line} - {message}\",
+        level=\"ERROR\",
+        serialize=False,  # Error log stays human-readable for quick triage
+        rotation=\"10 MB\",
+        retention=\"30 days\",
+        backtrace=True,
+        diagnose=True,
+        encoding=\"utf-8\",
+    )
+
+    logger.info(\"Logging infrastructure initialized (JSON enabled, Error isolation active)\")
 
 def get_logger(name: str):
-    """
+    \"\"\"
     Returns a loguru logger bound to a specific name.
-    """
-    return logger.bind(name=f"shared_memory.{name}")
+    \"\"\"
+    return logger.bind(name=f\"shared_memory.{name}\")
 
 
 def log_info(msg: str):
-    """Abstraction for logging info messages."""
+    \"\"\"Abstraction for logging info messages.\"\"\"
     logger.info(msg)
 
 
 def log_error(msg: str, error: Exception | None = None):
-    """Abstraction for logging error messages with optional exception details."""
+    \"\"\"Abstraction for logging error messages with optional exception details.\"\"\"
     if error:
         # Use loguru's native formatting or just pass msg 
         # to avoid KeyError on braces in error string
@@ -68,43 +88,43 @@ def log_error(msg: str, error: Exception | None = None):
 
 
 def get_db_path() -> str:
-    """
+    \"\"\"
     Returns the absolute path to the knowledge database.
     Prioritizes MEMORY_DB_PATH env var, then SHARED_MEMORY_HOME.
-    """
-    db_path = os.environ.get("MEMORY_DB_PATH")
+    \"\"\"
+    db_path = os.environ.get(\"MEMORY_DB_PATH\")
     if db_path:
         return os.path.abspath(db_path)
 
-    home = os.environ.get("SHARED_MEMORY_HOME", "data")
-    return os.path.abspath(os.path.join(home, "knowledge.db"))
+    home = os.environ.get(\"SHARED_MEMORY_HOME\", \"data\")
+    return os.path.abspath(os.path.join(home, \"knowledge.db\"))
 
 
 def get_thoughts_db_path() -> str:
-    """Returns the absolute path to the thoughts database."""
-    db_path = os.environ.get("THOUGHTS_DB_PATH")
+    \"\"\"Returns the absolute path to the thoughts database.\"\"\"
+    db_path = os.environ.get(\"THOUGHTS_DB_PATH\")
     if db_path:
         return os.path.abspath(db_path)
 
-    home = os.environ.get("SHARED_MEMORY_HOME", "data")
-    return os.path.abspath(os.path.join(home, "thoughts.db"))
+    home = os.environ.get(\"SHARED_MEMORY_HOME\", \"data\")
+    return os.path.abspath(os.path.join(home, \"thoughts.db\"))
 
 
 def get_bank_dir() -> str:
-    """Returns the absolute path to the memory bank directory."""
-    bank_dir = os.environ.get("MEMORY_BANK_DIR")
+    \"\"\"Returns the absolute path to the memory bank directory.\"\"\"
+    bank_dir = os.environ.get(\"MEMORY_BANK_DIR\")
     if bank_dir:
         return os.path.abspath(bank_dir)
 
-    home = os.environ.get("SHARED_MEMORY_HOME", "data")
-    return os.path.abspath(os.path.join(home, "bank"))
+    home = os.environ.get(\"SHARED_MEMORY_HOME\", \"data\")
+    return os.path.abspath(os.path.join(home, \"bank\"))
 
 
 def calculate_similarity(v1: list[float], v2: list[float]) -> float:
-    """
+    \"\"\"
     Calculates cosine similarity between two vectors.
     Returns 0.0 if vectors are empty or have different lengths.
-    """
+    \"\"\"
     if not v1 or not v2 or len(v1) != len(v2):
         return 0.0
 
@@ -119,47 +139,47 @@ def calculate_similarity(v1: list[float], v2: list[float]) -> float:
 
 
 def batch_cosine_similarity(query_vector: list[float], vectors: list[list[float]]) -> list[float]:
-    """
+    \"\"\"
     Computes cosine similarity between a query vector and a list of vectors.
-    """
+    \"\"\"
     return [calculate_similarity(query_vector, v) for v in vectors]
 
 
 def security_scan(content: str):
-    """
+    \"\"\"
     Placeholder for basic security scanning of content.
     Prevents potential prompt injection or malformed data issues.
-    """
+    \"\"\"
     if not content:
         return
 
     # Advanced security logic would go here
     # For now, we just ensure it's a string
     if not isinstance(content, str):
-        raise SecurityError("Non-string content detected in security scan.")
+        raise SecurityError(\"Non-string content detected in security scan.\")
 
 
 def clean_markdown(text: str) -> str:
-    """
+    \"\"\"
     Strips dangerous or unnecessary markdown elements from distilled content.
-    """
+    \"\"\"
     if not text:
-        return ""
+        return \"\"
     # Simple regex to strip code blocks backticks if they wrap the whole thing
-    text = re.sub(r"^```markdown\n", "", text)
-    text = re.sub(r"\n```$", "", text)
+    text = re.sub(r\"^```markdown\n\", \"\", text)
+    text = re.sub(r\"\n```$\", \"\", text)
     return text.strip()
 
 
 class PathResolver:
-    """Utility to resolve standard data paths."""
+    \"\"\"Utility to resolve standard data paths.\"\"\"
 
     @staticmethod
     def get_base_data_dir() -> str:
-        home = os.environ.get("SHARED_MEMORY_HOME")
+        home = os.environ.get(\"SHARED_MEMORY_HOME\")
         if home:
             return os.path.abspath(home)
-        return os.path.abspath("data")
+        return os.path.abspath(\"data\")
 
 
 # Intra-process Global Locks
@@ -167,11 +187,11 @@ _GLOBAL_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 class GlobalLock:
-    """
+    \"\"\"
     Provides a named, intra-process lock (asyncio.Lock).
     Used to prevent race conditions during file or database access
     within the same event loop.
-    """
+    \"\"\"
 
     def __init__(self, name: str):
         self.name = name
@@ -192,10 +212,10 @@ class GlobalLock:
 
 
 def sanitize_filename(name: str) -> str:
-    """
+    \"\"\"
     Converts a string into a safe filename.
     Removes path traversal attempts and special characters.
-    """
+    \"\"\"
     # 0. Strip directories and spaces
     name = os.path.basename(name).strip()
 
@@ -204,62 +224,62 @@ def sanitize_filename(name: str) -> str:
     name = name.strip()
 
     # 2. Replace anything not alphanumeric or underscore/hyphen/dot
-    clean = re.sub(r"[^\w\-\.]", "_", name.lower())
+    clean = re.sub(r\"[^\w\-\.]\", \"_\", name.lower())
     # Collapse multiple underscores
-    clean = re.sub(r"_+", "_", clean)
+    clean = re.sub(r\"_+\", \"_\", clean)
 
     # 3. Prevent hidden files or path traversal
-    clean = clean.lstrip(".")
+    clean = clean.lstrip(\".\")
     if not clean:
-        clean = "unnamed_entity"
+        clean = \"unnamed_entity\"
 
-    return f"{clean}.md"
+    return f\"{clean}.md\"
 
 
 def mask_sensitive_data(text: str) -> str:
-    """
+    \"\"\"
     Masks sensitive information like API keys in logs or content.
     Identifies patterns like 'AIza...' (Google API keys) and 'sk-...' (Generic keys).
-    """
+    \"\"\"
     if not text:
-        return ""
+        return \"\"
     # Mask Google API Key pattern
-    text = re.sub(r"AIzaSy[a-zA-Z0-9\-_]{33}", "[GOOGLE_API_KEY_MASKED]", text)
+    text = re.sub(r\"AIzaSy[a-zA-Z0-9\-_]{33}\", \"[GOOGLE_API_KEY_MASKED]\", text)
     # Mask Generic/OpenAI API Key pattern
-    text = re.sub(r"sk-[a-zA-Z0-9]{20,}", "[API_KEY_MASKED]", text)
+    text = re.sub(r\"sk-[a-zA-Z0-9]{20,}\", \"[API_KEY_MASKED]\", text)
     # Mask Email addresses
-    text = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[EMAIL_MASKED]", text)
+    text = re.sub(r\"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\", \"[EMAIL_MASKED]\", text)
     return text
 
 
 def safe_path_join(base_dir: str, filename: str) -> str:
-    """
+    \"\"\"
     Safely joins a base directory with a filename, ensuring
     the resulting path is within the base directory.
     Prevents path traversal attacks.
-    """
+    \"\"\"
     base_dir = os.path.abspath(base_dir)
     filename = os.path.basename(filename)  # Only keep the last part
     joined = os.path.abspath(os.path.join(base_dir, filename))
 
     if not joined.startswith(base_dir):
-        raise ValueError(f"Dangerous path detected: {joined}")
+        raise ValueError(f\"Dangerous path detected: {joined}\")
 
     return joined
 
 
 def calculate_importance(access_count: int, last_accessed: str) -> float:
-    """
+    \"\"\"
     Calculates the importance score of a piece of knowledge based on
     access frequency and recency (time decay).
-    """
+    \"\"\"
     try:
         # 1. Base score from frequency (logarithmic scaling)
         freq_score = math.log1p(access_count)
 
         # 2. Time decay (Exponential decay)
         # Assuming last_accessed is an ISO timestamp
-        last_dt = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
+        last_dt = datetime.fromisoformat(last_accessed.replace(\"Z\", \"+00:00\"))
         if last_dt.tzinfo is None:
             last_dt = last_dt.replace(tzinfo=UTC)
 
@@ -272,6 +292,6 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
         return freq_score * decay
     except Exception as e:
         log_error(
-            f"Importance calculation failed for count={access_count}, last={last_accessed}", e
+            f\"Importance calculation failed for count={access_count}, last={last_accessed}\", e
         )
         return 0.0

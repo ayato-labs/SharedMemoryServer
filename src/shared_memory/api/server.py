@@ -1,14 +1,13 @@
 import asyncio
 import json
-import logging
 import sys
 from typing import Any
 
 from fastmcp import FastMCP
 from starlette.applications import Starlette
 
-from shared_memory.common.utils import configure_logging, get_logger
 from shared_memory.api.auth import AuthMiddleware, get_current_user
+from shared_memory.common.utils import configure_logging, get_logger
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
 # Force all OS-level stdout to stderr to prevent breaking the MCP pipe
@@ -22,13 +21,13 @@ logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 # Import core modules with verified paths
 logger.info("Importing core submodules...")
 try:
+    from shared_memory.api.dashboard import router as dashboard_router
     from shared_memory.core import (
         graph as graph_module,
         logic as logic_module,
         thought_logic as thought_module,
     )
     from shared_memory.infra.database import init_db
-    from shared_memory.api.dashboard import router as dashboard_router
 
     logger.info("Core submodules and Dashboard router imported successfully")
 except Exception:
@@ -78,7 +77,6 @@ ServerSession._received_request = _permissive_received_request
 logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
 
 # --- MCP SDK DEEP PATCH: PERMISSIVE VALIDATION & LOGGING ---
-from mcp.types import JSONRPCError, JSONRPCRequest, JSONRPCResponse
 
 
 def _sanitize_mcp_dict(d: Any) -> Any:
@@ -98,19 +96,19 @@ def _sanitize_mcp_dict(d: Any) -> Any:
 
 
 # Patch FastMCP session handling to be more resilient to string/number mismatches
-from mcp.server.fastmcp.server import _original_sse_app
+_original_http_app = FastMCP.http_app
 
 
-def _patched_sse_app(self, mount_path: str | None = None) -> Starlette:
-    # Use the original sse_app but we might want to wrap routes for logging
-    app = _original_sse_app(self, mount_path)
+def _patched_http_app(self, *args, **kwargs) -> Starlette:
+    # Use the original http_app but we want to mount our Dashboard and Auth
+    app = _original_http_app(self, *args, **kwargs)
     app.add_middleware(AuthMiddleware)
     # Mount Dashboard routes
     app.mount("/", dashboard_router)
     return app
 
 
-FastMCP.sse_app = _patched_sse_app
+FastMCP.http_app = _patched_http_app
 
 # Patch SseServerTransport to log POST messages
 from mcp.server.sse import SseServerTransport
@@ -248,7 +246,7 @@ def _kill_port_process(port: int):
                 subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
     except Exception as e:
         logger.error(
-            "Failed to kill zombie process on port {port}: {error}", port=port, error=e
+            f"Failed to kill zombie process on port {port}: {e}"
         )
 
 
@@ -261,8 +259,7 @@ def main():
     args = parser.parse_args()
     if args.sse:
         _kill_port_process(args.port)
-        mcp.settings.port = args.port
-        mcp.run(transport="sse")
+        mcp.run(transport="sse", port=args.port)
     else:
         mcp.run(transport="stdio")
 
