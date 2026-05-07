@@ -351,6 +351,7 @@ async def save_memory_core(
         local_logger.exception("Unhandled error in save_memory_core")
         return f"Unexpected Error: {e}"
 
+
 async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
     """Retrieves knowledge from graph and bank."""
     start_time = time.perf_counter()
