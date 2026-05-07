@@ -100,9 +100,13 @@ class AsyncSQLiteConnection:
                         logger.info(f"Establishing NEW thoughts singleton: {self.db_path}")
                         _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
                         _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
+                        # --- MATURE TECH OPTIMIZATIONS ---
                         await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
                         await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
-                        logger.info("Thoughts connection PRAGMAs configured (WAL/NORMAL).")
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA mmap_size = 268435456")  # 256MB
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA temp_store = MEMORY")
+                        await _THOUGHTS_CONNECTION.execute("PRAGMA busy_timeout = 5000")
+                        logger.info("Thoughts connection PRAGMAs configured (WAL/NORMAL/MMAP).")
                     self.conn = _THOUGHTS_CONNECTION
                 else:
                     if _MAIN_CONNECTION is None:
@@ -110,10 +114,14 @@ class AsyncSQLiteConnection:
                         try:
                             _MAIN_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
                             _MAIN_CONNECTION.row_factory = aiosqlite.Row
+                            # --- MATURE TECH OPTIMIZATIONS ---
                             await _MAIN_CONNECTION.execute("PRAGMA foreign_keys = ON")
                             await _MAIN_CONNECTION.execute("PRAGMA journal_mode = WAL")
                             await _MAIN_CONNECTION.execute("PRAGMA synchronous = NORMAL")
-                            await _MAIN_CONNECTION.execute("PRAGMA cache_size = -2000")
+                            await _MAIN_CONNECTION.execute("PRAGMA mmap_size = 268435456")  # 256MB
+                            await _MAIN_CONNECTION.execute("PRAGMA temp_store = MEMORY")
+                            await _MAIN_CONNECTION.execute("PRAGMA busy_timeout = 5000")
+                            await _MAIN_CONNECTION.execute("PRAGMA cache_size = -64000")  # ~64MB
                             logger.info("Main connection successfully established and configured.")
                         except Exception:
                             logger.exception("CRITICAL: Failed to establish main DB connection")

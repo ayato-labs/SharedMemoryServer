@@ -46,6 +46,21 @@ async def compute_embeddings_bulk(texts: list[str]) -> list[list[float]]:
     return await compute_embedding(texts)
 
 
+def _clean_text_for_embedding(text: str) -> str:
+    """
+    Normalizes text for embedding to maximize cache hits and reduce costs.
+    - Strips leading/trailing whitespace.
+    - Replaces multiple spaces/newlines with a single space.
+    - Truncates to a reasonable limit (10,000 chars).
+    """
+    if not text:
+        return ""
+    # Normalize whitespace: replace any whitespace sequence with a single space
+    import re
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:10000]
+
+
 @retry_on_ai_quota(max_retries=3, rotate_models=False)
 @retry_on_db_lock()
 async def compute_embedding(
@@ -57,11 +72,12 @@ async def compute_embedding(
     is_single = isinstance(text_list, str)
     items = [text_list] if is_single else text_list
 
-    # 1. Filter out empty strings
+    # 1. Normalize and filter
     valid_entries = []
-    for i, txt in enumerate(items):
-        if txt and txt.strip():
-            valid_entries.append((i, txt[:10000]))
+    for i, raw_txt in enumerate(items):
+        clean_txt = _clean_text_for_embedding(raw_txt)
+        if clean_txt:
+            valid_entries.append((i, clean_txt))
 
     if not valid_entries:
         # Return dummy vectors if no text
@@ -99,7 +115,7 @@ async def compute_embedding(
             await _process_cache(db)
 
     if not to_compute:
-        logger.info(f"All {len(items)} embeddings retrieved from CACHE.")
+        logger.info(f"All {len(items)} embeddings retrieved from CACHE (SHA-256).")
         dim = 384 if settings.embedding_engine == "fastembed" else 768
         final_results = [r if r is not None else ([0.0] * dim) for r in results]
         return final_results[0] if is_single else final_results
@@ -156,5 +172,5 @@ async def compute_embedding(
 
 
 def _get_text_hash(text: str) -> str:
-    """Returns MD5 hash of the text for caching."""
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
+    """Returns SHA-256 hash of the text for robust caching."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
