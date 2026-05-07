@@ -18,6 +18,7 @@ def get_fastembed_model():
     if _fastembed_model is None:
         try:
             from fastembed import TextEmbedding
+
             logger.info(f"Initializing FastEmbed with model: {settings.embedding_model}")
             _fastembed_model = TextEmbedding(model_name=settings.embedding_model)
         except ImportError:
@@ -31,6 +32,7 @@ def get_gemini_client():
     Returns a Gemini API client using the key from config or environment.
     """
     from google import genai
+
     api_key = settings.api_key
     if not api_key:
         return None
@@ -103,7 +105,7 @@ async def compute_embedding(
         return final_results[0] if is_single else final_results
 
     logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
-    
+
     # 2. Compute via chosen engine
     computed_vectors = []
     if settings.embedding_engine == "fastembed":
@@ -117,7 +119,7 @@ async def compute_embedding(
         client = get_gemini_client()
         if not client:
             raise ValueError("Gemini engine selected but API key is missing.")
-        
+
         await AIRateLimiter.throttle(task_type="embedding")
         response = await client.aio.models.embed_content(
             model=model_name,

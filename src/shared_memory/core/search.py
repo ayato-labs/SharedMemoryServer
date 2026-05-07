@@ -46,7 +46,7 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col}, bm25({fts_table}) "
                     f"FROM {fts_table} WHERE {fts_table} MATCH ?",
-                    (query,)
+                    (query,),
                 )
                 for row_id, content, rank in await cursor.fetchall():
                     score = max(0.1, abs(rank) * 1.5)
@@ -61,7 +61,7 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col} FROM {source_name} "
                     f"WHERE ({content_col} LIKE ? OR {id_col} LIKE ?) AND status = 'active'",
-                    (f"%{query}%", f"%{query}%")
+                    (f"%{query}%", f"%{query}%"),
                 )
                 for row_id, content in await cursor.fetchall():
                     key = (source_name, row_id)
@@ -72,7 +72,7 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
         placeholders = ",".join(["?"] * len(query_words))
         cursor = await conn.execute(
             f"SELECT content_id, content_type, tag FROM tags WHERE tag IN ({placeholders})",
-            [f"#{w}" for w in query_words]
+            [f"#{w}" for w in query_words],
         )
         for cid, ctype, tag in await cursor.fetchall():
             score = 15.0
@@ -100,12 +100,14 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
         sorted_items = sorted(scored_results.items(), key=lambda x: x[1][0], reverse=True)
         formatted_results = []
         for (source, row_id), (score, content) in sorted_items[:limit]:
-            formatted_results.append({
-                "source": source,
-                "id": row_id,
-                "score": round(score, 2),
-                "content": content,
-            })
+            formatted_results.append(
+                {
+                    "source": source,
+                    "id": row_id,
+                    "score": round(score, 2),
+                    "content": content,
+                }
+            )
 
         hit_ids = [r["id"] for r in formatted_results]
         await log_search_stat(query, len(formatted_results), hit_ids=hit_ids)
@@ -116,7 +118,7 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
     """Hybrid search logic (Semantic + Keyword)."""
     logger.info(f"perform_search START query={query}")
     start_search = datetime.datetime.now()
-    
+
     task_vector = asyncio.create_task(compute_embedding(query))
     task_keyword = asyncio.create_task(perform_keyword_search(query))
 
@@ -133,7 +135,7 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
 
             query_vector = await task_vector
             keyword_results = await task_keyword
-            
+
             if not query_vector or not all_rows:
                 return await get_graph_data(query), await read_bank_data(query)
 
@@ -180,7 +182,7 @@ async def perform_search(query: str, limit: int = 10, candidate_limit: int = 20)
 
             dur = (datetime.datetime.now() - start_search).total_seconds()
             logger.info(f"perform_search COMPLETE query={query} duration={dur:.3f}s")
-            
+
             await log_search_stat(query, len(top_results), hit_ids=top_cids, conn=conn)
             return graph_data, bank_data
 
@@ -281,7 +283,7 @@ async def synthesize_knowledge(entity_name: str):
                     [f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels]
                 )
             )
-            
+
             system_instruction = (
                 "You are a high-precision knowledge synthesis engine. "
                 "Distill technical facts with absolute accuracy."

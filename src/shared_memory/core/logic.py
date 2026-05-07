@@ -31,9 +31,7 @@ def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict
                 # Ensure name exists and map common synonyms
                 e["name"] = e.get("name") or e.get("id") or e.get("title")
                 e["entity_type"] = e.get("entity_type") or e.get("type") or "concept"
-                e["description"] = (
-                    e.get("description") or e.get("desc") or e.get("content") or ""
-                )
+                e["description"] = e.get("description") or e.get("desc") or e.get("content") or ""
                 normalized.append(e)
     except Exception as e:
         logger.error(f"Normalization failed for entities: {e}")
@@ -134,12 +132,12 @@ async def save_memory_core(
     local_logger = logger.bind(agent_id=agent_id, operation="save_memory")
     local_logger.info("save_memory_core execution started")
     try:
-        await init_db()
-    except Exception:
-        local_logger.exception("CRITICAL: Database initialization failed")
-        return "Critical Error: Could not initialize database."
+        try:
+            await init_db()
+        except Exception as e:
+            local_logger.exception("CRITICAL: Database initialization failed")
+            raise RuntimeError(f"Critical Error: Could not initialize database: {e}") from e
 
-    try:
         # --- Normalization ---
         entities = normalize_entities(entities)
         observations = normalize_observations(observations)
@@ -168,7 +166,7 @@ async def save_memory_core(
         bank_file_items = []
         for filename, content in bank_files.items():
             bank_file_items.append(
-                {"filename": filename, "text": f"File: {filename}\\nContent: {content}"}
+                {"filename": filename, "text": f"File: {filename}\nContent: {content}"}
             )
 
         bank_texts = [item["text"] for item in bank_file_items]
@@ -206,7 +204,7 @@ async def save_memory_core(
             all_extracted_tags = results_gathering[1]
         except Exception as e:
             local_logger.exception("Phase 1.1 FAILED (AI computation)")
-            return f"AI Error: AI computation failed: {e}"
+            raise RuntimeError(f"AI Error: AI computation failed: {e}") from e
 
         ai_duration = time.perf_counter() - ai_start_time
         local_logger.info(f"Phase 1.1 (AI) complete in {ai_duration:.2f}s")
@@ -327,17 +325,19 @@ async def save_memory_core(
                         local_logger.debug("Committing database transaction...")
                         await conn.commit()
                         local_logger.info("Database transaction committed successfully")
-                    except aiosqlite.Error:
+                    except aiosqlite.Error as e:
                         local_logger.exception("DB Transaction Error")
                         await conn.rollback()
-                        return "Database Error: Transaction failed."
-                    except Exception:
+                        raise RuntimeError(f"Database Error: Transaction failed: {e}") from e
+                    except Exception as e:
                         local_logger.exception("Unexpected error during DB phase")
                         await conn.rollback()
-                        return "Internal Error during database write."
-        except Exception:
+                        raise RuntimeError(f"Internal Error during database write: {e}") from e
+        except Exception as e:
             local_logger.exception("Critical Error in Phase 2 (Protected Write)")
-            return "Critical Error: Failed to execute protected write."
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError(f"Critical Error: Failed to execute protected write: {e}") from e
 
         db_duration = time.perf_counter() - db_start_time
         total_duration = time.perf_counter() - start_time
@@ -350,7 +350,6 @@ async def save_memory_core(
     except Exception as e:
         local_logger.exception("Unhandled error in save_memory_core")
         return f"Unexpected Error: {e}"
-
 
 async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
     """Retrieves knowledge from graph and bank."""

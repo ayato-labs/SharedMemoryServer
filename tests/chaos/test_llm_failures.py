@@ -20,8 +20,9 @@ async def test_llm_malformed_json_resilience(mock_llm):
     result_raw = await server.sequential_thinking(
         thought="Cause an error", thought_number=1, total_thoughts=1, next_thought_needed=False
     )
-    
+
     import json
+
     result = json.loads(result_raw)
 
     # 現状の実装では内部で例外がキャッチされ、思考結果は返るが抽出はスキップされる。
@@ -43,10 +44,10 @@ async def test_llm_quota_exhaustion_retry(mock_llm):
         call_count += 1
         if call_count == 1:
             raise Exception("429 Resource has been exhausted")
-        
+
         # Return a mock embedding response
         mock_resp = MagicMock()
-        mock_resp.embeddings = [MagicMock(values=[0.1]*768)]
+        mock_resp.embeddings = [MagicMock(values=[0.1] * 768)]
         return mock_resp
 
     # Force Gemini engine
@@ -55,7 +56,7 @@ async def test_llm_quota_exhaustion_retry(mock_llm):
             mock_client = MagicMock()
             mock_client.aio.models.embed_content.side_effect = side_effect
             mock_factory.return_value = mock_client
-            
+
             with patch("shared_memory.core.ai_control.asyncio.sleep", return_value=None):
                 result = await logic.save_memory_core(
                     entities=[{"name": "RetryNode", "description": "Testing quota retry"}]

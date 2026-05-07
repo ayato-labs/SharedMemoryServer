@@ -16,6 +16,7 @@ async def test_mcp_tool_session_flow(mock_llm):
     # 実際に応答を待機するように ensure_initialized を利用する
     if server._INITIALIZED_EVENT is None:
         import asyncio
+
         server._INITIALIZED_EVENT = asyncio.Event()
     server._INITIALIZED_EVENT.set()
 
@@ -34,6 +35,7 @@ async def test_mcp_tool_session_flow(mock_llm):
         session_id="session_123",
     )
     import json
+
     think_resp = json.loads(think_resp_raw)
     assert "thoughtNumber" in think_resp
 

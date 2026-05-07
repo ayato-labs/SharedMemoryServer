@@ -13,9 +13,7 @@ async def test_save_and_hybrid_search_flow(mock_llm):
     """
     # 1. 保存
     entities = [{"name": "IntegrationNode", "description": "Part of a larger system"}]
-    observations = [
-        {"entity_name": "IntegrationNode", "content": "Integration testing is crucial"}
-    ]
+    observations = [{"entity_name": "IntegrationNode", "content": "Integration testing is crucial"}]
     bank_files = {"integration.md": "Bank file content for integration"}
 
     await logic.save_memory_core(
@@ -62,7 +60,7 @@ async def test_conflict_and_recovery_flow(mock_llm):
     # 1. 初期データ保存 (観察事項を1つ入れておく)
     await logic.save_memory_core(
         entities=[{"name": "StableNode", "description": "Immutable fact"}],
-        observations=[{"entity_name": "StableNode", "content": "Original state"}]
+        observations=[{"entity_name": "StableNode", "content": "Original state"}],
     )
 
     # 2. 衝突するデータの保存試行

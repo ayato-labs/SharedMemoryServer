@@ -1,7 +1,8 @@
-import json
 import pytest
+
 from shared_memory.core import logic, search
 from shared_memory.infra.database import async_get_connection
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -16,8 +17,8 @@ async def test_intelligence_provenance_integration(mock_llm):
         entities=[{"name": entity_name, "description": "Analyzing data sources"}],
         observations=[
             {"entity_name": entity_name, "content": "Source A says X"},
-            {"entity_name": entity_name, "content": "Source B says Y"}
-        ]
+            {"entity_name": entity_name, "content": "Source B says Y"},
+        ],
     )
 
     # 2. DBでの情報の裏取り
@@ -36,10 +37,9 @@ async def test_intelligence_provenance_integration(mock_llm):
 
     # 4. 知識合成の実行 (Mock LLM を使用)
     mock_llm.models.set_response(
-        "generate_content", 
-        f"Consolidated view for {entity_name}: Both X and Y are reported."
+        "generate_content", f"Consolidated view for {entity_name}: Both X and Y are reported."
     )
-    
+
     summary = await search.synthesize_knowledge(entity_name)
     assert "Both X and Y" in summary
 

@@ -337,9 +337,11 @@ async def api_resolve_conflict(request):
     return JSONResponse({"status": "success", "message": result})
 
 
-router = Router([
-    Route("/history", get_dashboard_html, methods=["GET"]),
-    Route("/api/history", api_history, methods=["GET"]),
-    Route("/api/conflicts", api_conflicts, methods=["GET"]),
-    Route("/api/conflicts/{id:int}/resolve", api_resolve_conflict, methods=["POST"]),
-])
+router = Router(
+    [
+        Route("/history", get_dashboard_html, methods=["GET"]),
+        Route("/api/history", api_history, methods=["GET"]),
+        Route("/api/conflicts", api_conflicts, methods=["GET"]),
+        Route("/api/conflicts/{id:int}/resolve", api_resolve_conflict, methods=["POST"]),
+    ]
+)

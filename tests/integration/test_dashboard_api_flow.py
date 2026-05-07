@@ -62,9 +62,13 @@ async def test_audit_log_agent_attribution(mock_llm):
     """
     Integration Test: 異なるエージェントIDでの保存が正しく監査ログに記録されるか。
     """
-    await save_memory_core(entities=[{"name": "NodeA", "description": "Owner A"}], agent_id="agent_alpha")
+    await save_memory_core(
+        entities=[{"name": "NodeA", "description": "Owner A"}], agent_id="agent_alpha"
+    )
 
-    await save_memory_core(entities=[{"name": "NodeB", "description": "Owner B"}], agent_id="agent_beta")
+    await save_memory_core(
+        entities=[{"name": "NodeB", "description": "Owner B"}], agent_id="agent_beta"
+    )
 
     history = await management.get_audit_history_logic(limit=10)
     agent_ids = [h["agent"] for h in history]

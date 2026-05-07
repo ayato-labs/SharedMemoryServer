@@ -86,7 +86,7 @@ async def check_provider_health() -> dict[str, Any]:
     from shared_memory.infra.embeddings import compute_embedding
 
     results = {}
-    
+
     # 1. Check Embedding Engine
     emb_start = time.time()
     try:
@@ -113,6 +113,7 @@ async def check_provider_health() -> dict[str, Any]:
         # For Ollama, we check the base URL. For Gemini, we check the client.
         if settings.llm_provider == "ollama":
             import aiohttp
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{settings.ollama_base_url}/api/tags") as resp:
                     if resp.status == 200:
@@ -122,12 +123,13 @@ async def check_provider_health() -> dict[str, Any]:
         else:
             # Gemini health check (Legacy logic)
             from shared_memory.infra.embeddings import get_gemini_client
+
             client = get_gemini_client()
             if client:
                 status = "healthy"
             else:
                 status = "unhealthy"
-        
+
         results["llm"] = {
             "provider": settings.llm_provider,
             "status": status,
@@ -159,14 +161,12 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
     if disk["percent_free"] < 10:
         overall_status = "warning"
         free_gb = disk["free"] / (1024**3)
-        issues.append(
-            f"Low disk space on host drive. Remaining: {free_gb:.1f} GB."
-        )
-    
+        issues.append(f"Low disk space on host drive. Remaining: {free_gb:.1f} GB.")
+
     if providers["embedding"]["status"] != "healthy":
         overall_status = "unhealthy"
         issues.append(f"Embedding ({providers['embedding']['engine']}) is unhealthy")
-    
+
     if providers["llm"]["status"] != "healthy":
         overall_status = "unhealthy"
         issues.append(f"LLM Provider ({providers['llm']['provider']}) is unreachable")
@@ -177,9 +177,5 @@ async def get_comprehensive_diagnostics() -> dict[str, Any]:
         "db_status": "healthy" if db["status"] == "healthy" else "unhealthy",
         "disk_status": "healthy" if disk["percent_free"] > 5 else "warning",
         "issues": issues,
-        "components": {
-            "database": db, 
-            "storage": disk, 
-            "providers": providers
-        },
+        "components": {"database": db, "storage": disk, "providers": providers},
     }

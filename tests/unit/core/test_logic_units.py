@@ -49,7 +49,9 @@ async def test_save_memory_core_full_success(fake_llm):
             assert row[0] == "Unit test observation"
 
         # Bank Files
-        async with conn.execute("SELECT content FROM bank_files WHERE filename='test.md'") as cursor:
+        async with conn.execute(
+            "SELECT content FROM bank_files WHERE filename='test.md'"
+        ) as cursor:
             row = await cursor.fetchone()
             assert row is not None
             assert row[0] == "Unit test bank content"
@@ -98,7 +100,8 @@ async def test_save_memory_core_ai_error_handling(fake_llm):
     """
     # フェーズ 1.3 の asyncio.gather 内で呼ばれる compute_embeddings_bulk をパッチしてエラーにする。
     with patch(
-        "shared_memory.core.logic.compute_embeddings_bulk", side_effect=Exception("AI Quota Exceeded")
+        "shared_memory.core.logic.compute_embeddings_bulk",
+        side_effect=Exception("AI Quota Exceeded"),
     ):
         entities = [{"name": "ErrorNode", "description": "Should fail"}]
         result = await logic.save_memory_core(entities=entities)

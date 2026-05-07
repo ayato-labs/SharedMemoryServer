@@ -23,7 +23,7 @@ class TestThoughtValidation:
             thought_number=1,
             total_thoughts=2,
             next_thought_needed=True,
-            session_id=session_id
+            session_id=session_id,
         )
         assert res1["thoughtNumber"] == 1
         assert res1["thoughtHistoryLength"] == 1
@@ -34,7 +34,7 @@ class TestThoughtValidation:
             thought_number=2,
             total_thoughts=2,
             next_thought_needed=False,
-            session_id=session_id
+            session_id=session_id,
         )
         assert res2["thoughtNumber"] == 2
         assert res2["thoughtHistoryLength"] == 2
@@ -51,7 +51,7 @@ class TestThoughtValidation:
             next_thought_needed=False,
             is_revision=True,
             revises_thought=10,
-            session_id=session_id
+            session_id=session_id,
         )
 
         assert "error" in res
@@ -67,7 +67,7 @@ class TestThoughtValidation:
             thought_number=1,
             total_thoughts=5,
             next_thought_needed=True,
-            session_id=session_id
+            session_id=session_id,
         )
 
         # 2. Branch from thought 1
@@ -78,7 +78,7 @@ class TestThoughtValidation:
             next_thought_needed=True,
             branch_from_thought=1,
             branch_id="alternative_path",
-            session_id=session_id
+            session_id=session_id,
         )
 
         assert res["thoughtNumber"] == 2
@@ -97,7 +97,7 @@ class TestThoughtValidation:
                 thought_number=1,
                 total_thoughts=1,
                 next_thought_needed=False,
-                session_id=session_id
+                session_id=session_id,
             )
             # Should be called once for final distillation
             mock_distill.assert_called_once()

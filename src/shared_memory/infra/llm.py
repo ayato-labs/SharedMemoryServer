@@ -26,6 +26,7 @@ class GeminiProvider(LlmProvider):
         if self._client is None:
             try:
                 from google import genai
+
                 api_key = settings.api_key
                 if not api_key:
                     logger.warning("Gemini API key not found in settings.")
@@ -55,10 +56,7 @@ class GeminiProvider(LlmProvider):
 
         model = settings.generative_model
         try:
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=full_prompt
-            )
+            response = await client.aio.models.generate_content(model=model, contents=full_prompt)
             logger.info(f"Gemini response received. Model: {model}")
             return response.text
         except Exception as e:
@@ -76,7 +74,7 @@ class OllamaProvider(LlmProvider):
 
     async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
         url = f"{self.base_url}/api/generate"
-        
+
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -118,4 +116,3 @@ def get_llm_provider() -> LlmProvider:
     if provider_name == "gemini":
         return GeminiProvider()
     return OllamaProvider()
-

@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.api import server
 from shared_memory.core import logic
 
 
@@ -42,10 +41,10 @@ async def test_database_busy_simulation(fake_llm):
         # 実際には _background_init が走っているが、テスト環境では同期待ちが必要な場合がある。
         # ここでは単純に init_db の失敗が波及するかを確認。
         from shared_memory.api import server
-        
+
         # 既存の状態をリセット（テスト用）
         server._INITIALIZED = False
-        
+
         with pytest.raises(Exception, match="database is locked"):
             await server.ensure_initialized()
 

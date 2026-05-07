@@ -36,7 +36,7 @@ async def test_async_get_connection_singleton():
     conn_wrapper = await async_get_connection()
     async with conn_wrapper as conn1:
         assert isinstance(conn1, aiosqlite.Connection)
-        
+
         conn_wrapper2 = await async_get_connection()
         async with conn_wrapper2 as conn2:
             assert conn1 is conn2  # Should be the same underlying singleton connection

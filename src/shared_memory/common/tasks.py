@@ -31,7 +31,9 @@ def create_background_task(
                         f"Background task '{name or t.get_name()}' failed: {exc}", exc_info=True
                     )
         except (asyncio.CancelledError, asyncio.InvalidStateError) as e:
-            logger.debug(f"Background task '{name or t.get_name()}' state transition: {type(e).__name__}")
+            logger.debug(
+                f"Background task '{name or t.get_name()}' state transition: {type(e).__name__}"
+            )
 
     task.add_done_callback(_done_callback)
     return task

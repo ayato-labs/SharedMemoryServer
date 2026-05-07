@@ -68,8 +68,7 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
         )
 
         response_text = await provider.generate_content(
-            prompt=prompt,
-            system_instruction=system_instruction
+            prompt=prompt, system_instruction=system_instruction
         )
 
         clean_json = re.sub(r"```json|```", "", response_text).strip()
@@ -132,8 +131,7 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
         )
 
         response_text = await provider.generate_content(
-            prompt=prompt,
-            system_instruction=system_instruction
+            prompt=prompt, system_instruction=system_instruction
         )
 
         clean_json = re.sub(r"```json|```", "", response_text).strip()

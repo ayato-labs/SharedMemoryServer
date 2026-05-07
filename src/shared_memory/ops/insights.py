@@ -80,7 +80,6 @@ class InsightEngine:
             }
 
             if total_hits > 0:
-
                 for _r_count, hit_ids_json, avg_sim, s_ts in hit_rows:
                     precision_sum += avg_sim or 0.0
                     try:

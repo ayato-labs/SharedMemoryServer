@@ -22,7 +22,8 @@ class AuthMiddleware:
         """Loads account:api_key pairs from the auth file."""
         if not os.path.exists(self.auth_file_path):
             logger.warning(
-                f"Auth file not found at {self.auth_file_path}. Authentication will be disabled or fail."
+                f"Auth file not found at {self.auth_file_path}. "
+                "Authentication will be disabled or fail."
             )
             self.auth_data = {}
             return

@@ -18,7 +18,7 @@ async def test_save_memory_input_normalization():
         with patch("shared_memory.common.tasks.create_background_task") as mock_task:
             # 全て None で送信
             await save_memory(entities=None, relations=None, observations=None, bank_files=None)
-            
+
             # 内部で空リスト/辞書に変換されてバックグラウンドタスクに渡されているか確認
             args, _ = mock_task.call_args
             coro = args[0]
@@ -30,6 +30,7 @@ async def test_save_memory_input_normalization():
             coro = args[0]
             coro.close()  # Clean up unawaited coroutine
             assert "Saved (initiated in background) for: nothing." in result
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -45,16 +46,17 @@ async def test_sequential_thinking_lenient_parsing():
                 thought_number="5",
                 total_thoughts="10",
                 next_thought_needed="true",
-                revises_thought="2"
+                revises_thought="2",
             )
-            
+
             # int に変換されてコアロジックに渡されているか
             mock_core.assert_called_once()
             args = mock_core.call_args.args
             assert args[1] == 5  # thought_number
-            assert args[2] == 10 # total_thoughts
-            assert args[3] is True # next_thought_needed (lower string "true" -> True)
+            assert args[2] == 10  # total_thoughts
+            assert args[3] is True  # next_thought_needed (lower string "true" -> True)
             assert args[5] == 2  # revises_thought
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -66,6 +68,6 @@ async def test_manage_activation_single_id_normalization():
         ) as mock_core:
             # 単一文字列で送信
             await manage_knowledge_activation(ids="single_id_123", status="inactive")
-            
+
             # リスト [ids] に変換されているか
             mock_core.assert_called_once_with(["single_id_123"], "inactive")

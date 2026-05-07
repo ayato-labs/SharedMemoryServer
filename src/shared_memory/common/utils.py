@@ -10,7 +10,6 @@ from loguru import logger
 
 from shared_memory.common.exceptions import SecurityError
 
-
 _LOGGING_CONFIGURED = False
 
 
@@ -22,7 +21,7 @@ def configure_logging():
     - Isolates errors to logs/error.log.
     """
     global _LOGGING_CONFIGURED
-    
+
     # In Windows environment, multiple attempts to add file sinks can cause WinError 32
     # if the file is already open by the same process.
     if _LOGGING_CONFIGURED:
@@ -40,7 +39,7 @@ def configure_logging():
     logger.add(
         sys.stderr,
         format=stderr_format,
-        level=os.environ.get("LOG_LEVEL", "INFO"),
+        level=os.environ.get("LOG_LEVEL", "DEBUG"),
         colorize=True,
         backtrace=True,
         diagnose=True,
@@ -55,25 +54,21 @@ def configure_logging():
         return
 
     # 2. Main Structured JSON log
-    # We use a closure to ensure we rotate exactly once on the first write of this execution.
-    # This fulfills the "last 2 execution logs" requirement when paired with retention=2.
-    has_rotated = False
+    # We use rotation=0 (or small size) to force rotation on every startup
+    # but loguru's native rotation="00:00" etc might not be what we want for "on startup".
+    # Using a custom function for rotation to detect first write.
 
-    def rotation_on_startup(message, _):
-        nonlocal has_rotated
-        if not has_rotated:
-            has_rotated = True
-            return True
-        return False
+    _startup_time = datetime.now().isoformat()
 
     logger.add(
         "logs/server.jsonl",
         format="{message}",
         level="DEBUG",
         serialize=True,
-        rotation=rotation_on_startup,
+        rotation=lambda _, __: True,  # Rotate every time it starts (on first write)
         retention=2,
         encoding="utf-8",
+        enqueue=True,  # Better for async/parallel
     )
 
     # 3. Isolated Error Log (Captures ONLY Error/Critical, persistent)
@@ -87,9 +82,11 @@ def configure_logging():
         backtrace=True,
         diagnose=True,
         encoding="utf-8",
+        enqueue=True,
     )
 
-    logger.info("Logging infrastructure initialized (JSON enabled, Startup rotation active)")
+    _LOGGING_CONFIGURED = True
+    logger.info(f"Logging infrastructure initialized (Startup: {_startup_time})")
 
 
 def get_logger(name: str):
@@ -107,7 +104,7 @@ def log_info(msg: str):
 def log_error(msg: str, error: Exception | None = None):
     """Abstraction for logging error messages with optional exception details."""
     if error:
-        # Use loguru's native formatting or just pass msg 
+        # Use loguru's native formatting or just pass msg
         # to avoid KeyError on braces in error string
         logger.opt(exception=error).error(msg)
     else:

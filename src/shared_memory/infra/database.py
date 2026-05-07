@@ -25,6 +25,7 @@ def _get_init_lock() -> asyncio.Lock:
         _INIT_LOCK = asyncio.Lock()
     return _INIT_LOCK
 
+
 # Global semaphores mapped by event loop to limit concurrent DB writes
 _WRITE_SEMAPHORES: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 

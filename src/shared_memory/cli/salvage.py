@@ -22,38 +22,29 @@ async def salvage_related_knowledge(
         results = []
         # 1. Flatten entities
         for ent in graph_data.get("entities", []):
-            results.append({
-                "type": "entity",
-                "id": ent["name"],
-                "content": ent["description"]
-            })
-        
+            results.append({"type": "entity", "id": ent["name"], "content": ent["description"]})
+
         # 2. Flatten observations
         for obs in graph_data.get("observations", []):
-            results.append({
-                "type": "observation",
-                "id": f"{obs['entity']}_obs",
-                "content": obs["content"]
-            })
-            
+            results.append(
+                {"type": "observation", "id": f"{obs['entity']}_obs", "content": obs["content"]}
+            )
+
         # 3. Flatten bank files
         for filename, content in bank_data.items():
-            results.append({
-                "type": "bank_file",
-                "id": filename,
-                "content": content
-            })
+            results.append({"type": "bank_file", "id": filename, "content": content})
 
         # Final trimming to ensure we don't exceed a reasonable context size
         final_results = results[:7]
-        
+
         logger.info(
             f"Salvage (FastPath): Retrieved {len(final_results)} items for session {session_id}"
         )
         return final_results
 
     except Exception as e:
-        logger.exception("Salvage failure (FastPath) for session {session_id}", 
-                         session_id=session_id)
+        logger.exception(
+            "Salvage failure (FastPath) for session {session_id}", session_id=session_id
+        )
         log_error(f"Salvage failure for session {session_id}", e)
         return []

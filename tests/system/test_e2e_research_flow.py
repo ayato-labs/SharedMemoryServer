@@ -89,7 +89,7 @@ async def test_e2e_researcher_workflow(mock_llm):
     # Use entity name which is definitely indexed
     res5_raw = await server.read_memory(query="Memory Management")
     res5 = json.loads(res5_raw)
-    
+
     entities_found = [e["name"] for e in res5["graph"]["entities"]]
     assert "Memory Management" in entities_found
 

@@ -167,10 +167,12 @@ async def get_memory_health_logic():
 
             # Check if semantic search is functionally active
             from shared_memory.common.config import settings
+
             if settings.embedding_engine == "fastembed":
                 health["semantic_search_active"] = True
             else:
                 from shared_memory.infra.embeddings import get_gemini_client
+
                 health["semantic_search_active"] = get_gemini_client() is not None
 
             # Gaps & Bias
@@ -276,9 +278,7 @@ async def resolve_conflict_logic(conflict_id: int, action: str):
                 logger.info(f"Conflict {conflict_id} APPROVED and promoted to observations.")
 
             # Mark as resolved
-            await conn.execute(
-                "UPDATE conflicts SET resolved = 1 WHERE id = ?", (conflict_id,)
-            )
+            await conn.execute("UPDATE conflicts SET resolved = 1 WHERE id = ?", (conflict_id,))
             await conn.commit()
             return f"Conflict {conflict_id} {action}ed successfully."
         except Exception as e:
