@@ -48,30 +48,8 @@ def configure_logging():
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
 
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        _LOGGING_CONFIGURED = True
-        logger.info("Logging infrastructure initialized (STDOUT only for tests)")
-        return
-
-    # 2. Main Structured JSON log
-    # We use rotation=0 (or small size) to force rotation on every startup
-    # but loguru's native rotation="00:00" etc might not be what we want for "on startup".
-    # Using a custom function for rotation to detect first write.
-
-    _startup_time = datetime.now().isoformat()
-
-    logger.add(
-        "logs/server.jsonl",
-        format="{message}",
-        level="DEBUG",
-        serialize=True,
-        rotation=lambda _, __: True,  # Rotate every time it starts (on first write)
-        retention=2,
-        encoding="utf-8",
-        enqueue=True,  # Better for async/parallel
-    )
-
-    # 3. Isolated Error Log (Captures ONLY Error/Critical, persistent)
+    # Isolated Error Log (Captures ONLY Error/Critical, persistent)
+    # Always active to catch bugs even during tests
     logger.add(
         "logs/error.log",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:7} | {name}:{function}:{line} - {message}",
@@ -83,6 +61,24 @@ def configure_logging():
         diagnose=True,
         encoding="utf-8",
         enqueue=True,
+    )
+
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        _LOGGING_CONFIGURED = True
+        logger.info("Logging infrastructure initialized (STDOUT + error.log for tests)")
+        return
+
+    # 2. Main Structured JSON log
+    _startup_time = datetime.now().isoformat()
+    logger.add(
+        "logs/server.jsonl",
+        format="{message}",
+        level="DEBUG",
+        serialize=True,
+        rotation=lambda _, __: True,  # Rotate every time it starts (on first write)
+        retention=2,
+        encoding="utf-8",
+        enqueue=True,  # Better for async/parallel
     )
 
     _LOGGING_CONFIGURED = True
