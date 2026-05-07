@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,9 +11,10 @@ import pytest
 
 @pytest.fixture(autouse=True)
 async def setup_teardown_db(request):
+    from loguru import logger
+
     from shared_memory.core.thought_logic import init_thoughts_db
     from shared_memory.infra.database import close_all_connections, init_db
-    from loguru import logger
 
     # Windows Fix: Clear loguru handlers before test to prevent WinError 32 on rotation
     logger.remove()
@@ -30,6 +32,7 @@ async def setup_teardown_db(request):
 
     # Reset server initialization state
     from shared_memory.api import server
+
     server._INITIALIZED_EVENT = None
     server._INIT_ERROR = None
     server._INIT_STARTED = False
@@ -37,6 +40,7 @@ async def setup_teardown_db(request):
 
     # Reset database singletons and locks
     from shared_memory.infra import database
+
     database._MAIN_CONNECTION = None
     database._THOUGHTS_CONNECTION = None
     database._INIT_LOCK = None
@@ -45,6 +49,7 @@ async def setup_teardown_db(request):
 
     # Reset AI control locks
     from shared_memory.core import ai_control
+
     ai_control.model_manager._lock = None
     ai_control.AIRateLimiter._locks = {}
 
@@ -62,8 +67,6 @@ async def setup_teardown_db(request):
 
     if os.path.exists(home_dir):
         # Retry logic for Windows rmtree
-        import time
-
         for _ in range(10):
             try:
                 shutil.rmtree(home_dir, ignore_errors=False)
@@ -79,7 +82,7 @@ def fake_llm_client():
     from tests.unit.fake_client import FakeGeminiClient
 
     client = FakeGeminiClient()
-    
+
     # Wrap client to behave like LlmProvider if needed
     class FakeProvider(LlmProvider):
         async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
@@ -142,7 +145,7 @@ def mock_llm(request):
     client.aio.models.embed_content = AsyncMock()
     mock_embedding = MagicMock()
     mock_embedding.values = [0.1] * 768
-    
+
     class FakeEmbeddingResponse:
         def __init__(self, embeddings):
             self.embeddings = embeddings
@@ -201,10 +204,13 @@ def temp_env(env_vars):
     finally:
         os.environ.clear()
         os.environ.update(old_env)
+
+
 @pytest.fixture
 async def db_conn():
     """Provides a connection to the test database."""
     from shared_memory.infra.database import async_get_connection
+
     async with await async_get_connection() as conn:
         yield conn
     # We don't close it here because it's a singleton connection managed by infra.database

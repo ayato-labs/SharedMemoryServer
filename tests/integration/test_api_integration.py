@@ -1,8 +1,9 @@
 import pytest
-import json
+
 from shared_memory.core import logic, search
-from shared_memory.ops import management
 from shared_memory.infra.database import async_get_connection
+from shared_memory.ops import management
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -12,13 +13,13 @@ async def test_save_and_hybrid_search_flow(fake_llm):
     """
     # 1. 保存
     entities = [{"name": "IntegrationNode", "description": "Part of a larger system"}]
-    observations = [{"entity_name": "IntegrationNode", "content": "Integration testing is crucial"}]
+    observations = [
+        {"entity_name": "IntegrationNode", "content": "Integration testing is crucial"}
+    ]
     bank_files = {"integration.md": "Bank file content for integration"}
-    
+
     await logic.save_memory_core(
-        entities=entities,
-        observations=observations,
-        bank_files=bank_files
+        entities=entities, observations=observations, bank_files=bank_files
     )
 
     # 2. 検索 (キーワード + セマンティック)
@@ -38,10 +39,9 @@ async def test_save_and_hybrid_search_flow(fake_llm):
 
     # 3. 知識合成
     fake_llm.models.set_response(
-        "generate_content", 
-        "This is a synthesized summary of IntegrationNode."
+        "generate_content", "This is a synthesized summary of IntegrationNode."
     )
-    
+
     summary = await search.synthesize_knowledge("IntegrationNode")
     assert "synthesized summary" in summary.lower()
 
@@ -52,6 +52,7 @@ async def test_save_and_hybrid_search_flow(fake_llm):
     assert "entities" in tables_in_audit
     assert "bank_files" in tables_in_audit
 
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_conflict_and_recovery_flow(fake_llm):
@@ -59,17 +60,14 @@ async def test_conflict_and_recovery_flow(fake_llm):
     Integration Test: 衝突検知と解決フローを検証。
     """
     # 1. 初期データ保存
-    await logic.save_memory_core(
-        entities=[{"name": "StableNode", "description": "Immutable fact"}]
-    )
-    
+    await logic.save_memory_core(entities=[{"name": "StableNode", "description": "Immutable fact"}])
+
     # 2. 衝突するデータの保存試行
     # JSONリスト形式のレスポンスをシミュレート
     fake_llm.models.set_response(
-        "generate_content", 
-        '[{"conflict": true, "reason": "Direct contradiction"}]'
+        "generate_content", '[{"conflict": true, "reason": "Direct contradiction"}]'
     )
-    
+
     result = await logic.save_memory_core(
         observations=[{"entity_name": "StableNode", "content": "Contradicting info"}]
     )
@@ -89,11 +87,12 @@ async def test_conflict_and_recovery_flow(fake_llm):
     async with await async_get_connection() as conn:
         # observations に追加されているか
         async with conn.execute(
-            "SELECT content FROM observations WHERE entity_name='StableNode' AND content='Contradicting info'"
+            "SELECT content FROM observations WHERE entity_name='StableNode' "
+            "AND content='Contradicting info'"
         ) as cursor:
             row = await cursor.fetchone()
             assert row is not None
-        
+
         # 衝突が解決済みになっているか
         async with conn.execute(
             "SELECT resolved FROM conflicts WHERE id=?", (target_conflict["id"],)

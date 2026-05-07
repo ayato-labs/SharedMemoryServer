@@ -1,7 +1,7 @@
 import pytest
-import json
-from shared_memory.core.logic import save_memory_core, read_memory_core
-from shared_memory.infra.database import async_get_connection
+
+from shared_memory.core.logic import read_memory_core, save_memory_core
+
 
 @pytest.mark.asyncio
 @pytest.mark.unit
@@ -14,22 +14,20 @@ async def test_save_memory_core_real_db_verification(db_conn):
     entities = [
         {"name": "UnitNode", "description": "Created during unit test", "entity_type": "unit_test"}
     ]
-    observations = [
-        {"entity_name": "UnitNode", "content": "Observing the unit test behavior"}
-    ]
+    observations = [{"entity_name": "UnitNode", "content": "Observing the unit test behavior"}]
     bank_files = {"unit_test.md": "Content for bank file verification"}
-    
+
     # 2. ロジック実行 (Mockなし)
     # ※ LLMが未設定の場合は、内部で例外が発生するか、フォールバックが機能するはず
     result = await save_memory_core(
         entities=entities,
         observations=observations,
         bank_files=bank_files,
-        agent_id="real_unit_tester"
+        agent_id="real_unit_tester",
     )
-    
+
     assert "Saved" in result
-    
+
     # 3. データベース直接検証 (裏取り)
     # 3.1 エンティティの存在確認
     async with db_conn.execute(
@@ -64,11 +62,12 @@ async def test_save_memory_core_real_db_verification(db_conn):
         "SELECT table_name, action, agent_id FROM audit_logs WHERE agent_id='real_unit_tester'"
     ) as cursor:
         rows = await cursor.fetchall()
-        assert len(rows) >= 3 # entities, observations, bank_files
+        assert len(rows) >= 3  # entities, observations, bank_files
         tables = [r[0] for r in rows]
         assert "entities" in tables
         assert "observations" in tables
         assert "bank_files" in tables
+
 
 @pytest.mark.asyncio
 @pytest.mark.unit
@@ -80,12 +79,9 @@ async def test_save_memory_normalization_synonyms(db_conn):
     entities = [{"title": "SynonymNode", "desc": "Synonym description"}]
     # 'observation' -> 'content'
     observations = [{"entity": "SynonymNode", "observation": "Synonym content"}]
-    
-    await save_memory_core(
-        entities=entities,
-        observations=observations
-    )
-    
+
+    await save_memory_core(entities=entities, observations=observations)
+
     async with db_conn.execute(
         "SELECT name, description FROM entities WHERE name='SynonymNode'"
     ) as cursor:
@@ -101,6 +97,7 @@ async def test_save_memory_normalization_synonyms(db_conn):
         assert row is not None
         assert row[0] == "Synonym content"
 
+
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_read_memory_core_results_format(db_conn):
@@ -108,12 +105,14 @@ async def test_read_memory_core_results_format(db_conn):
     Unit Test: read_memory_core のレスポンス形式検証。
     """
     # データの事前投入
-    await db_conn.execute("INSERT INTO entities (name, description) VALUES ('ReadTest', 'Test read')")
+    await db_conn.execute(
+        "INSERT INTO entities (name, description) VALUES ('ReadTest', 'Test read')"
+    )
     await db_conn.commit()
-    
+
     # 実行
     result = await read_memory_core(query="ReadTest")
-    
+
     assert isinstance(result, dict)
     assert "graph" in result
     assert "bank" in result

@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from shared_memory.api import server
@@ -63,6 +65,3 @@ async def test_empty_entities_input_safety():
     await server.ensure_initialized()
     result = await server.save_memory(entities=[])
     assert "No valid entities" in result or "Skipped" in result
-
-
-from unittest.mock import MagicMock
