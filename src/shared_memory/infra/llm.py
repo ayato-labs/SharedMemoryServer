@@ -21,6 +21,7 @@ class GeminiProvider(LlmProvider):
 
     def __init__(self):
         self._client = None
+        self._model_metadata = {}
 
     def _get_client(self):
         if self._client is None:
@@ -38,29 +39,72 @@ class GeminiProvider(LlmProvider):
                 raise
         return self._client
 
+    async def _get_model_metadata(self, model_name: str):
+        """Fetches and caches model metadata."""
+        if model_name not in self._model_metadata:
+            client = self._get_client()
+            try:
+                # Meta-data retrieval is synchronous in google-genai Client.models.get
+                meta = client.models.get(model=model_name)
+                self._model_metadata[model_name] = {
+                    "input_token_limit": meta.input_token_limit,
+                    "output_token_limit": meta.output_token_limit,
+                }
+                logger.debug(f"Model metadata cached for {model_name}: {self._model_metadata[model_name]}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch metadata for {model_name}: {e}")
+                # Fallback to conservative defaults if metadata fetch fails
+                self._model_metadata[model_name] = {
+                    "input_token_limit": 32768,
+                    "output_token_limit": 4096,
+                }
+        return self._model_metadata[model_name]
+
+    async def _count_tokens(self, model_name: str, contents: str) -> int:
+        """Counts tokens for the given contents."""
+        client = self._get_client()
+        try:
+            # count_tokens is synchronous in google-genai Client.models.count_tokens
+            resp = client.models.count_tokens(model=model_name, contents=contents)
+            return resp.total_tokens
+        except Exception as e:
+            logger.warning(f"Token counting failed for {model_name}: {e}")
+            # Fallback to character-based estimation (1 token ~ 4 chars)
+            return len(contents) // 4
+
     @retry_on_ai_quota(max_retries=3, rotate_models=True)
     async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
         client = self._get_client()
         if not client:
             raise ValueError("Gemini API key not found.")
 
-        logger.debug(
-            f"Gemini generate_content start. Instruction len: {len(system_instruction or '')}"
-        )
-        await AIRateLimiter.throttle(task_type="generation")
-
+        model = settings.generative_model
+        metadata = await self._get_model_metadata(model)
+        
         # Combine system instruction with prompt for Gemini if provided
         full_prompt = prompt
         if system_instruction:
             full_prompt = f"SYSTEM: {system_instruction}\n\nUSER: {prompt}"
 
-        model = settings.generative_model
-        logger.debug(
-            f"Gemini API Request - Model: {model}, Prompt Length: {len(full_prompt)} chars"
+        # Token management
+        token_count = await self._count_tokens(model, full_prompt)
+        limit = metadata["input_token_limit"]
+        
+        logger.info(
+            f"Gemini API Request - Model: {model}, Tokens: {token_count}/{limit}"
         )
-        # Log a preview of the prompt for debugging 500 errors
-        prompt_preview = full_prompt[:500] + ("..." if len(full_prompt) > 500 else "")
-        logger.debug(f"Prompt Preview: {prompt_preview}")
+
+        if token_count > limit * 0.9:
+            logger.warning(
+                f"Token count ({token_count}) is approaching or exceeding limit ({limit}). "
+                "Truncation or chunking may be required."
+            )
+            # Future Improvement: Implement dynamic chunking/truncation here
+            # For now, we proceed but log the risk.
+            if token_count > limit:
+                logger.error("Token count strictly exceeds model limit. This call will likely fail.")
+
+        await AIRateLimiter.throttle(task_type="generation")
 
         try:
             response = await client.aio.models.generate_content(model=model, contents=full_prompt)
