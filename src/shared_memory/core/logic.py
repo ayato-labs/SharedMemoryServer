@@ -5,7 +5,7 @@ from typing import Any
 
 import aiosqlite
 
-from shared_memory.common.utils import get_logger, log_error
+from shared_memory.common.utils import get_logger
 from shared_memory.core import bank, graph, search
 from shared_memory.infra.database import (
     async_get_connection,
@@ -386,7 +386,7 @@ async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
 async def get_audit_history_core(limit: int = 20, table_name: str | None = None):
     try:
         return await management.get_audit_history_logic(limit, table_name)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to retrieve audit history")
         raise
 
@@ -394,7 +394,7 @@ async def get_audit_history_core(limit: int = 20, table_name: str | None = None)
 async def synthesize_entity(entity_name: str):
     try:
         return await search.synthesize_knowledge(entity_name)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Knowledge synthesis failed for {entity_name}")
         raise
 
@@ -402,7 +402,7 @@ async def synthesize_entity(entity_name: str):
 async def rollback_memory_core(audit_id: int):
     try:
         return await management.rollback_memory_logic(audit_id)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Rollback failed for audit_id {audit_id}")
         raise
 
@@ -410,7 +410,7 @@ async def rollback_memory_core(audit_id: int):
 async def create_snapshot_core(name: str, description: str = ""):
     try:
         return await management.create_snapshot_logic(name, description)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Snapshot creation failed: {name}")
         raise
 
@@ -418,7 +418,7 @@ async def create_snapshot_core(name: str, description: str = ""):
 async def restore_snapshot_core(snapshot_id: int):
     try:
         return await management.restore_snapshot_logic(snapshot_id)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Snapshot restoration failed: {snapshot_id}")
         raise
 
@@ -429,7 +429,7 @@ async def get_memory_health_core():
         deep_health = await health.get_comprehensive_diagnostics()
         deep_health["management_stats"] = mgmt_health
         return deep_health
-    except Exception as e:
+    except Exception:
         logger.exception("Health diagnostics failed")
         raise
 
@@ -437,7 +437,7 @@ async def get_memory_health_core():
 async def repair_memory_core():
     try:
         return await bank.repair_memory_logic()
-    except Exception as e:
+    except Exception:
         logger.exception("Memory repair failed")
         raise
 
@@ -450,7 +450,7 @@ async def get_value_report_core(format_type: str = "markdown"):
 
         metrics_data = await InsightEngine.get_summary_metrics()
         return InsightEngine.generate_report_markdown(metrics_data)
-    except Exception as e:
+    except Exception:
         logger.exception("Value report generation failed")
         raise
 
@@ -458,7 +458,7 @@ async def get_value_report_core(format_type: str = "markdown"):
 async def manage_knowledge_activation_core(ids: list[str], status: str):
     try:
         return await lifecycle.manage_knowledge_activation_logic(ids, status)
-    except Exception as e:
+    except Exception:
         logger.exception(f"Knowledge activation update failed for {ids}")
         raise
 
@@ -466,7 +466,7 @@ async def manage_knowledge_activation_core(ids: list[str], status: str):
 async def list_inactive_knowledge_core():
     try:
         return await lifecycle.list_inactive_knowledge_logic()
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to list inactive knowledge")
         raise
 
@@ -474,6 +474,6 @@ async def list_inactive_knowledge_core():
 async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
     try:
         return await lifecycle.run_knowledge_gc_logic(age_days, dry_run)
-    except Exception as e:
+    except Exception:
         logger.exception("Garbage collection task failed")
         raise

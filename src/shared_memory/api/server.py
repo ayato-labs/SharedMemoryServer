@@ -1,9 +1,13 @@
 import asyncio
 import json
+import re
 import sys
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastmcp import FastMCP
+from mcp.server.session import InitializationState, ServerSession
+from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
 
 from shared_memory.api.auth import AuthMiddleware, get_current_user
@@ -35,15 +39,12 @@ except Exception:
     sys.exit(1)
 
 # --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
-from mcp.server.session import InitializationState, ServerSession
 
 _original_received_request = ServerSession._received_request
 
 
 async def _permissive_received_request(self, responder):
     """Wait for initialization, or FORCE it if it takes too long."""
-    import asyncio
-
     try:
         request_type = type(responder.request.root.params).__name__
     except Exception:
@@ -105,7 +106,7 @@ def _patched_http_app(self, *args, **kwargs) -> Starlette:
     logger.info("Current middleware stack in Starlette app:")
     for i, m in enumerate(app.user_middleware):
         logger.info(f" Middleware {i}: {m.cls} (Bases: {getattr(m.cls, '__bases__', 'N/A')})")
-    
+
     app.add_middleware(AuthMiddleware)
     # Mount Dashboard routes
     app.mount("/dashboard", dashboard_router)
@@ -113,9 +114,6 @@ def _patched_http_app(self, *args, **kwargs) -> Starlette:
 
 
 FastMCP.http_app = _patched_http_app
-
-# Patch SseServerTransport to log POST messages
-from mcp.server.sse import SseServerTransport
 
 _original_handle_post = SseServerTransport.handle_post_message
 
@@ -125,8 +123,6 @@ async def _patched_handle_post(self, scope, receive, send):
     query_string = scope.get("query_string", b"").decode()
     session_id = None
     if "session_id=" in query_string:
-        import re
-
         match = re.search(r"session_id=([^&]+)", query_string)
         if match:
             session_id = match.group(1)
@@ -139,9 +135,6 @@ async def _patched_handle_post(self, scope, receive, send):
 
 
 SseServerTransport.handle_post_message = _patched_handle_post
-
-
-from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
@@ -164,9 +157,7 @@ async def save_memory(
     agent_id: str | None = None,
 ) -> str:
     user = agent_id or get_current_user() or "default_agent"
-    return await logic_module.save_memory_core(
-        entities, relations, observations, bank_files, user
-    )
+    return await logic_module.save_memory_core(entities, relations, observations, bank_files, user)
 
 
 @mcp.tool()
@@ -249,9 +240,7 @@ def _kill_port_process(port: int):
                 logger.warning(f"Killing zombie process {pid} on port {port}")
                 subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
     except Exception as e:
-        logger.error(
-            f"Failed to kill zombie process on port {port}: {e}"
-        )
+        logger.error(f"Failed to kill zombie process on port {port}: {e}")
 
 
 def main():
@@ -264,6 +253,7 @@ def main():
 
     # --- LLM CONFIG CHECK ---
     from shared_memory.common.config import settings
+
     if settings.llm_provider == "ollama":
         logger.info(f"LLM Provider: Ollama (Model: {settings.generative_model})")
     elif settings.llm_provider == "gemini":
