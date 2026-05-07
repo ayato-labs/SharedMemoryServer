@@ -29,7 +29,6 @@ async def test_full_lifecycle_flow(db_conn, monkeypatch):
     fake_client = FakeGeminiClient()
     fake_client.models.set_response("generate_content", '["#new_feature"]')
     monkeypatch.setattr("shared_memory.infra.embeddings.get_gemini_client", lambda: fake_client)
-    monkeypatch.setattr("shared_memory.core.graph.get_gemini_client", lambda: fake_client)
     
     # 1. Save
     await save_memory(

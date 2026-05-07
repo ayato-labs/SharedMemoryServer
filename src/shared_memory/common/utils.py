@@ -11,6 +11,9 @@ from loguru import logger
 from shared_memory.common.exceptions import SecurityError
 
 
+_LOGGING_CONFIGURED = False
+
+
 def configure_logging():
     """
     Configures Loguru for structured JSON logging.
@@ -18,6 +21,10 @@ def configure_logging():
     - Keeps exactly the last 2 execution logs (logs/server.jsonl).
     - Isolates errors to logs/error.log.
     """
+    global _LOGGING_CONFIGURED
+    if _LOGGING_CONFIGURED and "PYTEST_CURRENT_TEST" in os.environ:
+        return
+
     logger.remove()
 
     # 1. Human-readable output to stderr (Development)
@@ -38,6 +45,11 @@ def configure_logging():
 
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
+
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        _LOGGING_CONFIGURED = True
+        logger.info("Logging infrastructure initialized (STDOUT only for tests)")
+        return
 
     # 2. Main Structured JSON log
     # We use a closure to ensure we rotate exactly once on the first write of this execution.

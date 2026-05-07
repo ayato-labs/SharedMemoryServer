@@ -22,11 +22,14 @@ async def test_user_workflow_e2e():
         "generate_content", "Gemini is a powerful AI model from Google."
     )
     
-    # Patch all modules that use get_gemini_client
+    # Patch all modules that use get_gemini_client or get_llm_provider
+    from shared_memory.infra.llm import LlmProvider
+    class MockLlmProvider(LlmProvider):
+        async def generate_content(self, prompt, system_instruction=None):
+            return "Gemini is a powerful AI model from Google."
+
     with patch("shared_memory.infra.embeddings.get_gemini_client", return_value=fake_client), \
-         patch("shared_memory.core.graph.get_gemini_client", return_value=fake_client), \
-         patch("shared_memory.core.search.get_gemini_client", return_value=fake_client), \
-         patch("shared_memory.core.distiller.get_gemini_client", return_value=fake_client):
+         patch("shared_memory.infra.llm.get_llm_provider", return_value=MockLlmProvider()):
         
         # 1. Save Memory
         await server.ensure_initialized()
@@ -41,7 +44,8 @@ async def test_user_workflow_e2e():
         await server.wait_for_background_tasks(timeout=5.0)
         
         # 2. Read Memory
-        read_res = await server.read_memory(query="Gemini")
+        read_res_raw = await server.read_memory(query="Gemini")
+        read_res = json.loads(read_res_raw)
         assert isinstance(read_res, dict)
         assert "Gemini" in str(read_res["graph"])
         
@@ -51,15 +55,15 @@ async def test_user_workflow_e2e():
         assert "AI model" in synth_res
         
         # 4. Sequential Thinking
-        thought_res = await server.sequential_thinking(
+        thought_res_raw = await server.sequential_thinking(
             thought="How can I use Gemini in my project?",
             thought_number=1,
             total_thoughts=1,
             next_thought_needed=False,
             session_id="test_session"
         )
+        thought_res = json.loads(thought_res_raw)
         # Verify it returned a dict and contains knowledge context
         assert isinstance(thought_res, dict)
         assert "related_knowledge" in thought_res
-        # The key might be 'thoughtHistoryLength' or similar based on failure message
         assert "Gemini" in str(thought_res["related_knowledge"])

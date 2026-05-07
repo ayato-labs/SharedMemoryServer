@@ -7,7 +7,7 @@ from shared_memory.ops import management
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_save_and_hybrid_search_flow(fake_llm):
+async def test_save_and_hybrid_search_flow(mock_llm):
     """
     Integration Test: 保存からハイブリッド検索、知識合成までの一連のフローを検証。
     """
@@ -38,7 +38,7 @@ async def test_save_and_hybrid_search_flow(fake_llm):
     assert "integration.md" in bank_data
 
     # 3. 知識合成
-    fake_llm.models.set_response(
+    mock_llm.models.set_response(
         "generate_content", "This is a synthesized summary of IntegrationNode."
     )
 
@@ -55,16 +55,19 @@ async def test_save_and_hybrid_search_flow(fake_llm):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_conflict_and_recovery_flow(fake_llm):
+async def test_conflict_and_recovery_flow(mock_llm):
     """
     Integration Test: 衝突検知と解決フローを検証。
     """
-    # 1. 初期データ保存
-    await logic.save_memory_core(entities=[{"name": "StableNode", "description": "Immutable fact"}])
+    # 1. 初期データ保存 (観察事項を1つ入れておく)
+    await logic.save_memory_core(
+        entities=[{"name": "StableNode", "description": "Immutable fact"}],
+        observations=[{"entity_name": "StableNode", "content": "Original state"}]
+    )
 
     # 2. 衝突するデータの保存試行
     # JSONリスト形式のレスポンスをシミュレート
-    fake_llm.models.set_response(
+    mock_llm.models.set_response(
         "generate_content", '[{"conflict": true, "reason": "Direct contradiction"}]'
     )
 

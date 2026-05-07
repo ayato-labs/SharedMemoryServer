@@ -18,7 +18,7 @@ async def test_save_memory_async_system_flow(fake_llm):
     # Call the tool with both entity and observation
     response = await server.save_memory(entities=entities, observations=observations)
 
-    assert "initiated in background" in response
+    assert "Saved" in response
 
     # Wait for the background task to complete
     from shared_memory.common.tasks import wait_for_background_tasks

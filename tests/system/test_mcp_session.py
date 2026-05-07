@@ -26,19 +26,22 @@ async def test_mcp_tool_session_flow(mock_llm):
     assert "Saved" in save_resp
 
     # 2. 思考の実行
-    think_resp = await server.sequential_thinking(
+    think_resp_raw = await server.sequential_thinking(
         thought="I need to analyze ThoughtNode based on the gathered memory.",
         thought_number=1,
         total_thoughts=2,
         next_thought_needed=True,
         session_id="session_123",
     )
-    assert "thoughtNumber" in str(think_resp)
+    import json
+    think_resp = json.loads(think_resp_raw)
+    assert "thoughtNumber" in think_resp
 
     # 3. インサイトの取得
     from shared_memory.common.tasks import wait_for_background_tasks
 
     await wait_for_background_tasks()
-    insights = await server.get_insights(format="json")
+    insights_raw = await server.get_insights(format="json")
+    insights = json.loads(insights_raw)
     assert "facts" in insights
     assert insights["facts"]["stored_entities"] >= 1

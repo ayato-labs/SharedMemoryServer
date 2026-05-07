@@ -20,7 +20,7 @@ async def test_auto_distill_knowledge_logging_fix():
             return await mock_client.aio.models.generate_content(prompt, system_instruction)
 
     with patch("shared_memory.core.distiller.get_llm_provider", return_value=FakeProvider()), \
-         patch("shared_memory.core.distiller.AIRateLimiter.throttle", AsyncMock()):
+         patch("shared_memory.core.ai_control.AIRateLimiter.throttle", AsyncMock()):
         
         # This should NOT raise KeyError even though the exception string has braces
         # and the code uses logger.exception() or logger.error(..., exc_info=True)

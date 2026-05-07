@@ -22,12 +22,13 @@ async def test_mcp_save_search_reason_flow(mock_llm):
     # バックグラウンドタスクの完了を待機
     await server.wait_for_background_tasks(timeout=5.0)
 
-    # 3. 知識の検索 (MCP Tool: read_memory)
-    search_res = await server.read_memory(query="ProjectX")
+    # 3. 遏･隴倥讀懃ｴ｢ (MCP Tool: read_memory)
+    search_res_raw = await server.read_memory(query="ProjectX")
+    search_res = json.loads(search_res_raw)
     assert "Confidential AI project" in str(search_res)
 
-    # 4. 思考の実行 (MCP Tool: sequential_thinking)
-    # LLMが結論を出すようなモック
+    # 4. 諤晁螳溯｡ (MCP Tool: sequential_thinking)
+    # LLM縺檎ｵ占ｫ結論繧蜃ｺ縺吶ｈ縺↑繝｢繝け
     mock_llm.models.set_response(
         "generate_content",
         json.dumps(
@@ -39,8 +40,9 @@ async def test_mcp_save_search_reason_flow(mock_llm):
         ),
     )
 
-    thinking_res = await server.sequential_thinking(
+    thinking_res_raw = await server.sequential_thinking(
         thought="Evaluate ProjectX", thought_number=1, total_thoughts=1, next_thought_needed=False
     )
+    thinking_res = json.loads(thinking_res_raw)
 
     assert thinking_res["thoughtNumber"] == 1

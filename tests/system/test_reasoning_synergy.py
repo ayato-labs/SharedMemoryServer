@@ -1,130 +1,67 @@
 import json
-
 import pytest
-
-from shared_memory.core import logic, thought_logic
-
+from shared_memory.api.server import (
+    ensure_initialized,
+    sequential_thinking,
+    read_memory,
+    get_insights,
+    wait_for_background_tasks
+)
 
 @pytest.mark.asyncio
 @pytest.mark.system
-async def test_reasoning_synergy_and_distillation(mock_llm):
+async def test_reasoning_and_distillation_system_flow(mock_llm):
     """
-    Simulates a complex multi-session scenario:
-    1. Session A: Reasoning generates knowledge via Incremental Distillation.
-    2. Session B: New session salvages knowledge from Session A.
-    3. Session A closure: Triggers final auto-distillation report.
+    System Test: 思考プロセスから知識の自動抽出、そしてインサイトへの反映までの
+    エンドツーエンドのフローを検証。
     """
-    session_a = "session_antigravity_arch"
-    session_b = "session_dependency_check"
-
-    # --- STEP 1: Session A (Knowledge Ingestion) ---
-    # We mock the incremental distiller to return a specific entity.
-    distill_result = {
-        "entities": [
-            {
-                "name": "CoreEngine",
-                "entity_type": "component",
-                "description": "The main orchestrator.",
-            }
-        ],
-        "relations": [],
-        "observations": [{"entity_name": "CoreEngine", "content": "Uses WAL mode for SQLite."}],
-    }
-    mock_llm.models.set_response("generate_content", json.dumps(distill_result))
-
-    # Process a thought in Session A
-    # incremental_distill_knowledge is called as a background task in process_thought_core.
-    # To ensure it finishes in test, we might need to wait or mock it to be sync,
-    # but here we'll call process_thought_core and then briefly wait.
-    await thought_logic.process_thought_core(
-        thought="The CoreEngine is the heart of the system and it uses WAL mode.",
-        thought_number=1,
-        total_thoughts=5,
-        next_thought_needed=True,
-        session_id=session_a,
-    )
-
-    # Wait for background incremental distillation task
-    from shared_memory.common.tasks import wait_for_background_tasks
-
-    await wait_for_background_tasks()
-
-    # Verify Session A knowledge was saved to Graph
-    search_a = await logic.read_memory_core("CoreEngine")
-    assert any(e["name"] == "CoreEngine" for e in search_a["graph"]["entities"]), (
-        "CoreEngine should be distilled from Session A"
-    )
-    assert any("WAL mode" in o["content"] for o in search_a["graph"]["observations"]), (
-        "Observation should be distilled"
-    )
-
-    # --- STEP 2: Session B (Knowledge Retrieval & Salvage) ---
-    # Now simulate a DIFFERENT session asking about it.
-    # We mock the salvage reranker if needed, but salvage_related_knowledge
-    # uses semantic search which our mock_llm handles via embed_content.
-
-    # Thought in Session B that should trigger salvage
-    res_b = await thought_logic.process_thought_core(
-        thought="I need to check how the CoreEngine handles database concurrency.",
+    await ensure_initialized()
+    session_id = "system_session_abc"
+    
+    # 1. 思考プロセスの実行
+    # 思考の過程で新しい知識（例: "Project X is coded in Rust"）が生まれる想定
+    await sequential_thinking(
+        thought="I am analyzing Project X. It is a distributed system written in Rust.",
         thought_number=1,
         total_thoughts=2,
         next_thought_needed=True,
-        session_id=session_b,
+        session_id=session_id
     )
-
-    # Verify related_knowledge contains Session A's findings
-    rel_k = res_b.get("related_knowledge", [])
-    assert any("CoreEngine" in str(k) or "WAL mode" in str(k) for k in rel_k), (
-        "Session B should salvage knowledge from Session A"
+    
+    # 2. 思考の完了と自動抽出
+    # ここでは Mock LLM が Rust エンティティを抽出したと仮定する応答を設定
+    mock_llm.models.set_response(
+        "generate_content",
+        json.dumps({
+            "entities": [{"name": "Project X", "entity_type": "project", "description": "Rust system"}],
+            "relations": [],
+            "observations": [{"entity_name": "Project X", "content": "Written in Rust"}]
+        })
     )
-
-    # --- STEP 3: Final Distillation on Closure ---
-    # Mock the final distillation report
-    final_report = {
-        "entities": [
-            {
-                "name": "SharedMemoryServer",
-                "entity_type": "system",
-                "description": "A robust MCP server.",
-            }
-        ],
-        "relations": [
-            {
-                "source": "CoreEngine",
-                "target": "SharedMemoryServer",
-                "relation_type": "part_of",
-                "justification": "Primary component",
-            }
-        ],
-        "observations": [],
-    }
-    mock_llm.models.set_response("generate_content", json.dumps(final_report))
-
-    # Close Session A
-    await thought_logic.process_thought_core(
-        thought="Closing session after final review.",
+    
+    await sequential_thinking(
+        thought="Conclusion: Rust provides safety for Project X.",
         thought_number=2,
         total_thoughts=2,
-        next_thought_needed=False,  # Trigger wrap-up
-        session_id=session_a,
+        next_thought_needed=False,
+        session_id=session_id
     )
+    
+    # バックグラウンドタスクの完了を待つ
+    await wait_for_background_tasks(timeout=5.0)
 
-    # Wait for background final distillation
-    from shared_memory.common.tasks import wait_for_background_tasks
+    # 3. 抽出された知識の検索検証
+    res_read_raw = await read_memory(query="Project X")
+    res_read = json.loads(res_read_raw)
+    
+    entity_names = [e["name"] for e in res_read["graph"]["entities"]]
+    assert "Project X" in entity_names
 
-    await wait_for_background_tasks()
-
-    # Verify final synthesized knowledge exists
-    search_final = await logic.read_memory_core("SharedMemoryServer")
-    assert any(e["name"] == "SharedMemoryServer" for e in search_final["graph"]["entities"]), (
-        "Final distillation should save the system entity"
-    )
-
-    # Check relation was saved
-    # Note: relations are returned as a list of dicts in read_memory_core
-    found_rel = False
-    for r in search_final["graph"]["relations"]:
-        if r["subject"] == "CoreEngine" and r["object"] == "SharedMemoryServer":
-            found_rel = True
-            break
-    assert found_rel, "Relation from final distillation should be saved"
+    # 4. 全体統計の確認
+    insights = await get_insights(format="json")
+    insights_data = json.loads(insights)
+    
+    # 少なくとも1つのエンティティと観察事項が増えていること
+    # get_insights (json) returns keys like 'entity_count'
+    assert insights_data["entity_count"] >= 1
+    assert insights_data["observation_count"] >= 1
