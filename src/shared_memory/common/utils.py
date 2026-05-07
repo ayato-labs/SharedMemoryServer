@@ -179,6 +179,20 @@ def security_scan(content: str):
         raise SecurityError("Non-string content detected in security scan.")
 
 
+def normalize_text(text: str, truncate: int = 10000) -> str:
+    """
+    Standardizes text for storage and AI processing.
+    - Strips leading/trailing whitespace.
+    - Compresses multiple spaces/newlines into single ones.
+    - Limits length to prevent token overflow.
+    """
+    if not text:
+        return ""
+    # Normalize whitespace: replace any whitespace sequence with a single space
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:truncate] if truncate > 0 else text
+
+
 def clean_markdown(text: str) -> str:
     """
     Strips dangerous or unnecessary markdown elements from distilled content.

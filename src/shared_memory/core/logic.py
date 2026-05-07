@@ -5,7 +5,7 @@ from typing import Any
 
 import aiosqlite
 
-from shared_memory.common.utils import get_logger
+from shared_memory.common.utils import get_logger, normalize_text
 from shared_memory.core import bank, graph, search
 from shared_memory.infra.database import (
     async_get_connection,
@@ -26,12 +26,21 @@ def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict
     try:
         for e in entities or []:
             if isinstance(e, str):
-                normalized.append({"name": e, "entity_type": "concept", "description": ""})
+                normalized.append({
+                    "name": normalize_text(e, truncate=255), 
+                    "entity_type": "concept", 
+                    "description": ""
+                })
             elif isinstance(e, dict):
                 # Ensure name exists and map common synonyms
-                e["name"] = e.get("name") or e.get("id") or e.get("title")
-                e["entity_type"] = e.get("entity_type") or e.get("type") or "concept"
-                e["description"] = e.get("description") or e.get("desc") or e.get("content") or ""
+                raw_name = e.get("name") or e.get("id") or e.get("title") or "Unnamed"
+                e["name"] = normalize_text(raw_name, truncate=255)
+                
+                raw_type = e.get("entity_type") or e.get("type") or "concept"
+                e["entity_type"] = normalize_text(raw_type, truncate=100)
+                
+                raw_desc = e.get("description") or e.get("desc") or e.get("content") or ""
+                e["description"] = normalize_text(raw_desc, truncate=5000)
                 normalized.append(e)
     except Exception as e:
         logger.error(f"Normalization failed for entities: {e}")
@@ -42,14 +51,18 @@ def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict
 def normalize_observation_item(obs: dict[str, Any] | str) -> dict[str, Any] | None:
     """Normalize a single observation item."""
     if isinstance(obs, str):
-        return {"content": obs, "entity_name": "Global"}
+        return {"content": normalize_text(obs), "entity_name": "Global"}
     elif isinstance(obs, dict):
         # Map synonyms (Crucial: 'observation' -> 'content')
-        content = obs.get("content") or obs.get("observation") or obs.get("text")
-        if not content:
+        raw_content = obs.get("content") or obs.get("observation") or obs.get("text")
+        if not raw_content:
             return None
-        entity_name = obs.get("entity_name") or obs.get("entity") or "Unknown"
-        return {"content": content, "entity_name": entity_name}
+        
+        raw_entity = obs.get("entity_name") or obs.get("entity") or "Unknown"
+        return {
+            "content": normalize_text(raw_content), 
+            "entity_name": normalize_text(raw_entity, truncate=255)
+        }
     return None
 
 
@@ -85,9 +98,9 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
                     bank_files.get("filename") or bank_files.get("name") or "derived_knowledge.md"
                 )
                 if content:
-                    result[str(filename)] = str(content)
+                    result[str(filename)] = normalize_text(str(content), truncate=0) # No truncate for bank files
                 return result
-            return {str(k): str(v) for k, v in bank_files.items() if v}
+            return {str(k): normalize_text(str(v), truncate=0) for k, v in bank_files.items() if v}
 
         # 2. Handle List Case
         if isinstance(bank_files, list):
@@ -101,7 +114,7 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
                 if content:
                     if not filename:
                         filename = f"derived_knowledge_{i}.md"
-                    result[str(filename)] = str(content)
+                    result[str(filename)] = normalize_text(str(content), truncate=0)
                     continue
 
                 if len(item) == 1:
@@ -109,7 +122,7 @@ def normalize_bank_files(bank_files: Any) -> dict[str, str]:
                     if key in ["filename", "name", "title", "content", "text", "body"]:
                         continue
                     if isinstance(val, str):
-                        result[str(key)] = val
+                        result[str(key)] = normalize_text(val, truncate=0)
                         continue
     except Exception as e:
         logger.error(f"Normalization failed for bank_files: {e}")

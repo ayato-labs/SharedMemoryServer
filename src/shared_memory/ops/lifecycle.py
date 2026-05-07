@@ -1,10 +1,55 @@
+import asyncio
 import aiosqlite
 
 from shared_memory.common.exceptions import DatabaseError
+from shared_memory.common.tasks import create_background_task
 from shared_memory.common.utils import get_logger
-from shared_memory.infra.database import async_get_connection, retry_on_db_lock
+from shared_memory.infra.database import (
+    async_get_connection,
+    async_get_thoughts_connection,
+    retry_on_db_lock,
+)
 
 logger = get_logger("lifecycle")
+
+
+@retry_on_db_lock()
+async def run_maintenance_logic():
+    """
+    Performs 'mature' SQLite maintenance: PRAGMA optimize.
+    SQLite documentation recommends running this periodically to improve query planning.
+    """
+    logger.info("Database maintenance starting (PRAGMA optimize)...")
+    try:
+        async with await async_get_connection() as conn:
+            await conn.execute("PRAGMA optimize")
+            await conn.commit()
+        
+        async with await async_get_thoughts_connection() as conn:
+            await conn.execute("PRAGMA optimize")
+            await conn.commit()
+            
+        logger.info("Database maintenance complete.")
+    except Exception as e:
+        logger.error(f"Maintenance failed: {e}")
+
+
+async def start_database_maintenance(interval_seconds: int = 3600):
+    """
+    Background loop for periodic database maintenance.
+    Default: once per hour.
+    """
+    logger.info(f"Maintenance loop started (Interval: {interval_seconds}s)")
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            await run_maintenance_logic()
+        except asyncio.CancelledError:
+            logger.info("Maintenance loop cancelled.")
+            break
+        except Exception as e:
+            logger.error(f"Error in maintenance loop: {e}")
+            await asyncio.sleep(60)  # Wait before retry
 
 
 @retry_on_db_lock()

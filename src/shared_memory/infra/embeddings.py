@@ -3,7 +3,7 @@ import json
 from typing import Any
 
 from shared_memory.common.config import settings
-from shared_memory.common.utils import get_logger
+from shared_memory.common.utils import get_logger, normalize_text
 from shared_memory.core.ai_control import AIRateLimiter, retry_on_ai_quota
 from shared_memory.infra.database import async_get_connection, retry_on_db_lock
 
@@ -46,21 +46,6 @@ async def compute_embeddings_bulk(texts: list[str]) -> list[list[float]]:
     return await compute_embedding(texts)
 
 
-def _clean_text_for_embedding(text: str) -> str:
-    """
-    Normalizes text for embedding to maximize cache hits and reduce costs.
-    - Strips leading/trailing whitespace.
-    - Replaces multiple spaces/newlines with a single space.
-    - Truncates to a reasonable limit (10,000 chars).
-    """
-    if not text:
-        return ""
-    # Normalize whitespace: replace any whitespace sequence with a single space
-    import re
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:10000]
-
-
 @retry_on_ai_quota(max_retries=3, rotate_models=False)
 @retry_on_db_lock()
 async def compute_embedding(
@@ -75,7 +60,7 @@ async def compute_embedding(
     # 1. Normalize and filter
     valid_entries = []
     for i, raw_txt in enumerate(items):
-        clean_txt = _clean_text_for_embedding(raw_txt)
+        clean_txt = normalize_text(raw_txt)
         if clean_txt:
             valid_entries.append((i, clean_txt))
 

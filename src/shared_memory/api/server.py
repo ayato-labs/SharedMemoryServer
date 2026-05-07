@@ -13,6 +13,9 @@ from starlette.applications import Starlette
 from shared_memory.api.auth import AuthMiddleware, get_current_user
 from shared_memory.common.utils import configure_logging, get_logger
 
+from shared_memory.common.tasks import create_background_task
+from shared_memory.ops.lifecycle import run_maintenance_logic, start_database_maintenance
+
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
 # Force all OS-level stdout to stderr to prevent breaking the MCP pipe
 sys.stdout = sys.stderr
@@ -139,8 +142,10 @@ SseServerTransport.handle_post_message = _patched_handle_post
 
 @asynccontextmanager
 async def lifespan(app: FastMCP):
-    """Ensure database is ready before server starts accepting work."""
-    asyncio.create_task(init_db())
+    """Ensure database is ready and start background maintenance."""
+    await init_db()
+    # Start periodic database maintenance (PRAGMA optimize)
+    create_background_task(start_database_maintenance(), name="db_maintenance")
     yield
 
 
