@@ -1,0 +1,132 @@
+﻿uv : warning: No `requires-python` value found in the workspace. Defaulting to `>=3.11`.
+発生場所 行:1 文字:33
++ ... E='gemini'; uv run pytest tests/unit/test_server_lenient_api.py::test ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: No `re...ng to `>=3.11`.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+============================= test session starts =============================
+platform win32 -- Python 3.11.3, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-1.3.0, cov-7.1.0, timeout-2.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+[32m2026-05-07 10:43:17.521[0m | [1mINFO   [0m | [36mshared_memory.common.utils[0m:[36mconfigure_logging[0m:[3
+6m67[0m - [1mLogging infrastructure initialized (JSON enabled, Startup rotation active)[0m
+--- Logging error in Loguru Handler #2 ---
+Record was: {'elapsed': datetime.timedelta(microseconds=5329), 'exception': None, 'extra': {}, 'file': (name='utils.py'
+, path='C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\src\\shared_memory\\common\\utils.py'), 'fun
+ction': 'configure_logging', 'level': (name='INFO', no=20, icon='\u2139\ufe0f'), 'line': 67, 'message': 'Logging infras
+tructure initialized (JSON enabled, Startup rotation active)', 'module': 'utils', 'name': 'shared_memory.common.utils',
+ 'process': (id=8948, name='MainProcess'), 'thread': (id=21536, name='MainThread'), 'time': datetime(2026, 5, 7, 10, 43
+, 17, 521074, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400), '東京 (標準時)'))}
+Traceback (most recent call last):
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_handler.py", line 2
+06, in emit
+    self._sink.write(str_record)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 204, in write
+    self._terminate_file(is_rotating=True)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 276, in _terminate_file
+    os.rename(old_path, renamed_path)
+PermissionError: [WinError 32] プロセスはファイルにアクセスできません。別のプロセスが使用中です。: 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\Share
+dMemoryServer\\logs\\server.jsonl' -> 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\logs\\server.
+2026-05-06_13-07-42_942377.jsonl'
+--- End of logging error ---
+[32m2026-05-07 10:43:17.521[0m | [1mINFO   [0m | [36mshared_memory.api.server[0m:[36m<module>[0m:[36m19[0m - 
+[1m--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---[0m
+--- Logging error in Loguru Handler #2 ---
+Record was: {'elapsed': datetime.timedelta(microseconds=5723), 'exception': None, 'extra': {'name': 'shared_memory.serv
+er'}, 'file': (name='server.py', path='C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\src\\shared_m
+emory\\api\\server.py'), 'function': '<module>', 'level': (name='INFO', no=20, icon='\u2139\ufe0f'), 'line': 19, 'messa
+ge': '--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---', 'module': 'server', 'name': 'shared_memory.api.server', 'pr
+ocess': (id=8948, name='MainProcess'), 'thread': (id=21536, name='MainThread'), 'time': datetime(2026, 5, 7, 10, 43, 17
+, 521468, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400), '東京 (標準時)'))}
+Traceback (most recent call last):
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_handler.py", line 2
+06, in emit
+    self._sink.write(str_record)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 204, in write
+    self._terminate_file(is_rotating=True)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 276, in _terminate_file
+    os.rename(old_path, renamed_path)
+PermissionError: [WinError 32] プロセスはファイルにアクセスできません。別のプロセスが使用中です。: 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\Share
+dMemoryServer\\logs\\server.jsonl' -> 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\logs\\server.
+2026-05-06_13-07-42_942377.jsonl'
+--- End of logging error ---
+[32m2026-05-07 10:43:17.523[0m | [1mINFO   [0m | [36mshared_memory.api.server[0m:[36m<module>[0m:[36m22[0m - 
+[1mImporting core submodules...[0m
+--- Logging error in Loguru Handler #2 ---
+Record was: {'elapsed': datetime.timedelta(microseconds=7966), 'exception': None, 'extra': {'name': 'shared_memory.serv
+er'}, 'file': (name='server.py', path='C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\src\\shared_m
+emory\\api\\server.py'), 'function': '<module>', 'level': (name='INFO', no=20, icon='\u2139\ufe0f'), 'line': 22, 'messa
+ge': 'Importing core submodules...', 'module': 'server', 'name': 'shared_memory.api.server', 'process': (id=8948, name=
+'MainProcess'), 'thread': (id=21536, name='MainThread'), 'time': datetime(2026, 5, 7, 10, 43, 17, 523711, tzinfo=dateti
+me.timezone(datetime.timedelta(seconds=32400), '東京 (標準時)'))}
+Traceback (most recent call last):
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_handler.py", line 2
+06, in emit
+    self._sink.write(str_record)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 204, in write
+    self._terminate_file(is_rotating=True)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 276, in _terminate_file
+    os.rename(old_path, renamed_path)
+PermissionError: [WinError 32] プロセスはファイルにアクセスできません。別のプロセスが使用中です。: 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\Share
+dMemoryServer\\logs\\server.jsonl' -> 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\logs\\server.
+2026-05-06_13-07-42_942377.jsonl'
+--- End of logging error ---
+[32m2026-05-07 10:43:17.658[0m | [1mINFO   [0m | [36mshared_memory.api.server[0m:[36m<module>[0m:[36m32[0m - 
+[1mCore submodules and Dashboard router imported successfully[0m
+--- Logging error in Loguru Handler #2 ---
+Record was: {'elapsed': datetime.timedelta(microseconds=143234), 'exception': None, 'extra': {'name': 'shared_memory.se
+rver'}, 'file': (name='server.py', path='C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\src\\shared
+_memory\\api\\server.py'), 'function': '<module>', 'level': (name='INFO', no=20, icon='\u2139\ufe0f'), 'line': 32, 'mes
+sage': 'Core submodules and Dashboard router imported successfully', 'module': 'server', 'name': 'shared_memory.api.ser
+ver', 'process': (id=8948, name='MainProcess'), 'thread': (id=21536, name='MainThread'), 'time': datetime(2026, 5, 7, 1
+0, 43, 17, 658979, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400), '東京 (標準時)'))}
+Traceback (most recent call last):
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_handler.py", line 2
+06, in emit
+    self._sink.write(str_record)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 204, in write
+    self._terminate_file(is_rotating=True)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 276, in _terminate_file
+    os.rename(old_path, renamed_path)
+PermissionError: [WinError 32] プロセスはファイルにアクセスできません。別のプロセスが使用中です。: 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\Share
+dMemoryServer\\logs\\server.jsonl' -> 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\logs\\server.
+2026-05-06_13-07-42_942377.jsonl'
+--- End of logging error ---
+[32m2026-05-07 10:43:17.659[0m | [1mINFO   [0m | [36mshared_memory.api.server[0m:[36m<module>[0m:[36m77[0m - 
+[1mMCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.[0m
+--- Logging error in Loguru Handler #2 ---
+Record was: {'elapsed': datetime.timedelta(microseconds=144250), 'exception': None, 'extra': {'name': 'shared_memory.se
+rver'}, 'file': (name='server.py', path='C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\src\\shared
+_memory\\api\\server.py'), 'function': '<module>', 'level': (name='INFO', no=20, icon='\u2139\ufe0f'), 'line': 77, 'mes
+sage': 'MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.', 'module': 'server', 'name': 'shared_me
+mory.api.server', 'process': (id=8948, name='MainProcess'), 'thread': (id=21536, name='MainThread'), 'time': datetime(2
+026, 5, 7, 10, 43, 17, 659995, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400), '東京 (標準時)'))}
+Traceback (most recent call last):
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_handler.py", line 2
+06, in emit
+    self._sink.write(str_record)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 204, in write
+    self._terminate_file(is_rotating=True)
+  File "C:\Users\saiha\My_Service\programing\MCP\SharedMemoryServer\.venv\Lib\site-packages\loguru\_file_sink.py", line
+ 276, in _terminate_file
+    os.rename(old_path, renamed_path)
+PermissionError: [WinError 32] プロセスはファイルにアクセスできません。別のプロセスが使用中です。: 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\Share
+dMemoryServer\\logs\\server.jsonl' -> 'C:\\Users\\saiha\\My_Service\\programing\\MCP\\SharedMemoryServer\\logs\\server.
+2026-05-06_13-07-42_942377.jsonl'
+--- End of logging error ---
+collecting ... collected 1 item
+
+tests/unit/test_server_lenient_api.py::test_save_memory_input_normalization FAILED
