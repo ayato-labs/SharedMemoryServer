@@ -6,6 +6,7 @@ import re
 from shared_memory.common.utils import (
     batch_cosine_similarity,
     calculate_importance,
+    escape_fts5_query,
     get_logger,
     log_error,
 )
@@ -41,12 +42,19 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
             ("bank_files_fts", "bank_files", "filename", "content"),
         ]
 
+        # Escape query for FTS5 syntax
+        fts_query = escape_fts5_query(query)
+
         for fts_table, source_name, id_col, content_col in fts_sources:
             try:
+                if not fts_query:
+                    # Fallback to LIKE search if FTS query is empty after escaping
+                    raise ValueError("Empty FTS query")
+
                 cursor = await conn.execute(
                     f"SELECT {id_col}, {content_col}, bm25({fts_table}) "
                     f"FROM {fts_table} WHERE {fts_table} MATCH ?",
-                    (query,),
+                    (fts_query,),
                 )
                 for row_id, content, rank in await cursor.fetchall():
                     score = max(0.1, abs(rank) * 1.5)
@@ -82,12 +90,15 @@ async def perform_keyword_search(query: str, limit: int = 5, exclude_session_id:
 
         # 2. Search Thoughts DB
         try:
+            if not fts_query:
+                raise ValueError("Empty FTS query")
+
             async with await async_get_thoughts_connection() as t_conn:
                 t_cursor = await t_conn.execute(
                     "SELECT session_id, thought_number, thought, bm25(thought_history_fts) "
                     "FROM thought_history_fts WHERE thought_history_fts MATCH ? "
                     "AND session_id != ?",
-                    (query, exclude_session_id or ""),
+                    (fts_query, exclude_session_id or ""),
                 )
                 for sess_id, t_num, thought, rank in await t_cursor.fetchall():
                     score = max(0.1, abs(rank) * 1.0)

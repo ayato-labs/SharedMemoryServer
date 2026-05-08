@@ -106,7 +106,14 @@ def retry_on_ai_quota(
                     last_error = e
                     e_str = str(e).upper()
 
-                    if "429" in e_str or "RESOURCE_EXHAUSTED" in e_str:
+                    if (
+                        "429" in e_str
+                        or "RESOURCE_EXHAUSTED" in e_str
+                        or "500" in e_str
+                        or "INTERNAL" in e_str
+                        or "503" in e_str
+                        or "SERVICE_UNAVAILABLE" in e_str
+                    ):
                         wait_time = parse_retry_delay(e)
 
                         if rotate_models:
@@ -115,13 +122,13 @@ def retry_on_ai_quota(
                                 cycle_count = attempt // len(models)
                                 wait_time = wait_time or (initial_backoff * (2**cycle_count))
                                 logger.warning(
-                                    f"All models in pool '{pool_name}' exhausted (429). Cycle {cycle_count + 1} "
+                                    f"All models in pool '{pool_name}' exhausted or errored. Cycle {cycle_count + 1} "
                                     f"complete. Waiting {wait_time:.2f}s before restarting..."
                                 )
                                 await asyncio.sleep(wait_time)
                             else:
                                 logger.info(
-                                    f"Model 429 detected in pool '{pool_name}'. Falling back to "
+                                    f"API error detected in pool '{pool_name}'. Falling back to "
                                     f"{model_manager.get_current_model(pool_name)}..."
                                 )
                                 await asyncio.sleep(random.uniform(0.1, 0.3))
@@ -129,7 +136,7 @@ def retry_on_ai_quota(
                             # Just exponential backoff without rotation
                             wait_time = wait_time or (initial_backoff * (2**attempt))
                             logger.warning(
-                                f"Quota limit (429) reached for pool '{pool_name}'. Attempt {attempt + 1}. "
+                                f"API error or quota limit reached for pool '{pool_name}'. Attempt {attempt + 1}. "
                                 f"Waiting {wait_time:.2f}s..."
                             )
                             await asyncio.sleep(wait_time)

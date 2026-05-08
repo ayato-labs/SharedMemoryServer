@@ -286,6 +286,31 @@ def mask_sensitive_data(text: str) -> str:
     return text
 
 
+def escape_fts5_query(query: str) -> str:
+    """
+    Escapes a string for use in an SQLite FTS5 MATCH clause.
+    - Replaces internal double quotes with two double quotes.
+    - Wraps each word in double quotes to allow safe "AND" search.
+    - Returns an empty string if the query is empty or contains no valid parts.
+    """
+    if not query:
+        return ""
+
+    # Split by whitespace
+    parts = query.split()
+    if not parts:
+        return ""
+
+    escaped_parts = []
+    for p in parts:
+        # FTS5 uses double quotes for phrase queries.
+        # To include a literal double quote, it must be doubled.
+        p_esc = p.replace('"', '""')
+        escaped_parts.append(f'"{p_esc}"')
+
+    return " ".join(escaped_parts)
+
+
 def safe_path_join(base_dir: str, filename: str) -> str:
     """
     Safely joins a base directory with a filename, ensuring

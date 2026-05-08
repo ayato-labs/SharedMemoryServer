@@ -75,6 +75,26 @@ class TestAIControl:
         assert call_count == 2
 
     @pytest.mark.asyncio
+    async def test_retry_on_500_internal_error(self, fake_llm):
+        """
+        Tests the retry decorator handles 500 Internal Server Error.
+        """
+        call_count = 0
+
+        @retry_on_ai_quota(max_retries=1, initial_backoff=0.01, rotate_models=False)
+        async def internal_error_function():
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 1:
+                # First call fails with 500
+                raise Exception("500 INTERNAL: Internal error encountered")
+            return "Success"
+
+        result = await internal_error_function()
+        assert result == "Success"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
     async def test_retry_exhaustion(self, fake_llm):
         """Tests that it eventually raises the error after exhausting all retries."""
         call_count = 0
