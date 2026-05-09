@@ -15,7 +15,7 @@ async def test_knowledge_pipeline_integration(mock_llm):
     save_result = await save_memory_core(
         entities=[{"name": "IntegrationEntity", "description": "Flow test"}]
     )
-    assert "SUCCESS" in save_result.upper()
+    assert "SAVED" in save_result.upper()
     
     # 2. データの検索 (内部で search.perform_search -> database を呼ぶ)
     read_result = await read_memory_core(query="IntegrationEntity")

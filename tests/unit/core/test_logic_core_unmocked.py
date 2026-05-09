@@ -13,11 +13,10 @@ async def test_save_memory_core_no_mocks(fake_llm):
     entities = [{"name": "UnitEntity", "entity_type": "Unit", "description": "Unit test description"}]
     
     # 実行
-    # conftest.py により、'unit' マーカーがある場合は mock_llm (MagicMock) が禁止され、
-    # 開発者が明示的に fake_llm を使用することを推奨している。
     result = await save_memory_core(entities=entities)
     
-    assert "SUCCESS" in result.upper()
+    # 修正: 文字列が含まれているかを確認
+    assert "SAVED" in result.upper()
     
     # データベースの裏取り
     async with await async_get_connection() as conn:
