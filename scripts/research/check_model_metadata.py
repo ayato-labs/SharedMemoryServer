@@ -1,14 +1,15 @@
 import sys
 from pathlib import Path
 
+from google import genai
+
+from shared_memory.common.config import settings
+
 # Add src to sys.path
 src_path = str(Path(__file__).parent.parent.parent / "src")
 if src_path not in sys.path:
     sys.path.append(src_path)
 
-from google import genai
-
-from shared_memory.common.config import settings
 
 def check_model_metadata():
     api_key = settings.api_key

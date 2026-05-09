@@ -2,14 +2,14 @@ import asyncio
 import sys
 from pathlib import Path
 
+from google import genai
+
+from shared_memory.common.config import settings
+
 # Add src to sys.path
 src_path = str(Path(__file__).parent.parent.parent / "src")
 if src_path not in sys.path:
     sys.path.append(src_path)
-
-from google import genai
-
-from shared_memory.common.config import settings
 
 async def verify_token_counting():
     api_key = settings.api_key

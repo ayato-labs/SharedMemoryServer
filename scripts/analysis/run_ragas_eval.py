@@ -1,4 +1,5 @@
 import asyncio
+
 from loguru import logger
 
 # Mocking a small Gold Standard dataset for SharedMemoryServer
@@ -39,10 +40,14 @@ eval_data = {
     "ground_truth": [
         "Knowledge ripening promotes frequently used items to ensure they stay "
         "relevant and are not decayed.",
-        "It uses Salvage to bring back thoughts and Accretion to store new distilled knowledge.",
-        "Stale items are decayed and then archived by the knowledge garbage collection process.",
-        "The server is local-first, utilizing SQLite, FAISS, and FastEmbed for on-device processing.",
-        "Authenticated SSE supports multiple tools like Cursor and Claude using separate API keys."
+        "It uses Salvage to bring back thoughts and Accretion to store "
+        "new distilled knowledge.",
+        "Stale items are decayed and then archived by the knowledge "
+        "garbage collection process.",
+        "The server is local-first, utilizing SQLite, FAISS, and FastEmbed "
+        "for on-device processing.",
+        "Authenticated SSE supports multiple tools like Cursor and Claude "
+        "using separate API keys."
     ]
 }
 

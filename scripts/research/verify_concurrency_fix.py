@@ -7,8 +7,11 @@ import time
 # Add src to path
 sys.path.append(os.path.abspath("src"))
 
+from shared_memory.core.thought_logic import (
+    init_thoughts_db,
+    process_thought_core,
+)
 from shared_memory.infra.database import init_db
-from shared_memory.core.thought_logic import init_thoughts_db, process_thought_core
 
 async def simulate_concurrent_thoughts():
     session_id = f"test_concurrency_{int(time.time())}"
