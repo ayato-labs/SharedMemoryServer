@@ -11,10 +11,9 @@ from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
 
 from shared_memory.api.auth import AuthMiddleware, get_current_user
-from shared_memory.common.utils import configure_logging, get_logger
-
 from shared_memory.common.tasks import create_background_task
-from shared_memory.ops.lifecycle import run_maintenance_logic, start_database_maintenance
+from shared_memory.common.utils import configure_logging, get_logger
+from shared_memory.ops.lifecycle import start_database_maintenance
 
 # --- EXTREME GUARD: STDOUT REDIRECTION ---
 # Force all OS-level stdout to stderr to prevent breaking the MCP pipe

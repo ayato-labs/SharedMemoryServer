@@ -12,7 +12,9 @@ async def get_dashboard_html(request):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SharedMemory Dashboard | Transparency & Trust</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link 
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@300;400;600&display=swap" 
+        rel="stylesheet">
     <style>
         :root {
             --bg-color: #0a0c10;
@@ -276,7 +278,9 @@ async def get_dashboard_html(request):
                 .then(data => {
                     const list = document.getElementById('conflicts-list');
                     if (data.length === 0) {
-                        list.innerHTML = '<div class="empty-state">No pending conflicts. All knowledge is synchronized.</div>';
+                        list.innerHTML = 
+                            '<div class="empty-state">' + 
+                            'No pending conflicts. All knowledge is synchronized.</div>';
                         return;
                     }
                     list.innerHTML = data.map(c => 
@@ -287,12 +291,16 @@ async def get_dashboard_html(request):
                         '</div>' +
                         '<div class="conflict-reason">Contradiction: ' + c.reason + '</div>' +
                         '<div class="diff-container">' +
-                        '<div class="diff-box old"><strong>EXISTING:</strong><br>' + c.existing + '</div>' +
-                        '<div class="diff-box new"><strong>PROPOSED:</strong><br>' + c.proposed + '</div>' +
+                        '<div class="diff-box old"><strong>EXISTING:</strong><br>' + 
+                            c.existing + '</div>' +
+                        '<div class="diff-box new"><strong>PROPOSED:</strong><br>' + 
+                            c.proposed + '</div>' +
                         '</div>' +
                         '<div class="btn-group">' +
-                        '<button class="btn-approve" onclick="resolve(' + c.id + ', \\'approve\\')">Approve & Merge</button>' +
-                        '<button class="btn-reject" onclick="resolve(' + c.id + ', \\'reject\\')">Reject</button>' +
+                        '<button class="btn-approve" onclick="resolve(' + c.id + 
+                            ', \\'approve\\')">Approve & Merge</button>' +
+                        '<button class="btn-reject" onclick="resolve(' + c.id + 
+                            ', \\'reject\\')">Reject</button>' +
                         '</div></div>'
                     ).join('');
                 });

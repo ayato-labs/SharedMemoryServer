@@ -1,7 +1,7 @@
+import asyncio
 import json
 import os
 import time
-import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
@@ -243,9 +243,15 @@ async def process_thought_core(
                 except aiosqlite.IntegrityError as ie:
                     await conn.rollback()
                     error_msg = f"Persistence failure (Duplicate ID): {ie}"
-                    logger.error(f"{error_msg} for session {session_id}, thought {thought_number}")
+                    logger.error(
+                        f"{error_msg} for session {session_id}, "
+                        f"thought {thought_number}"
+                    )
                     return {
-                        "error": "Thought number already exists. Please use a unique number or specify a revision.",
+                        "error": (
+                            "Thought number already exists. "
+                            "Please use a unique number or specify a revision."
+                        ),
                         "details": str(ie),
                         "thoughtNumber": thought_number,
                         "totalThoughts": total_thoughts,

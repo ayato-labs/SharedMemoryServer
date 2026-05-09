@@ -47,7 +47,8 @@ class ModelManager:
             self._indices[pool_name] = (self._indices.get(pool_name, 0) + 1) % len(pool)
             is_full_cycle = self._indices[pool_name] == 0
             logger.info(
-                f"Model pool '{pool_name}' rotated to: {self.get_current_model(pool_name)} (Full cycle: {is_full_cycle})"
+                f"Model pool '{pool_name}' rotated to: {self.get_current_model(pool_name)} "
+                f"(Full cycle: {is_full_cycle})"
             )
             return is_full_cycle
 
