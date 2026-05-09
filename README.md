@@ -1,4 +1,4 @@
-﻿# Ripen: The "Trust Layer" for Multi-Agent AI Teams 🧠
+# Ripen: The "Trust Layer" for Multi-Agent AI Teams 🧠
 
 **Centralized Knowledge Hub for AI-Driven Development. One server. Every tool. Every teammate.**
 
@@ -137,7 +137,13 @@ graph TD
 Visit `http://localhost:8377/dashboard` to see:
 - **Active Agents**: Which IDEs/tools are currently connected
 - **Knowledge Flow**: Real-time activity timeline
-- **Hub Status**: Transport mode and configuration
+- **Hub Status**: Real-time status of AI Brain (LLM) and Memory Bank (Vector DB)
+
+### 6. Reliability & Health Monitoring (Plan A Strategy)
+Ripen prioritizes **system stability** over massive internal dependencies.
+- **Proactive Health Checks**: The Hub automatically detects if Ollama or Gemini are available.
+- **Zero-Crash Lifespan**: Instead of failing silently or crashing during heavy inference, Ripen provides clear visual warnings in the Dashboard and CLI if a backend is missing.
+- **Dependency-Clean**: By leveraging FastEmbed for retrieval and "Bringing Your Own LLM" for reasoning, we ensure the Hub remains lightweight enough to run in the background of any 16GB RAM development machine.
 
 ---
 
