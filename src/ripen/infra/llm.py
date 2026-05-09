@@ -15,6 +15,11 @@ class LlmProvider(abc.ABC):
         """Generates text content based on the prompt."""
         pass
 
+    @abc.abstractmethod
+    async def check_health(self) -> bool:
+        """Checks if the provider is correctly configured and reachable."""
+        pass
+
 
 class GeminiProvider(LlmProvider):
     """Gemini API provider."""
@@ -174,6 +179,14 @@ class GeminiProvider(LlmProvider):
             logger.error(f"Gemini API call failed: {e}")
             raise
 
+    async def check_health(self) -> bool:
+        """Checks if Gemini is configured."""
+        try:
+            client = self._get_client()
+            return client is not None
+        except Exception:
+            return False
+
 
 class OllamaProvider(LlmProvider):
     """Ollama local provider (OpenAI-compatible API)."""
@@ -218,6 +231,16 @@ class OllamaProvider(LlmProvider):
             except Exception as e:
                 logger.error(f"Ollama call failed: {e}")
                 raise RuntimeError(f"Ollama provider error: {e}") from e
+
+    async def check_health(self) -> bool:
+        """Checks if Ollama is reachable."""
+        url = f"{self.base_url}/api/tags"
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            try:
+                response = await client.get(url)
+                return response.status_code == 200
+            except Exception:
+                return False
 
 
 def get_llm_provider() -> LlmProvider:

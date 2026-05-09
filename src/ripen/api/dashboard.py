@@ -2,6 +2,8 @@ from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route, Router
 
 from ripen.ops import management
+from ripen.infra.llm import get_llm_provider
+from ripen.infra.embeddings import check_embeddings_health
 
 
 async def get_dashboard_html(request):
@@ -227,11 +229,16 @@ async def get_dashboard_html(request):
     <div class="container">
         <header>
             <div class="logo">RIPEN HUB</div>
-            <div class="status-badge">
+            <div class="status-badge" id="system-status">
                 <div class="pulse"></div>
                 SYSTEM ONLINE
             </div>
         </header>
+
+        <div id="health-banner" style="display: none; margin-bottom: 2rem; padding: 1rem 1.5rem; border-radius: 16px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: var(--danger); font-size: 0.875rem; align-items: center; gap: 0.75rem;">
+            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span><strong>Attention:</strong> AI Brain (LLM) is offline. Knowledge ripening and synthesis are disabled.</span>
+        </div>
 
         <div class="grid">
             <main>
@@ -253,14 +260,13 @@ async def get_dashboard_html(request):
 
                 <div class="card">
                     <h2 class="section-title">Hub Status</h2>
-                    <div id="stats" style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Role:</span>
-                            <span style="color: var(--text-primary); font-weight: 600;">Central Hub</span>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span>AI Brain:</span>
+                            <span id="llm-status" style="font-weight: 600;">Checking...</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
-                            <span>Transport:</span>
-                            <span style="color: var(--accent-secondary);">SSE (Shared)</span>
+                            <span>Memory Bank:</span>
+                            <span id="vector-status" style="font-weight: 600;">Checking...</span>
                         </div>
                     </div>
                 </div>
@@ -311,8 +317,41 @@ async def get_dashboard_html(request):
                 });
         }
 
+        function updateHealth() {
+            fetch('api/health')
+                .then(res => res.json())
+                .then(data => {
+                    const llmStatus = document.getElementById('llm-status');
+                    const vectorStatus = document.getElementById('vector-status');
+                    const banner = document.getElementById('health-banner');
+                    const systemStatus = document.getElementById('system-status');
+
+                    llmStatus.textContent = data.llm.status === 'ok' ? 'ACTIVE' : 'OFFLINE';
+                    llmStatus.style.color = data.llm.status === 'ok' ? 'var(--success)' : 'var(--danger)';
+
+                    vectorStatus.textContent = data.vector.status === 'ok' ? 'ACTIVE' : 'OFFLINE';
+                    vectorStatus.style.color = data.vector.status === 'ok' ? 'var(--success)' : 'var(--danger)';
+
+                    if (data.llm.status !== 'ok') {
+                        banner.style.display = 'flex';
+                        systemStatus.style.color = 'var(--warning)';
+                        systemStatus.style.background = 'rgba(245, 158, 11, 0.1)';
+                        systemStatus.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+                        systemStatus.querySelector('.pulse').style.background = 'var(--warning)';
+                    } else {
+                        banner.style.display = 'none';
+                        systemStatus.style.color = 'var(--success)';
+                        systemStatus.style.background = 'rgba(16, 185, 129, 0.1)';
+                        systemStatus.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                        systemStatus.querySelector('.pulse').style.background = 'var(--success)';
+                    }
+                });
+        }
+
         updateDashboard();
+        updateHealth();
         setInterval(updateDashboard, 5000);
+        setInterval(updateHealth, 10000);
     </script>
 </body>
 </html>
@@ -337,11 +376,26 @@ async def api_resolve_conflict(request):
     return JSONResponse({"status": "success", "message": result})
 
 
+async def api_health(request):
+    llm = get_llm_provider()
+    llm_ok = await llm.check_health()
+    
+    from ripen.common.config import settings
+    vector_ok = await check_embeddings_health()
+    
+    return JSONResponse({
+        "llm": {"status": "ok" if llm_ok else "failed", "provider": llm.__class__.__name__},
+        "vector": {"status": "ok" if vector_ok else "failed", "engine": settings.embedding_engine},
+        "system": "online"
+    })
+
+
 router = Router(
     [
         Route("/dashboard", get_dashboard_html, methods=["GET"]),
         Route("/api/history", api_history, methods=["GET"]),
         Route("/api/conflicts", api_conflicts, methods=["GET"]),
         Route("/api/conflicts/{id:int}/resolve", api_resolve_conflict, methods=["POST"]),
+        Route("/api/health", api_health, methods=["GET"]),
     ]
 )

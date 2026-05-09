@@ -144,6 +144,20 @@ SseServerTransport.handle_post_message = _patched_handle_post
 async def lifespan(app: FastMCP):
     """Ensure database is ready and start background maintenance."""
     await init_db()
+    
+    # Proactive LLM Health Check
+    from ripen.infra.llm import get_llm_provider
+    provider = get_llm_provider()
+    logger.info(f"LLM Provider detected: {provider.__class__.__name__}")
+    
+    llm_ok = await provider.check_health()
+    if llm_ok:
+        logger.info("\033[1;32m[BACKEND STATUS] AI Brain (LLM): OK\033[0m")
+    else:
+        logger.warning("\033[1;31m[BACKEND STATUS] AI Brain (LLM): OFFLINE\033[0m")
+        logger.warning(">>> Knowledge ripening and synthesis features will be disabled.")
+        logger.warning(">>> Please check Ollama connectivity or Google API key settings.")
+
     # Start periodic database maintenance (PRAGMA optimize)
     create_background_task(start_database_maintenance(), name="db_maintenance")
     yield
