@@ -14,6 +14,13 @@ from ripen.common.utils import (
 )
 from ripen.infra.database import async_get_connection, update_access
 from ripen.infra.embeddings import compute_embeddings_bulk
+from ripen.infra.repository import (
+    AuditRepository,
+    BankRepository,
+    EmbeddingRepository,
+    EntityRepository,
+    RelationRepository,
+)
 
 logger = get_logger("bank")
 
@@ -55,8 +62,7 @@ async def save_bank_files(
     Saves bank files to disk and DB.
     Optimized to wrap file operations in a single lock session.
     """
-    cursor = await conn.execute("SELECT name FROM entities")
-    existing_entities = [r[0] for r in await cursor.fetchall()]
+    existing_entities = await EntityRepository.get_all_entity_names(conn)
     bank_dir = get_bank_dir()
     os.makedirs(bank_dir, exist_ok=True)
 
@@ -97,38 +103,23 @@ async def save_bank_files(
             path = item["path"]
 
             # 1. DB Sync
-            # Using same connection but explicit fetch
-            cursor = await conn.execute(
-                "SELECT content FROM bank_files WHERE filename = ?", (filename,)
-            )
-            old_content_row = await cursor.fetchone()
-            old_data = json.dumps({"content": old_content_row[0]}) if old_content_row else None
+            old_content = await BankRepository.get_file_content(conn, filename)
+            old_data = json.dumps({"content": old_content}) if old_content else None
 
-            await conn.execute(
-                "INSERT OR REPLACE INTO bank_files "
-                "(filename, content, updated_by) VALUES (?, ?, ?)",
-                (filename, content, agent_id),
-            )
-            await conn.execute(
-                "INSERT INTO audit_logs (table_name, content_id, action, "
-                "old_data, new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    "bank_files",
-                    filename,
-                    "UPDATE" if old_content_row else "INSERT",
-                    old_data,
-                    json.dumps({"content": content}),
-                    agent_id,
-                ),
+            await BankRepository.upsert_bank_file(conn, filename, content, agent_id)
+            await AuditRepository.log_action(
+                conn=conn,
+                table_name="bank_files",
+                content_id=filename,
+                action="UPDATE" if old_content else "INSERT",
+                old_data=old_data,
+                new_data=json.dumps({"content": content}),
+                agent_id=agent_id,
             )
 
             # 2. Vector Sync
             if vector:
-                await conn.execute(
-                    "INSERT OR REPLACE INTO embeddings "
-                    "(content_id, vector, model_name) VALUES (?, ?, ?)",
-                    (filename, json.dumps(vector).encode("utf-8"), settings.embedding_model),
-                )
+                await EmbeddingRepository.upsert_embedding(conn, filename, vector, settings.embedding_model)
 
             # 3. Disk Sync
             async with aiofiles.open(path, mode="w", encoding="utf-8") as f:
@@ -137,11 +128,8 @@ async def save_bank_files(
             # 4. Mentions Detection
             for entity_name in existing_entities:
                 if entity_name.lower() in content.lower():
-                    await conn.execute(
-                        "INSERT OR REPLACE INTO relations "
-                        "(subject, object, predicate, created_by) "
-                        "VALUES (?, ?, ?, ?)",
-                        (filename, entity_name, "mentions", agent_id),
+                    await RelationRepository.upsert_relation(
+                        conn, subject=filename, object_name=entity_name, predicate="mentions", agent_id=agent_id
                     )
 
     return f"Updated {len(items_to_process)} bank files"
@@ -157,10 +145,7 @@ async def read_bank_data(query: str | None = None):
         found_files = set()
 
         # Step 1: Get list of ACTIVE files from DB
-        active_files = []
-        async with await async_get_connection() as conn:
-            cursor = await conn.execute("SELECT filename FROM bank_files WHERE status = 'active'")
-            active_files = [r[0] for r in await cursor.fetchall()]
+        active_files = await BankRepository.get_active_filenames()
 
         if os.path.exists(bank_dir):
             for filename in os.listdir(bank_dir):
@@ -178,16 +163,12 @@ async def read_bank_data(query: str | None = None):
                         log_error(f"Failed to read bank file {filename}", e)
 
         # Step 2: Merge with recovering data from DB (only active ones)
-        async with await async_get_connection() as conn:
-            cursor = await conn.execute(
-                "SELECT filename, content FROM bank_files WHERE status = 'active'"
-            )
-            db_files = await cursor.fetchall()
-            for filename, content in db_files:
-                if filename not in found_files:
-                    if not query or query.lower() in content.lower():
-                        # Mark as recovered to avoid confusion
-                        bank_data[f"{filename} [RECOVERED]"] = content
+        db_files = await BankRepository.get_active_files_content()
+        for filename, content in db_files:
+            if filename not in found_files:
+                if not query or query.lower() in content.lower():
+                    # Mark as recovered to avoid confusion
+                    bank_data[f"{filename} [RECOVERED]"] = content
         logger.info(f"read_bank_data COMPLETE query={query}")
         return bank_data
 
@@ -199,8 +180,7 @@ async def repair_memory_logic():
         os.makedirs(bank_dir)
 
     async with await async_get_connection() as conn:
-        cursor = await conn.execute("SELECT filename, content FROM bank_files")
-        files = await cursor.fetchall()
+        files = await BankRepository.get_all_files_content(conn)
         count = 0
         for filename, content in files:
             path = safe_path_join(bank_dir, filename)
