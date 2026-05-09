@@ -40,11 +40,17 @@ class AuditRepository:
     """Repository for managing audit logs."""
     
     @staticmethod
-    async def log_action(conn, table_name: str, content_id: str, action: str, old_data: str | None, new_data: str, agent_id: str):
-        await conn.execute(
-            "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (table_name, content_id, action, old_data, new_data, agent_id),
-        )
+    async def log_action(conn, table_name: str, content_id: str, action: str, old_data: str | None, new_data: str, agent_id: str, meta_data: str | None = None):
+        if meta_data:
+            await conn.execute(
+                "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (table_name, content_id, action, old_data, new_data, agent_id, meta_data),
+            )
+        else:
+            await conn.execute(
+                "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (table_name, content_id, action, old_data, new_data, agent_id),
+            )
 
 class EntityRepository:
     """Repository for managing entities."""
@@ -54,6 +60,26 @@ class EntityRepository:
         cursor = await conn.execute("SELECT name FROM entities")
         return [r[0] for r in await cursor.fetchall()]
 
+    @staticmethod
+    async def get_entity_details(conn, name: str) -> dict | None:
+        cursor = await conn.execute("SELECT entity_type, description FROM entities WHERE name = ?", (name,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    async def upsert_entity(conn, name: str, entity_type: str, description: str, importance: int, agent_id: str):
+        await conn.execute(
+            "INSERT OR REPLACE INTO entities (name, entity_type, description, importance, updated_by) VALUES (?, ?, ?, ?, ?)",
+            (name, entity_type, description, importance, agent_id),
+        )
+
+    @staticmethod
+    async def increment_importance(conn, name: str):
+        await conn.execute(
+            "UPDATE entities SET importance = MIN(importance + 1, 10), updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+            (name,),
+        )
+
 class RelationRepository:
     """Repository for managing relations."""
     
@@ -62,6 +88,41 @@ class RelationRepository:
         await conn.execute(
             "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
             (subject, object_name, predicate, agent_id),
+        )
+
+    @staticmethod
+    async def upsert_relations_bulk(conn, relations: list[tuple[str, str, str, str]]):
+        await conn.executemany(
+            "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
+            relations,
+        )
+
+class ObservationRepository:
+    """Repository for managing observations."""
+    
+    @staticmethod
+    async def get_recent_observations(conn, entity_name: str, limit: int = 5) -> list[str]:
+        cursor = await conn.execute(
+            "SELECT content FROM observations WHERE entity_name = ? ORDER BY timestamp DESC LIMIT ?",
+            (entity_name, limit)
+        )
+        return [row[0] for row in await cursor.fetchall()]
+
+    @staticmethod
+    async def insert_observation(conn, entity_name: str, content: str, agent_id: str):
+        await conn.execute(
+            "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
+            (entity_name, content, agent_id),
+        )
+
+class ConflictRepository:
+    """Repository for managing conflicts."""
+    
+    @staticmethod
+    async def insert_conflict(conn, entity_name: str, existing_content: str, new_content: str, reason: str, agent_id: str):
+        await conn.execute(
+            "INSERT INTO conflicts (entity_name, existing_content, new_content, reason, agent_id) VALUES (?, ?, ?, ?, ?)",
+            (entity_name, existing_content, new_content, reason, agent_id),
         )
 
 class EmbeddingRepository:
@@ -100,23 +161,63 @@ class TagRepository:
             "INSERT OR IGNORE INTO tags (tag, content_id, content_type) VALUES (?, ?, ?)", data
         )
 
-class ObservationRepository:
-    """Repository for managing observations."""
-    
     @staticmethod
-    async def get_recent_observations(conn, entity_name: str, limit: int = 5) -> list[str]:
+    async def get_content_ids_by_tags(conn, tags: list[str]) -> list[str]:
+        placeholders = ",".join(["?"] * len(tags))
         cursor = await conn.execute(
-            "SELECT content FROM observations WHERE entity_name = ? ORDER BY timestamp DESC LIMIT ?",
-            (entity_name, limit)
+            f"SELECT DISTINCT content_id FROM tags WHERE tag IN ({placeholders})", tags
         )
-        return [row[0] for row in await cursor.fetchall()]
+        rows = await cursor.fetchall()
+        return [r[0] for r in rows]
 
-class ConflictRepository:
-    """Repository for managing conflicts."""
-    
+class GraphRepository:
+    """Repository for retrieving complete graph segments."""
+
     @staticmethod
-    async def insert_conflict(conn, entity_name: str, existing_content: str, new_content: str, reason: str, agent_id: str):
-        await conn.execute(
-            "INSERT INTO conflicts (entity_name, existing_content, new_content, reason, agent_id) VALUES (?, ?, ?, ?, ?)",
-            (entity_name, existing_content, new_content, reason, agent_id),
+    async def get_full_graph(conn):
+        cursor = await conn.execute("SELECT * FROM entities WHERE status = 'active'")
+        entities = await cursor.fetchall()
+        cursor = await conn.execute("SELECT * FROM relations WHERE status = 'active'")
+        relations = await cursor.fetchall()
+        cursor = await conn.execute("SELECT * FROM observations WHERE status = 'active'")
+        observations = await cursor.fetchall()
+        return entities, relations, observations
+
+    @staticmethod
+    async def search_graph(conn, query: str):
+        cursor = await conn.execute(
+            "SELECT * FROM entities WHERE "
+            "(name LIKE ? OR description LIKE ? OR entity_type LIKE ?) AND status = 'active'",
+            (f"%{query}%", f"%{query}%", f"%{query}%"),
         )
+        matched_entities = await cursor.fetchall()
+        entity_matched_names = [e["name"] for e in matched_entities]
+
+        cursor = await conn.execute(
+            "SELECT * FROM observations WHERE content LIKE ? AND status = 'active'",
+            (f"%{query}%",),
+        )
+        direct_observations = await cursor.fetchall()
+        obs_matched_entity_names = list(set([o["entity_name"] for o in direct_observations]))
+
+        all_matched_names = list(set(entity_matched_names + obs_matched_entity_names))
+
+        if not all_matched_names:
+            return [], [], [], []
+
+        placeholders = ",".join(["?"] * len(all_matched_names))
+        cursor = await conn.execute(
+            f"SELECT * FROM relations WHERE (subject IN ({placeholders}) "
+            f"OR object IN ({placeholders})) AND status = 'active'",
+            all_matched_names + all_matched_names,
+        )
+        relations = await cursor.fetchall()
+
+        cursor = await conn.execute(
+            "SELECT * FROM observations WHERE entity_name IN "
+            f"({placeholders}) AND status = 'active'",
+            all_matched_names,
+        )
+        linked_observations = await cursor.fetchall()
+        
+        return matched_entities, relations, direct_observations, linked_observations

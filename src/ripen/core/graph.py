@@ -14,8 +14,13 @@ from ripen.infra.database import async_get_connection
 from ripen.infra.embeddings import compute_embeddings_bulk
 from ripen.infra.llm import get_llm_provider
 from ripen.infra.repository import (
+    AuditRepository,
     ConflictRepository,
+    EmbeddingRepository,
+    EntityRepository,
+    GraphRepository,
     ObservationRepository,
+    RelationRepository,
     TagRepository,
 )
 
@@ -287,13 +292,8 @@ async def search_by_tags(tags: list[str], conn) -> list[str]:
     if not tags:
         return []
 
-    placeholders = ",".join(["?"] * len(tags))
     try:
-        cursor = await conn.execute(
-            f"SELECT DISTINCT content_id FROM tags WHERE tag IN ({placeholders})", tags
-        )
-        rows = await cursor.fetchall()
-        return [r[0] for r in rows]
+        return await TagRepository.get_content_ids_by_tags(conn, tags)
     except Exception as e:
         get_logger("graph").error(f"Tag search failed: {e}")
         return []
@@ -365,19 +365,11 @@ async def save_entities(
         vector = vectors[i] if i < len(vectors) else None
 
         # Fetch old state for audit
-        cursor = await conn.execute(
-            "SELECT entity_type, description FROM entities WHERE name = ?", (name,)
-        )
-        old_row = await cursor.fetchone()
-        old_data = json.dumps(dict(old_row)) if old_row else None
+        old_row = await EntityRepository.get_entity_details(conn, name)
+        old_data = json.dumps(old_row) if old_row else None
         action = "UPDATE" if old_row else "INSERT"
 
-        await conn.execute(
-            "INSERT OR REPLACE INTO entities "
-            "(name, entity_type, description, importance, updated_by) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (name, e_type, desc, importance, agent_id),
-        )
+        await EntityRepository.upsert_entity(conn, name, e_type, desc, importance, agent_id)
 
         # Log Audit
         new_data = json.dumps({"name": name, "type": e_type, "desc": desc})
@@ -389,19 +381,12 @@ async def save_entities(
                 "timestamp": datetime.now().isoformat(),
             }
         )
-        await conn.execute(
-            "INSERT INTO audit_logs (table_name, content_id, action, "
-            "old_data, new_data, agent_id, meta_data) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("entities", name, action, old_data, new_data, agent_id, meta),
+        await AuditRepository.log_action(
+            conn, "entities", name, action, old_data, new_data, agent_id, meta
         )
 
         if vector:
-            await conn.execute(
-                "INSERT OR REPLACE INTO embeddings "
-                "(content_id, vector, model_name) VALUES (?, ?, ?)",
-                (name, json.dumps(vector).encode("utf-8"), settings.embedding_model),
-            )
+            await EmbeddingRepository.upsert_embedding(conn, name, vector, settings.embedding_model)
         success_count += 1
 
     msg = f"Saved {success_count} entities (agent={agent_id})"
@@ -430,31 +415,24 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
 
     if valid_relations:
         # DB schema was updated to use subject, object, predicate
-        await conn.executemany(
-            "INSERT OR REPLACE INTO relations "
-            "(subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
-            valid_relations,
-        )
+        await RelationRepository.upsert_relations_bulk(conn, valid_relations)
 
         # Log Audit for each relation
         for subject, obj, predicate, creator in valid_relations:
-            await conn.execute(
-                "INSERT INTO audit_logs (table_name, content_id, action, "
-                "new_data, agent_id, meta_data) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    "relations",
-                    f"{subject}->{predicate}->{obj}",
-                    "INSERT",
-                    json.dumps({"subject": subject, "object": obj, "predicate": predicate}),
-                    creator,
-                    json.dumps(
-                        {
-                            "agent_context": "relation_mapping",
-                            "conflict_info": None,
-                            "timestamp": datetime.now().isoformat(),
-                        }
-                    ),
+            await AuditRepository.log_action(
+                conn,
+                "relations",
+                f"{subject}->{predicate}->{obj}",
+                "INSERT",
+                None,
+                json.dumps({"subject": subject, "object": obj, "predicate": predicate}),
+                creator,
+                json.dumps(
+                    {
+                        "agent_context": "relation_mapping",
+                        "conflict_info": None,
+                        "timestamp": datetime.now().isoformat(),
+                    }
                 ),
             )
 
@@ -510,15 +488,9 @@ async def save_observations(
         if is_actually_conflict:
             continue
 
-        await conn.execute(
-            "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
-            (entity_name, content, agent_id),
-        )
-        await conn.execute(
-            "UPDATE entities SET importance = MIN(importance + 1, 10), "
-            "updated_at = CURRENT_TIMESTAMP WHERE name = ?",
-            (entity_name,),
-        )
+        await ObservationRepository.insert_observation(conn, entity_name, content, agent_id)
+        await EntityRepository.increment_importance(conn, entity_name)
+        
         # Log Audit
         conflict_meta = next((c for c in conflicts_to_report if c["entity"] == entity_name), None)
         meta = json.dumps(
@@ -528,17 +500,15 @@ async def save_observations(
                 "timestamp": datetime.now().isoformat(),
             }
         )
-        await conn.execute(
-            "INSERT INTO audit_logs (table_name, content_id, action, "
-            "new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                "observations",
-                entity_name,
-                "INSERT",
-                json.dumps({"content": content}),
-                agent_id,
-                meta,
-            ),
+        await AuditRepository.log_action(
+            conn,
+            "observations",
+            entity_name,
+            "INSERT",
+            None,
+            json.dumps({"content": content}),
+            agent_id,
+            meta,
         )
         success_count += 1
 
@@ -552,43 +522,7 @@ async def save_observations(
 async def get_graph_data(query: str | None = None):
     async with await async_get_connection() as conn:
         if query:
-            cursor = await conn.execute(
-                "SELECT * FROM entities WHERE "
-                "(name LIKE ? OR description LIKE ? OR entity_type LIKE ?) AND status = 'active'",
-                (f"%{query}%", f"%{query}%", f"%{query}%"),
-            )
-            matched_entities = await cursor.fetchall()
-            entity_matched_names = [e["name"] for e in matched_entities]
-
-            # Also search observations directly
-            cursor = await conn.execute(
-                "SELECT * FROM observations WHERE content LIKE ? AND status = 'active'",
-                (f"%{query}%",),
-            )
-            direct_observations = await cursor.fetchall()
-            obs_matched_entity_names = list(set([o["entity_name"] for o in direct_observations]))
-
-            all_matched_names = list(set(entity_matched_names + obs_matched_entity_names))
-
-            if not all_matched_names:
-                return {"entities": [], "relations": [], "observations": []}
-
-            placeholders = ",".join(["?"] * len(all_matched_names))
-            cursor = await conn.execute(
-                f"SELECT * FROM relations WHERE (subject IN ({placeholders}) "
-                f"OR object IN ({placeholders})) AND status = 'active'",
-                all_matched_names + all_matched_names,
-            )
-            relations = await cursor.fetchall()
-
-            # For observations, we take the union of direct matches
-            # and those linked to matched entities
-            cursor = await conn.execute(
-                "SELECT * FROM observations WHERE entity_name IN "
-                f"({placeholders}) AND status = 'active'",
-                all_matched_names,
-            )
-            linked_observations = await cursor.fetchall()
+            matched_entities, relations, direct_observations, linked_observations = await GraphRepository.search_graph(conn, query)
 
             # Combine and de-duplicate observations by content/entity
             final_obs_map = {}
@@ -612,12 +546,7 @@ async def get_graph_data(query: str | None = None):
                 ],
             }
         else:
-            cursor = await conn.execute("SELECT * FROM entities WHERE status = 'active'")
-            entities = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM relations WHERE status = 'active'")
-            relations = await cursor.fetchall()
-            cursor = await conn.execute("SELECT * FROM observations WHERE status = 'active'")
-            observations = await cursor.fetchall()
+            entities, relations, observations = await GraphRepository.get_full_graph(conn)
             return {
                 "entities": [dict(e) for e in entities],
                 "relations": [dict(r) for r in relations],
