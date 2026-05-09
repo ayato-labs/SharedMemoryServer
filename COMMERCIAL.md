@@ -1,30 +1,57 @@
-# Commercial License Information
+# Commercial Licensing & 180-Day Evaluation
 
-Ripen is dual-licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** and a **Commercial License**.
+Ripen は、オープンソースコミュニティへの貢献と、プロフェッショナルな開発チームによる持続可能な利用の両立を目指しています。
 
-## Why a Commercial License?
+## 1. オープンソース利用 (AGPL-3.0)
+個人利用、教育目的、またはソースコードを公開できるプロジェクトでは、引き続き **AGPL-3.0** の下で無料で利用可能です。
+**重要**: Ripen をネットワーク越しに提供（SaaS）したり、改変して利用したりする場合、そのソースコードをユーザーに対して公開する義務があります。
 
-The AGPL-3.0 is a strong copyleft license. If you use this software to provide a network service (SaaS), you are obligated to release your entire source code under the same license.
+## 2. 商用ライセンス（180日間無料トライアル）
+「ソースコードを公開したくない」「法務上のリスクを避けたい」企業ユーザー向けに、商用ライセンスを提供しています。
 
-A Commercial License is required if you wish to:
-1.  **Avoid AGPL-3.0 Obligations**: Provide Ripen as a part of a proprietary SaaS product without disclosing your source code.
-2.  **Embedded Use**: Integrate the server into a closed-source commercial application.
-3.  **Enterprise Support**: Receive guaranteed support, priority bug fixes, and custom feature development.
+### ✨ 180日間の評価期間（約6ヶ月）
+私たちは Ripen の価値を確信しています。そのため、プロフェッショナルチームに対して、商用環境での **180日間無料試用** を提供します。
+- **目的**: 既存インフラとの長期的な統合検証、SSEハブによる知識共有の「AHA体験」の確信。
+- **継続利用**: 180日を過ぎて商用利用を継続する場合は、有料ライセンスの購入が必要です。
 
-## Pricing Tiers (Estimates)
+### なぜ商用ライセンスが必要なのか？
+- **ソース公開の免除**: 自社の機密コードやSaaS基盤の一部として Ripen を利用しても、自社コードを公開する必要がありません。
+- **コンプライアンスの容易化**: AGPL-3.0 の複雑な法的要件を回避し、エンタープライズ環境での導入をスムーズにします。
+- **搾取の防止**: あなたの支払うライセンス料は、サードパーティのクローン業者の利益ではなく、Ripen の維持と機能改善（そして開発者の正当な報酬）に直接充てられます。
 
-| Tier | Target | Annual Fee (Approx.) |
+## 3. ライセンス形態（時給換算モデル）
+私たちは、このツールが節約する「エージェントの迷走時間」と「人間の検索コスト」を価値として換算しています。
+
+| ティア | 対象 | 料金 |
 | :--- | :--- | :--- |
-| **Indie** | Individuals / Revenue < $100k | $500 / year |
-| **Startup** | Small teams / < 50 employees | $2,000 / year |
-| **Enterprise** | Large organizations | Contact for quote |
+| **Community** | 個人・教育・OSS | $0 (AGPL-3.0適用) |
+| **Professional** | 小規模チーム (最大5人) | $X / 月 (最初の180日間無料) |
+| **Enterprise** | 大規模組織・SaaSベンダー | 個別見積もり |
 
-## Contact for Licensing
-
-For inquiries regarding commercial licensing, custom deployments, or professional services, please contact Ayato Studio:
-
+## 4. お問い合わせ
+トライアルの登録やライセンスに関するご相談は、下記までご連絡ください。
 - **Email**: [licensing@ayato-studio.ai](mailto:licensing@ayato-studio.ai)
-- **Website**: [https://ayato-studio.ai/licensing](https://ayato-studio.ai/licensing)
+- **GitHub**: [ayato-labs](https://github.com/ayato-labs)
+
+## 5. トライアル開始からライセンス取得までの流れ
+
+Ripen は現在、開発者による手動でのライセンス管理を行っています。商用トライアルを開始する際は、以下のステップを踏んでください。
+
+### STEP 1: トライアル開始の通知（入り口）
+商用利用（ソース非公開での利用）を開始する際に、以下のいずれかの方法で「利用開始」をご連絡ください。
+
+- **Email**: [licensing@ayato-studio.ai](mailto:licensing@ayato-studio.ai) 宛に、社名と開始日を送信。
+- **GitHub**: [ayato-labs/ripen](https://github.com/ayato-labs/ripen) の Discussion または Issue にて「Commercial Trial Start」と投稿。
+*※この連絡をもって、180日間のカウントダウンが開始されます。*
+
+### STEP 2: 180日間の自由な試用
+一切の制限なく、自社のプライベートな開発環境で Ripen を利用できます。この期間中、ソースコードを公開する義務はありません。
+
+### STEP 3: 180日経過後のアクション
+試用期間が終了する前に、以下のいずれかを選択してください：
+1. **商用ライセンスの購入**: 継続してソース非公開で利用する場合。
+2. **AGPL-3.0への移行**: 継続利用するが、Ripen に関連する部分のソースコードを公開する（オープンソースへの貢献）。
+3. **利用の停止**: Ripen の利用を終了する。
 
 ---
 *Copyright (C) 2026 Ayato-Labs. All rights reserved.*

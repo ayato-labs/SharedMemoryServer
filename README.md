@@ -1,10 +1,15 @@
-﻿# Ripen: The "Trust Layer" for Multi-Agent AI Teams 🧠
+# Ripen: The "Trust Layer" for Multi-Agent AI Teams 🧠
 
 **Centralized Knowledge Hub for AI-Driven Development. Designed for Local and Small-Team workflows.**
 
 [![PyPI - Version](https://img.shields.io/pypi/v/ripen)](https://pypi.org/project/ripen/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Beta-orange)](CHANGELOG.md)
+
+> [!TIP]
+> **🚀 180-Day Free Commercial Trial Available!**
+> We offer a generous **180-day (approx. 6 months) evaluation period** for professional teams. Test Ripen in your proprietary infrastructure risk-free.
+> **How to Start**: Just send a quick email to [licensing@ayato-studio.ai](mailto:licensing@ayato-studio.ai) or open a GitHub issue to notify us of your trial start. No strings attached for 6 months. [See COMMERCIAL.md](COMMERCIAL.md).
 
 > 🇯🇵 **Claude Code・Cursor・Antigravity・Gemini CLI——違うアカウントを使った別の人のPCで稼働するAIエージェントとの間でも、知識を共有できる。これが Ripen の根本的な価値です。**
 
@@ -200,6 +205,6 @@ Download from [GitHub Releases](https://github.com/ayato-labs/ripen/releases) �
 ## License & Governance
 
 - **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
-- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available.
+- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. **Includes a 180-day (6-month) free trial.**
 
 *Ripen: Making AI agents remember what your team already decided.*
