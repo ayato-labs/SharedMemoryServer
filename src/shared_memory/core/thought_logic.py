@@ -1,6 +1,8 @@
 import json
 import os
 import time
+import asyncio
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -27,6 +29,11 @@ logger = get_logger("thought_logic")
 LAST_RECOVERY_TIME = datetime.min
 RECOVERY_COOLDOWN = timedelta(minutes=10)
 _THOUGHTS_INITIALIZED = False
+
+# Session-level locks to serialize thought processing per session.
+# NOTE: In extremely long-running servers with millions of unique sessions, 
+# a periodic pruning of unused locks may be required to reclaim memory.
+_SESSION_LOCKS: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 @retry_on_db_lock()
@@ -70,10 +77,22 @@ async def init_thoughts_db(force: bool = False):
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thought_session ON thought_history (session_id)"
         )
-        await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_thought_number "
-            "ON thought_history (session_id, thought_number)"
-        )
+        # Unique constraint to prevent duplicate thought numbers within a session
+        try:
+            await conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_thought_number_unique "
+                "ON thought_history (session_id, thought_number)"
+            )
+        except aiosqlite.IntegrityError:
+            logger.error(
+                "CRITICAL INTEGRITY WARNING: Duplicate thought_numbers detected in database. "
+                "Unique constraint could not be applied at the DB level. "
+                "Falling back to non-unique index. Please clean up duplicate data."
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_thought_number "
+                "ON thought_history (session_id, thought_number)"
+            )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thought_timestamp ON thought_history (timestamp)"
         )
@@ -135,154 +154,188 @@ async def process_thought_core(
     validation, and persistence.
     """
     session_id = session_id or "default_session"
-    try:
-        start_total = time.perf_counter()
 
-        # 0. Infrastructure readiness
-        # This ensures the DB exists even if the server
-        # lifespan didn't run.
-        from shared_memory.infra.database import init_db
+    async with _SESSION_LOCKS[session_id]:
+        try:
+            start_total = time.perf_counter()
 
-        t_init_start = time.perf_counter()
-        await init_db()
-        await init_thoughts_db()
-        dur_init = time.perf_counter() - t_init_start
+            # 0. Infrastructure readiness
+            # This ensures the DB exists even if the server
+            # lifespan didn't run.
+            from shared_memory.infra.database import init_db
 
-        logger.info(
-            f"Processing thought #{thought_number}/{total_thoughts} for session: {session_id}"
-        )
+            t_init_start = time.perf_counter()
+            await init_db()
+            await init_thoughts_db()
+            dur_init = time.perf_counter() - t_init_start
 
-        # 1. Security: Mask sensitive data
-        masked_thought = mask_sensitive_data(thought)
+            logger.info(
+                f"Processing thought #{thought_number}/{total_thoughts} for session: {session_id}"
+            )
 
-        async with await async_get_thoughts_connection() as conn:
-            # 2. Validation: Check sequence integrity
-            if is_revision and revises_thought:
-                cursor = await conn.execute(
-                    "SELECT id FROM thought_history WHERE session_id = ? AND thought_number = ?",
-                    (session_id, revises_thought),
-                )
-                if not await cursor.fetchone():
-                    error_msg = (
-                        f"Invalid revision: Thought #{revises_thought} "
-                        f"does not exist in session '{session_id}'"
+            # 1. Security: Mask sensitive data
+            masked_thought = mask_sensitive_data(thought)
+
+            async with await async_get_thoughts_connection() as conn:
+                # 2. Validation: Check sequence integrity
+                # 2.1 Check for revisions
+                if is_revision and revises_thought:
+                    cursor = await conn.execute(
+                        "SELECT id FROM thought_history WHERE session_id = ? AND thought_number = ?",
+                        (session_id, revises_thought),
                     )
+                    if not await cursor.fetchone():
+                        error_msg = (
+                            f"Invalid revision: Thought #{revises_thought} "
+                            f"does not exist in session '{session_id}'"
+                        )
+                        return {
+                            "error": error_msg,
+                            "thoughtNumber": thought_number,
+                            "totalThoughts": total_thoughts,
+                        }
+                
+                # 2.2 Explicit Duplicate Check (UX/Performance)
+                if not is_revision:
+                    cursor = await conn.execute(
+                        "SELECT id FROM thought_history WHERE session_id = ? AND thought_number = ?",
+                        (session_id, thought_number),
+                    )
+                    if await cursor.fetchone():
+                        error_msg = (
+                            f"Duplicate thought number: #{thought_number} "
+                            f"already exists in session '{session_id}'. "
+                            "If you intended to revise, set is_revision=True."
+                        )
+                        logger.warning(error_msg)
+                        return {
+                            "error": error_msg,
+                            "thoughtNumber": thought_number,
+                            "totalThoughts": total_thoughts,
+                        }
+
+                # 3. Persistence: Insert thought with metadata (filled post-search)
+                t_db_start = time.perf_counter()
+                try:
+                    await conn.execute(
+                        """
+                        INSERT INTO thought_history (
+                            session_id, thought_number, total_thoughts, thought,
+                            next_thought_needed, is_revision, revises_thought,
+                            branch_from_thought, branch_id, agent_id, meta_data
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            session_id,
+                            thought_number,
+                            total_thoughts,
+                            masked_thought,
+                            1 if next_thought_needed else 0,
+                            1 if is_revision else 0,
+                            revises_thought,
+                            branch_from_thought,
+                            branch_id,
+                            agent_id,
+                            json.dumps({"env": "development", "timestamp": datetime.now().isoformat()}),
+                        ),
+                    )
+                    await conn.commit()
+                except aiosqlite.IntegrityError as ie:
+                    await conn.rollback()
+                    error_msg = f"Persistence failure (Duplicate ID): {ie}"
+                    logger.error(f"{error_msg} for session {session_id}, thought {thought_number}")
                     return {
-                        "error": error_msg,
+                        "error": "Thought number already exists. Please use a unique number or specify a revision.",
+                        "details": str(ie),
                         "thoughtNumber": thought_number,
                         "totalThoughts": total_thoughts,
                     }
+                
+                dur_db = time.perf_counter() - t_db_start
 
-            # 3. Persistence: Insert thought with metadata (filled post-search)
-            t_db_start = time.perf_counter()
-            await conn.execute(
-                """
-                INSERT INTO thought_history (
-                    session_id, thought_number, total_thoughts, thought,
-                    next_thought_needed, is_revision, revises_thought,
-                    branch_from_thought, branch_id, agent_id, meta_data
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    session_id,
-                    thought_number,
-                    total_thoughts,
-                    masked_thought,
-                    1 if next_thought_needed else 0,
-                    1 if is_revision else 0,
-                    revises_thought,
-                    branch_from_thought,
-                    branch_id,
-                    agent_id,
-                    json.dumps({"env": "development", "timestamp": datetime.now().isoformat()}),
-                ),
-            )
-            await conn.commit()
-            dur_db = time.perf_counter() - t_db_start
+                # 4. Statistics
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM thought_history WHERE session_id = ?",
+                    (session_id,),
+                )
+                row = await cursor.fetchone()
+                history_length = row[0] if row else 0
 
-            # 4. Statistics
-            cursor = await conn.execute(
-                "SELECT COUNT(*) FROM thought_history WHERE session_id = ?",
-                (session_id,),
-            )
-            row = await cursor.fetchone()
-            history_length = row[0] if row else 0
+                branches = [r[0] for r in await cursor.fetchall()]
 
-            branches = [r[0] for r in await cursor.fetchall()]
+                await conn.commit()
 
-            await conn.commit()
+            # 6. Salvage & Accretion (The Synergy)
+            # 6.1 Accretion: Asynchronously extract and save new knowledge from this thought
+            from shared_memory.core.distiller import incremental_distill_knowledge
 
-        # 6. Salvage & Accretion (The Synergy)
-        # 6.1 Accretion: Asynchronously extract and save new knowledge from this thought
-        from shared_memory.core.distiller import incremental_distill_knowledge
-
-        logger.info(f"Triggering incremental distillation for thought in session: {session_id}")
-        from shared_memory.common.tasks import create_background_task
-
-        create_background_task(
-            incremental_distill_knowledge(session_id, thought),
-            name=f"incremental_distill_{session_id}",
-        )
-
-        # 6.2 Salvage: Synchronously retrieve and rerank related past knowledge
-        t_salvage_start = time.perf_counter()
-        history = await get_thought_history(session_id)
-        related_knowledge = await salvage_related_knowledge(thought, session_id, history)
-        dur_salvage = time.perf_counter() - t_salvage_start
-
-        # 6.3 Traceability: Record search results in metadata
-        async with await async_get_thoughts_connection() as conn:
-            search_meta = {
-                "hits_count": len(related_knowledge),
-                "hit_ids": [k["id"] for k in related_knowledge],
-                "env": "development",
-                "timestamp": datetime.now().isoformat(),
-            }
-            await conn.execute(
-                "UPDATE thought_history SET meta_data = ? "
-                "WHERE session_id = ? AND thought_number = ?",
-                (json.dumps(search_meta), session_id, thought_number),
-            )
-            await conn.commit()
-
-        # 7. Opportunistic Recovery: Disabled during tests to prevent GHA hangs
-        if "PYTEST_CURRENT_TEST" not in os.environ:
+            logger.info(f"Triggering incremental distillation for thought in session: {session_id}")
             from shared_memory.common.tasks import create_background_task
 
-            create_background_task(trigger_opportunistic_recovery(), name="opportunistic_recovery")
+            create_background_task(
+                incremental_distill_knowledge(session_id, thought),
+                name=f"incremental_distill_{session_id}",
+            )
 
-        # 8. Final Distillation (Session Wrap-up)
-        if not next_thought_needed:
-            from shared_memory.core.distiller import auto_distill_knowledge
+            # 6.2 Salvage: Synchronously retrieve and rerank related past knowledge
+            t_salvage_start = time.perf_counter()
+            history = await get_thought_history(session_id)
+            related_knowledge = await salvage_related_knowledge(thought, session_id, history)
+            dur_salvage = time.perf_counter() - t_salvage_start
 
-            # Ensure the complete history is analyzed one last time for synthesis
-            await auto_distill_knowledge(session_id, history)
+            # 6.3 Traceability: Record search results in metadata
             async with await async_get_thoughts_connection() as conn:
+                search_meta = {
+                    "hits_count": len(related_knowledge),
+                    "hit_ids": [k["id"] for k in related_knowledge],
+                    "env": "development",
+                    "timestamp": datetime.now().isoformat(),
+                }
                 await conn.execute(
-                    "UPDATE thought_history SET distilled = 1 WHERE session_id = ?",
-                    (session_id,),
+                    "UPDATE thought_history SET meta_data = ? "
+                    "WHERE session_id = ? AND thought_number = ?",
+                    (json.dumps(search_meta), session_id, thought_number),
                 )
                 await conn.commit()
 
-        total_dur = time.perf_counter() - start_total
-        logger.info(
-            f"PERF [process_thought_core]: session={session_id} "
-            f"total={total_dur:.3f}s (init={dur_init:.3f}s, db_insert={dur_db:.3f}s, "
-            f"salvage={dur_salvage:.3f}s)"
-        )
+            # 7. Opportunistic Recovery: Disabled during tests to prevent GHA hangs
+            if "PYTEST_CURRENT_TEST" not in os.environ:
+                from shared_memory.common.tasks import create_background_task
 
-        return {
-            "thoughtNumber": thought_number,
-            "totalThoughts": total_thoughts,
-            "nextThoughtNeeded": next_thought_needed,
-            "branches": branches,
-            "thoughtHistoryLength": history_length,
-            "related_knowledge": related_knowledge,
-        }
+                create_background_task(trigger_opportunistic_recovery(), name="opportunistic_recovery")
 
-    except Exception as e:
-        log_error(f"Critical failure in sequential thinking session {session_id}", e)
-        raise DatabaseError(f"Reasoning persistence failed: {e}") from e
+            # 8. Final Distillation (Session Wrap-up)
+            if not next_thought_needed:
+                from shared_memory.core.distiller import auto_distill_knowledge
+
+                # Ensure the complete history is analyzed one last time for synthesis
+                await auto_distill_knowledge(session_id, history)
+                async with await async_get_thoughts_connection() as conn:
+                    await conn.execute(
+                        "UPDATE thought_history SET distilled = 1 WHERE session_id = ?",
+                        (session_id,),
+                    )
+                    await conn.commit()
+
+            total_dur = time.perf_counter() - start_total
+            logger.info(
+                f"PERF [process_thought_core]: session={session_id} "
+                f"total={total_dur:.3f}s (init={dur_init:.3f}s, db_insert={dur_db:.3f}s, "
+                f"salvage={dur_salvage:.3f}s)"
+            )
+
+            return {
+                "thoughtNumber": thought_number,
+                "totalThoughts": total_thoughts,
+                "nextThoughtNeeded": next_thought_needed,
+                "branches": branches,
+                "thoughtHistoryLength": history_length,
+                "related_knowledge": related_knowledge,
+            }
+
+        except Exception as e:
+            log_error(f"Critical failure in sequential thinking session {session_id}", e)
+            raise DatabaseError(f"Reasoning persistence failed: {e}") from e
 
 
 async def get_thought_history(session_id: str | None = None) -> list[dict[str, Any]]:

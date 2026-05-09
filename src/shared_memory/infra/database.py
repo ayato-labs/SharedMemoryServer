@@ -137,12 +137,13 @@ class AsyncSQLiteConnection:
             raise DatabaseError(f"Database connection failed: {e}") from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
+        if exc_type and not isinstance(exc_val, asyncio.CancelledError):
             logger.error(
                 f"Exception detected in AsyncSQLiteConnection context for {self.db_path}: "
                 f"{exc_type.__name__}: {exc_val}"
             )
         # We don't close the connection here as it's a managed singleton
+        return False
 
     def __await__(self):
         async def _internal():
