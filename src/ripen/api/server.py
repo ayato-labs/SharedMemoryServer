@@ -11,6 +11,7 @@ from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
 
 from ripen.api.auth import AuthMiddleware, get_current_user
+from ripen.common.config import settings
 from ripen.common.tasks import create_background_task
 from ripen.common.utils import configure_logging, get_logger
 from ripen.ops.lifecycle import start_database_maintenance
