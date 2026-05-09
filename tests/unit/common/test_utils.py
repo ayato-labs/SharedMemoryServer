@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from shared_memory.common.utils import (
+from ripen.common.utils import (
     calculate_importance,
     mask_sensitive_data,
     sanitize_filename,
@@ -61,7 +61,7 @@ def test_mask_sensitive_data():
 
 def test_log_error_with_braces():
     """Verify that log_error doesn't crash when exception string contains braces."""
-    from shared_memory.common.utils import log_error
+    from ripen.common.utils import log_error
 
     # This string caused KeyError in loguru if handled improperly with f-strings
     braces_error = ValueError("{'error': {'code': 500, 'message': 'Internal error'}}")

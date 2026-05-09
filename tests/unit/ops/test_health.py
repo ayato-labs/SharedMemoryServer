@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from shared_memory.infra.database import init_db
-from shared_memory.ops.health import check_db_health, get_comprehensive_diagnostics
+from ripen.infra.database import init_db
+from ripen.ops.health import check_db_health, get_comprehensive_diagnostics
 
 
 @pytest.mark.asyncio

@@ -2,15 +2,15 @@ import asyncio
 
 from loguru import logger
 
-# Mocking a small Gold Standard dataset for SharedMemoryServer
+# Mocking a small Gold Standard dataset for Ripen
 # In a production scenario, these 'contexts' would come from actual 
 # search_memory calls
 eval_data = {
     "question": [
-        "What is the 'ripening' process in SharedMemoryServer?",
+        "What is the 'ripening' process in Ripen?",
         "How does sequential thinking work with the memory system?",
         "What happens to stale knowledge items?",
-        "Is SharedMemoryServer local-first?",
+        "Is Ripen local-first?",
         "Can I use multiple agents with one server?"
     ],
     "answer": [
@@ -32,7 +32,7 @@ eval_data = {
          "Salvage retrieves historical context, while Accretion saves new results."],
         ["The Garbage Collector identifies stale items based on time-based decay "
          "and moves them to the inactive database."],
-        ["SharedMemoryServer uses local engines like FastEmbed and SQLite to "
+        ["Ripen uses local engines like FastEmbed and SQLite to "
          "process data without mandatory cloud dependencies."],
         ["Multi-agent support is implemented via an authentication layer "
          "that tracks which agent wrote which memory."]
@@ -52,7 +52,7 @@ eval_data = {
 }
 
 async def run_ragas():
-    logger.info("Initializing RAGAS evaluation with SharedMemoryServer providers...")
+    logger.info("Initializing RAGAS evaluation with Ripen providers...")
     
     # Create the dataset
     # df = pd.DataFrame(eval_data) # df is unused in simulated run

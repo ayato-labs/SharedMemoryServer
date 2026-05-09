@@ -1,9 +1,9 @@
 # Architecture: State Governance for Agentic Intelligence
 
-SharedMemoryServer provides a high-integrity infrastructure to govern **Inference-time Latency** and **System Entropy** in complex Agentic Workflows.
+Ripen provides a high-integrity infrastructure to govern **Inference-time Latency** and **System Entropy** in complex Agentic Workflows.
 
 ## 1. Problem Definition
-In advanced AI workflows, the terminal bottleneck is not the *size* of the context window, but its **decay and entropy**. Brute-force approaches (naive RAG) rely on non-deterministic attention. SharedMemoryServer solves this by providing **Reasoning Provenance**—persisting design decisions and logic outside ephemeral session boundaries.
+In advanced AI workflows, the terminal bottleneck is not the *size* of the context window, but its **decay and entropy**. Brute-force approaches (naive RAG) rely on non-deterministic attention. Ripen solves this by providing **Reasoning Provenance**—persisting design decisions and logic outside ephemeral session boundaries.
 
 ## 2. Design Decisions
 ### 2-1. Standing on the Shoulders of Giants

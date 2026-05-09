@@ -1,10 +1,10 @@
 # Database Schema Definitions
 Generated at: 2026-05-06 16:15:47
 
-This document is automatically generated from `src/shared_memory/schema/definitions.yaml`. Do not edit manually.
+This document is automatically generated from `src/ripen/schema/definitions.yaml`. Do not edit manually.
 
 ## Database: main
-SharedMemoryServerの主軸となる知識データベース
+Ripenの主軸となる知識データベース
 
 ### Table: `entities`
 知識の主体となる実体（Entity）の定義

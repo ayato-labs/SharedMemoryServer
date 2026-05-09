@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.core.graph import extract_hashtags, save_tags
+from ripen.core.graph import extract_hashtags, save_tags
 from tests.unit.fake_client import FakeGeminiClient
 
 pytestmark = pytest.mark.unit
@@ -16,7 +16,7 @@ async def test_extract_hashtags_success(monkeypatch):
     fake_client.models.set_response("generate_content", '["#ai", "Machine Learning"]')
 
     # Force AI usage by lowering threshold
-    with patch("shared_memory.core.graph.settings") as mock_settings:
+    with patch("ripen.core.graph.settings") as mock_settings:
         mock_settings.hashtag_ai_threshold = 0
 
         # Mocking the provider
@@ -25,7 +25,7 @@ async def test_extract_hashtags_success(monkeypatch):
                 resp = fake_client.models.generate_content(model="fake", contents=prompt)
                 return resp.text
 
-        with patch("shared_memory.core.graph.get_llm_provider", return_value=FakeProvider()):
+        with patch("ripen.core.graph.get_llm_provider", return_value=FakeProvider()):
             tags = await extract_hashtags("This is a post about AI and Machine Learning.")
 
     assert "#ai" in tags

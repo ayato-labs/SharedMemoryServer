@@ -1,6 +1,6 @@
 # Contributors
 
-The following individuals and organizations have agreed to the CLA and contributed to SharedMemoryServer.
+The following individuals and organizations have agreed to the CLA and contributed to Ripen.
 
 | GitHub ID | Date | Contribution Description |
 | :--- | :--- | :--- |

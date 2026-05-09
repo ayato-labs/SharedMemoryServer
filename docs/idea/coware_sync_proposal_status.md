@@ -3,7 +3,7 @@
 ## 現在のステータス: **保留 (On Hold)** ⏸️
 
 ### 1. 提案の概要
-SharedMemoryServer 内の知識(Memory Bank および Knowledge Graph)を、チーム間でシームレスに同期するための `shared-memory-admin sync` コマンドの導入提案です。[coware-skills](https://github.com/shitianfang/coware-skills) の「エージェントがコードを書く前に共通仕様を自動同期する」というコンセプトを参考に、以下の要件を目指しました。
+Ripen 内の知識(Memory Bank および Knowledge Graph)を、チーム間でシームレスに同期するための `shared-memory-admin sync` コマンドの導入提案です。[coware-skills](https://github.com/shitianfang/coware-skills) の「エージェントがコードを書く前に共通仕様を自動同期する」というコンセプトを参考に、以下の要件を目指しました。
 
 - **仕組み:** Gitリポジトリをバックエンドとして活用し、Markdownファイルを介してSQLite DBを再構築(Hydration)する。
 - **目的:** 複数AIエージェント/開発者の間での「認識のズレ」を解消し、コンフリクトを未然に防ぐ。

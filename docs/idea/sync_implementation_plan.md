@@ -1,7 +1,7 @@
 # `shared-memory-admin sync` 実装計画 (Team Sync機能の追加)
 
 ## 1. 背景と目的
-- **課題:** SharedMemoryServer内の独自のコンテキスト(DBのグラフ構造やMemory BankのMarkdown)が個人のローカルに閉じており、複数AI間やチーム間での「認識のズレ」が発生する(Cowareが解決している課題)。
+- **課題:** Ripen内の独自のコンテキスト(DBのグラフ構造やMemory BankのMarkdown)が個人のローカルに閉じており、複数AI間やチーム間での「認識のズレ」が発生する(Cowareが解決している課題)。
 - **目的:** Coware のような「チーム間のAIコンテキスト同期」を `shared-memory-admin sync` というCLIツールとして統合し、ローカルDB(SQLite)とMarkdown(Memory Bank)をシームレスに同期する。
 - **絶対ルール遵守:** 「巨人の肩の上に乗れ」— 独自の複雑な同期サーバーやWebSocketによる通信基盤は作らない。GitやSaaSのエコシステムを「バックエンド」として搾取・活用する。
 
@@ -45,7 +45,7 @@ shared-memory-admin sync init --remote https://github.com/your-org/memory-repo.g
 ### ステップ詳細
 
 **Step 1. Pull (他者の知識を取り込む)**
-1. ローカルの `.shared_memory` フォルダ下で `git pull origin main` を自動実行。
+1. ローカルの `.ripen` フォルダ下で `git pull origin main` を自動実行。
 2. 他エージェントが更新した最新の Markdown ファイルが降ってくる。
 
 **Step 2. Hydrate (ローカルSQLiteの再構築)**
@@ -62,12 +62,12 @@ shared-memory-admin sync init --remote https://github.com/your-org/memory-repo.g
 ## 4. アーキテクチャと実装ステップ
 
 ### Phase 1: Sync プロバイダーの抽象化
-- `src/shared_memory/sync/` ディレクトリを新設。
+- `src/ripen/sync/` ディレクトリを新設。
 - 将来的な基盤変更(Git -> Tursoなど)を見据え、`SyncProviderBase` クラスを作成。
 - 実装として `GitSyncProvider` を作成。内部では標準ライブラリの `subprocess` を用いてシンプルに git コマンドを叩く。(複雑なライブラリは避け、シンプルイズベストを貫く)。
 
 ### Phase 2: CLI コマンドの統合
-- `src/shared_memory/cli/admin.py` に `sync` サブコマンドを追加。
+- `src/ripen/cli/admin.py` に `sync` サブコマンドを追加。
 - 実行時の出力を丁寧にし、「現在何件の知識を受信し、DBに反映したか」を可視化する。
 
 ### Phase 3: Hydration (再構築) アルゴリズムの堅牢化

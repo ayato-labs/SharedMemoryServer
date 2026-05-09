@@ -1,4 +1,4 @@
-from shared_memory.common.utils import calculate_importance, mask_sensitive_data, sanitize_filename
+from ripen.common.utils import calculate_importance, mask_sensitive_data, sanitize_filename
 
 
 def test_calculate_importance_basic():

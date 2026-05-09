@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(project_root, "src"))
 
 import aiosqlite  # noqa: E402
 
-from shared_memory.utils import get_db_path, get_thoughts_db_path  # noqa: E402
+from ripen.utils import get_db_path, get_thoughts_db_path  # noqa: E402
 
 
 async def view_trace():

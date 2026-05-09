@@ -1,9 +1,9 @@
 # Contributor License Agreement (CLA)
 
-**Project**: SharedMemoryServer  
+**Project**: Ripen  
 **Owner**: Ayato-Labs (hereinafter "Owner")
 
-Thank you for your interest in contributing to SharedMemoryServer. To protect the project and its users, we require all contributors to agree to this CLA.
+Thank you for your interest in contributing to Ripen. To protect the project and its users, we require all contributors to agree to this CLA.
 
 ---
 
@@ -34,7 +34,7 @@ You represent that:
 
 By submitting a Pull Request to this repository, you agree to the terms of this CLA. Please include the following statement in your PR description:
 
-> I have read and agree to the CLA for SharedMemoryServer.
+> I have read and agree to the CLA for Ripen.
 
 ---
 *This CLA ensures that the project remains sustainable and commercially viable while staying open-source.*

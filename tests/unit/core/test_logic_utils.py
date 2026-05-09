@@ -1,6 +1,6 @@
 import pytest
 
-from shared_memory.core.logic import (
+from ripen.core.logic import (
     normalize_bank_files,
     normalize_entities,
     normalize_observations,
@@ -48,8 +48,8 @@ class TestLogicNormalizationHard:
         assert results[3]["name"] == "Title Entity"
         assert results[3]["description"] == "Using title and content"
 
-        # "garbage" -> name is None (e.get("name") or e.get("id") or e.get("title"))
-        assert results[4]["name"] is None
+        # "garbage" -> name is 'Unnamed' (e.get("name") or e.get("id") or e.get("title") or "Unnamed")
+        assert results[4]["name"] == "Unnamed"
         assert results[4]["entity_type"] == "concept"
 
     def test_normalize_observations_harsh(self):

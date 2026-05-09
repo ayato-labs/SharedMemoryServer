@@ -1,6 +1,6 @@
 @echo off
 pushd "%~dp0.."
-echo Registering SharedMemoryServer with IDEs...
-uv run shared-memory-register
+echo Registering Ripen with IDEs...
+uv run ripen-register
 pause
 popd

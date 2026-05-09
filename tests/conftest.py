@@ -13,8 +13,8 @@ import pytest
 async def setup_teardown_db(request):
     from loguru import logger
 
-    from shared_memory.core.thought_logic import init_thoughts_db
-    from shared_memory.infra.database import close_all_connections, init_db
+    from ripen.core.thought_logic import init_thoughts_db
+    from ripen.infra.database import close_all_connections, init_db
 
     # Windows Fix: Clear loguru handlers before test to prevent WinError 32 on rotation
     logger.remove()
@@ -31,7 +31,7 @@ async def setup_teardown_db(request):
     await init_thoughts_db(force=True)
 
     # Reset server initialization state
-    from shared_memory.api import server
+    from ripen.api import server
 
     server._INITIALIZED_EVENT = None
     server._INIT_ERROR = None
@@ -39,7 +39,7 @@ async def setup_teardown_db(request):
     server._INIT_LOCK = None
 
     # Reset database singletons and locks
-    from shared_memory.infra import database
+    from ripen.infra import database
 
     database._MAIN_CONNECTION = None
     database._THOUGHTS_CONNECTION = None
@@ -48,7 +48,7 @@ async def setup_teardown_db(request):
     database._WRITE_SEMAPHORES = {}
 
     # Reset AI control locks
-    from shared_memory.core import ai_control
+    from ripen.core import ai_control
 
     ai_control.model_manager._lock = None
     ai_control.AIRateLimiter._locks = {}
@@ -58,7 +58,7 @@ async def setup_teardown_db(request):
     # Teardown: Close singleton connections before rmtree (Windows requirement)
     # We must ensure all connections are closed and references cleared
     try:
-        from shared_memory.api.server import wait_for_background_tasks
+        from ripen.api.server import wait_for_background_tasks
 
         await wait_for_background_tasks(timeout=2.0)
         await close_all_connections()
@@ -78,7 +78,7 @@ async def setup_teardown_db(request):
 @pytest.fixture
 def fake_llm_client():
     """Deterministic LLM stub for Unit Tests (No MagicMock)."""
-    from shared_memory.infra.llm import LlmProvider
+    from ripen.infra.llm import LlmProvider
     from tests.unit.fake_client import FakeGeminiClient
 
     client = FakeGeminiClient()
@@ -92,8 +92,8 @@ def fake_llm_client():
     provider = FakeProvider()
 
     patches = [
-        patch("shared_memory.infra.llm.get_llm_provider", return_value=provider),
-        patch("shared_memory.infra.embeddings.get_gemini_client", return_value=client),
+        patch("ripen.infra.llm.get_llm_provider", return_value=provider),
+        patch("ripen.infra.embeddings.get_gemini_client", return_value=client),
     ]
 
     for p in patches:
@@ -162,10 +162,10 @@ def mock_llm(request):
     client.aio.models.list.return_value = [model_obj]
 
     patches = [
-        patch("shared_memory.infra.llm.GeminiProvider", return_value=client),
-        patch("shared_memory.infra.llm.OllamaProvider", return_value=client),
-        patch("shared_memory.infra.llm.get_llm_provider", return_value=client),
-        patch("shared_memory.infra.embeddings.get_gemini_client", return_value=client),
+        patch("ripen.infra.llm.GeminiProvider", return_value=client),
+        patch("ripen.infra.llm.OllamaProvider", return_value=client),
+        patch("ripen.infra.llm.get_llm_provider", return_value=client),
+        patch("ripen.infra.embeddings.get_gemini_client", return_value=client),
     ]
 
     for p in patches:
@@ -209,7 +209,7 @@ def temp_env(env_vars):
 @pytest.fixture
 async def db_conn():
     """Provides a connection to the test database."""
-    from shared_memory.infra.database import async_get_connection
+    from ripen.infra.database import async_get_connection
 
     async with await async_get_connection() as conn:
         yield conn

@@ -2,9 +2,9 @@ import os
 
 import pytest
 
-from shared_memory.common.utils import get_bank_dir
-from shared_memory.core.bank import read_bank_data, save_bank_files
-from shared_memory.infra.database import async_get_connection, init_db
+from ripen.common.utils import get_bank_dir
+from ripen.core.bank import read_bank_data, save_bank_files
+from ripen.infra.database import async_get_connection, init_db
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_bank_status_check():
         await save_bank_files({filename: content}, agent_id, conn)
 
     # Deactivate
-    from shared_memory.ops.lifecycle import manage_knowledge_activation_logic
+    from ripen.ops.lifecycle import manage_knowledge_activation_logic
 
     await manage_knowledge_activation_logic([filename], "inactive")
 

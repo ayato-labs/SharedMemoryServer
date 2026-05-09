@@ -1,6 +1,6 @@
 # Transparency Dashboard Usage Guide
 
-The SharedMemoryServer dashboard is a powerful tool for visualizing what AI agents are memorizing, identifying where contradictions occur, and allowing humans to maintain the final control (governance) over the shared knowledge base.
+The Ripen dashboard is a powerful tool for visualizing what AI agents are memorizing, identifying where contradictions occur, and allowing humans to maintain the final control (governance) over the shared knowledge base.
 
 ## How to Access
 

@@ -1,6 +1,6 @@
 import pytest
 
-from shared_memory.core import graph
+from ripen.core import graph
 
 
 @pytest.mark.asyncio

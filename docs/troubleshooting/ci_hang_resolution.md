@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-GitHub Actions jobs for `SharedMemoryServer` (and potentially other MCP servers) exhibited a persistent "hang" after all tests were successfully completed. Even though the test suite reported a 100% pass rate in less than 3 seconds, the workflow step would remain active until killed by an external 10-minute timeout.
+GitHub Actions jobs for `Ripen` (and potentially other MCP servers) exhibited a persistent "hang" after all tests were successfully completed. Even though the test suite reported a 100% pass rate in less than 3 seconds, the workflow step would remain active until killed by an external 10-minute timeout.
 
 ### Symptoms
 - Log output: `============================== 22 passed in 2.17s ==============================`

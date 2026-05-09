@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from shared_memory import thought_logic
+from ripen import thought_logic
 
 
 async def diag():

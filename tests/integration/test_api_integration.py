@@ -1,8 +1,8 @@
 import pytest
 
-from shared_memory.core import logic, search
-from shared_memory.infra.database import async_get_connection
-from shared_memory.ops import management
+from ripen.core import logic, search
+from ripen.infra.database import async_get_connection
+from ripen.ops import management
 
 
 @pytest.mark.asyncio

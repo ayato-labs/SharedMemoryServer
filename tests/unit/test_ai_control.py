@@ -1,7 +1,7 @@
 import pytest
 
-from shared_memory.common.config import GOOGLE_AI_MODELS
-from shared_memory.core.ai_control import ModelManager, parse_retry_delay, retry_on_ai_quota
+from ripen.common.config import GOOGLE_AI_MODELS
+from ripen.core.ai_control import ModelManager, parse_retry_delay, retry_on_ai_quota
 
 
 @pytest.mark.unit

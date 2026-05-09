@@ -1,6 +1,6 @@
 # LongMemEval: RAGAS-based Memory Evaluation Suite
 
-LongMemEval is the official benchmark suite for `SharedMemoryServer`, utilizing industry-standard **RAGAS (RAG Assessment)** metrics to evaluate AI agent memory systems with high credibility.
+LongMemEval is the official benchmark suite for `Ripen`, utilizing industry-standard **RAGAS (RAG Assessment)** metrics to evaluate AI agent memory systems with high credibility.
 
 ## 1. Evaluation Methodology
 Instead of arbitrary scoring, we adopt the **RAG Triad** and additional retrieval-focused metrics to provide a transparent assessment of memory quality.

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from shared_memory.ops.lifecycle import run_knowledge_gc_logic
+from ripen.ops.lifecycle import run_knowledge_gc_logic
 
 pytestmark = pytest.mark.unit
 

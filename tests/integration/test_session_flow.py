@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from shared_memory.core import logic, thought_logic
-from shared_memory.infra.database import async_get_connection
+from ripen.core import logic, thought_logic
+from ripen.infra.database import async_get_connection
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_sequential_thinking_to_distillation_flow(mock_llm):
 
     # 4. Verify graph contains the distilled knowledge
     # We need to ensure background tasks (like incremental distillation) are finished
-    from shared_memory.common.tasks import wait_for_background_tasks
+    from ripen.common.tasks import wait_for_background_tasks
 
     await wait_for_background_tasks()
 
@@ -102,7 +102,7 @@ async def test_read_memory_hybrid_search(mock_llm):
         return res
 
     with patch(
-        "shared_memory.core.search.get_graph_data_by_cids", new_callable=AsyncMock
+        "ripen.core.search.get_graph_data_by_cids", new_callable=AsyncMock
     ) as mock_get:
         mock_get.side_effect = side_effect
         # We need to make sure 'Java' is in top_cids.

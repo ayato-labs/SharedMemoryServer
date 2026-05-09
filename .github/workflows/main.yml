@@ -113,13 +113,13 @@ jobs:
           uv pip install pyinstaller
       - name: Build with PyInstaller
         run: |
-          uv run pyinstaller --onefile --name SharedMemoryServer --clean src/shared_memory/server.py
-          uv run pyinstaller --onefile --name SharedMemoryRegister --clean src/shared_memory/register.py
+          uv run pyinstaller --onefile --name Ripen --clean src/ripen/server.py
+          uv run pyinstaller --onefile --name SharedMemoryRegister --clean src/ripen/register.py
       - name: Upload Binaries to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/SharedMemoryServer.exe
+            dist/Ripen.exe
             dist/SharedMemoryRegister.exe
           # If a tag was just created, it will be used. 
           # If not, it will try to use the current commit's tag if any.

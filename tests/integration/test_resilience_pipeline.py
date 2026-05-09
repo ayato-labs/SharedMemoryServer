@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.infra.database import retry_on_db_lock
+from ripen.infra.database import retry_on_db_lock
 
 
 @pytest.mark.integration
@@ -23,7 +23,7 @@ async def test_retry_on_db_lock_resilience():
         return "success"
 
     # テスト高速化のために sleep を無効化
-    with patch("shared_memory.infra.database.asyncio.sleep", return_value=None):
+    with patch("ripen.infra.database.asyncio.sleep", return_value=None):
         result = await dummy_db_call()
 
     assert result == "success"
@@ -34,7 +34,7 @@ async def test_retry_on_db_lock_resilience():
 @pytest.mark.asyncio
 async def test_ai_quota_exhaustion_rotation():
     """AI APIのクォータ切れ(429)が発生した場合のモデルローテーションテスト"""
-    from shared_memory.core.ai_control import retry_on_ai_quota
+    from ripen.core.ai_control import retry_on_ai_quota
 
     call_count = 0
 
@@ -44,7 +44,7 @@ async def test_ai_quota_exhaustion_rotation():
         call_count += 1
         raise Exception("429 Resource has been exhausted")
 
-    with patch("shared_memory.core.ai_control.asyncio.sleep", return_value=None):
+    with patch("ripen.core.ai_control.asyncio.sleep", return_value=None):
         with pytest.raises(Exception) as excinfo:
             await failing_ai_call()
 

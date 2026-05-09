@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.core import logic
+from ripen.core import logic
 
 
 @pytest.mark.unit
@@ -26,7 +26,7 @@ class TestLogicParallel:
             return [(False, "No conflict")] * len(new_contents)
 
         with patch(
-            "shared_memory.core.logic.graph.check_conflict", side_effect=mock_check_conflict
+            "ripen.core.logic.graph.check_conflict", side_effect=mock_check_conflict
         ):
             observations = [
                 {"entity_name": "Entity1", "content": "Fact 1.1"},
@@ -62,7 +62,7 @@ class TestLogicParallel:
             return [(False, "No conflict")] * len(new_contents)
 
         with patch(
-            "shared_memory.core.logic.graph.check_conflict",
+            "ripen.core.logic.graph.check_conflict",
             side_effect=mock_check_conflict_with_fail,
         ):
             observations = [

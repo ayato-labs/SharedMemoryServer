@@ -4,9 +4,9 @@ import time
 
 from loguru import logger
 
-from shared_memory.common.config import settings
-from shared_memory.infra.embeddings import compute_embedding
-from shared_memory.infra.llm import get_llm_provider
+from ripen.common.config import settings
+from ripen.infra.embeddings import compute_embedding
+from ripen.infra.llm import get_llm_provider
 
 # Optional: RAGAS integration
 try:

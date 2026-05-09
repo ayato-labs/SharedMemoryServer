@@ -2,7 +2,7 @@
 
 ## 発生した問題
 
-`SharedMemoryServer` (および `LogicHive`) をMCPサーバーとして起動した際、ツール実行時に `connection closed: EOF` エラーが発生し、通信が途絶する問題が発生しました。
+`Ripen` (および `LogicHive`) をMCPサーバーとして起動した際、ツール実行時に `connection closed: EOF` エラーが発生し、通信が途絶する問題が発生しました。
 
 ### 症状
 - エラーメッセージ: `Failure in MCP tool execution: connection closed: calling "tools/call": client is closing: EOF`
@@ -41,9 +41,9 @@ def main():
 `uv run` 経由ではなく、仮想環境内の `python.exe` を直接呼び出す構成に変更しました。これにより、ラッパーによる不要な出力をゼロに抑えています。
 
 ```json
-"SharedMemoryServer": {
+"Ripen": {
   "command": "C:\\path\\to\\.venv\\Scripts\\python.exe",
-  "args": ["C:\\path\\to\\src\\shared_memory\\server.py"]
+  "args": ["C:\\path\\to\\src\\ripen\\server.py"]
 }
 ```
 

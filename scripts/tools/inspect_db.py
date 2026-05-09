@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-db_path = ".shared_memory/thoughts.db"
+db_path = ".ripen/thoughts.db"
 print(f"Checking DB: {db_path}")
 if not os.path.exists(db_path):
     print("DB file does not exist!")

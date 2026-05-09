@@ -3,17 +3,17 @@ import json
 import os
 import sqlite3
 
-# To import SharedMemoryServer logic
+# To import Ripen logic
 import sys
 
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from shared_memory.database import async_get_connection, init_db  # noqa: E402
+from ripen.database import async_get_connection, init_db  # noqa: E402
 
 
 async def rescue_data():
-    legacy_db = os.path.join(project_root, "archive", "legacy_db", "shared_memory.db")
+    legacy_db = os.path.join(project_root, "archive", "legacy_db", "ripen.db")
     if not os.path.exists(legacy_db):
         print(f"Legacy DB not found at {legacy_db}")
         return

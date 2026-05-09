@@ -3,7 +3,7 @@ import asyncio
 import aiosqlite
 import pytest
 
-from shared_memory.infra.database import retry_on_db_lock
+from ripen.infra.database import retry_on_db_lock
 
 pytestmark = pytest.mark.chaos
 
@@ -54,7 +54,7 @@ async def test_ai_outage_graceful_degradation(monkeypatch, db_conn):
     """
     Chaos Test: Simulate AI failure and verify fallback.
     """
-    from shared_memory.core.search import perform_search
+    from ripen.core.search import perform_search
 
     # Setup data
     await db_conn.execute(
@@ -67,7 +67,7 @@ async def test_ai_outage_graceful_degradation(monkeypatch, db_conn):
     async def failing_embed(q):
         raise Exception("AI Service Down")
 
-    monkeypatch.setattr("shared_memory.core.search.compute_embedding", failing_embed)
+    monkeypatch.setattr("ripen.core.search.compute_embedding", failing_embed)
 
     # Perform Search - Should fall back to keyword search
     graph_data, _ = await perform_search("FallbackItem")

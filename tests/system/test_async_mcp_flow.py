@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from shared_memory.api import server
+from ripen.api import server
 
 
 @pytest.mark.unit
@@ -22,11 +22,11 @@ async def test_save_memory_async_system_flow(fake_llm):
     assert "Saved" in response
 
     # Wait for the background task to complete
-    from shared_memory.common.tasks import wait_for_background_tasks
+    from ripen.common.tasks import wait_for_background_tasks
 
     await wait_for_background_tasks()
 
-    from shared_memory.core.search import search_memory_logic
+    from ripen.core.search import search_memory_logic
 
     # Retry a few times if not immediately visible (SQLite isolation/indexing)
     max_retries = 5
@@ -50,12 +50,12 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
     """
     Tests the complete loop: Thought -> Distillation (Background) -> Persistence.
     """
-    from shared_memory.core import thought_logic
-    from shared_memory.core.search import search_memory_logic
+    from ripen.core import thought_logic
+    from ripen.core.search import search_memory_logic
 
     session_id = "system_test_session"
     # The thought should be clear so the distiller extracts an entity and observation
-    thought = "SharedMemoryServer is a powerful tool. It supports asynchronous saving."
+    thought = "Ripen is a powerful tool. It supports asynchronous saving."
 
     # Setup Fake LLM response for distillation
     fake_llm.models.set_response(
@@ -64,14 +64,14 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
             {
                 "entities": [
                     {
-                        "name": "SharedMemoryServer",
+                        "name": "Ripen",
                         "entity_type": "software",
                         "description": "Memory server",
                     }
                 ],
                 "relations": [],
                 "observations": [
-                    {"entity_name": "SharedMemoryServer", "content": "Supports asynchronous saving"}
+                    {"entity_name": "Ripen", "content": "Supports asynchronous saving"}
                 ],
                 "bank_files": [],
             }
@@ -88,7 +88,7 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
     )
 
     # 2. The distillation is a background task. Wait for it.
-    from shared_memory.common.tasks import wait_for_background_tasks
+    from ripen.common.tasks import wait_for_background_tasks
 
     await wait_for_background_tasks(timeout=5.0)
 
@@ -96,7 +96,7 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
     # (though they should be ready if save_memory_core was awaited)
     found = False
     for _ in range(3):
-        results = await search_memory_logic("SharedMemoryServer")
+        results = await search_memory_logic("Ripen")
         obs_list = results.get("observations", [])
         if any("asynchronous saving" in r["content"].lower() for r in obs_list):
             found = True
@@ -105,11 +105,11 @@ async def test_full_thought_to_knowledge_loop(fake_llm):
 
     if not found:
         # Fallback check directly in DB
-        from shared_memory.infra.database import async_get_connection
+        from ripen.infra.database import async_get_connection
 
         async with await async_get_connection() as conn:
             cursor = await conn.execute(
-                "SELECT content FROM observations WHERE entity_name='SharedMemoryServer'"
+                "SELECT content FROM observations WHERE entity_name='Ripen'"
             )
             rows = await cursor.fetchall()
             print(f"DEBUG: Observations in DB: {[r[0] for r in rows]}")

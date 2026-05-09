@@ -3,8 +3,8 @@ import os
 import aiosqlite
 import pytest
 
-from shared_memory.common.exceptions import DatabaseLockedError
-from shared_memory.infra.database import (
+from ripen.common.exceptions import DatabaseLockedError
+from ripen.infra.database import (
     async_get_connection,
     get_db_path,
     init_db,

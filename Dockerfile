@@ -1,41 +1,38 @@
 # Use a slim Python image
 FROM python:3.11-slim-bookworm AS builder
 
-# Install uv for fast dependency management
+# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml .
-# If there is a lock file, copy it too.
-# COPY uv.lock .
-
-# Install dependencies into a virtualenv
+# Install the project as a package
+COPY . .
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN uv pip install .
 
-# Final stage
+# Final stage: Ultra-slim for production
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Copy the virtualenv from builder
+# Copy the pre-built virtualenv
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy source code
-COPY . .
+# Data Persistence Directory
+RUN mkdir -p /data
+ENV RIPEN_HOME=/data
+VOLUME /data
 
-# Environment variables
+# SSE configuration
+EXPOSE 8377
+
+# Runtime optimizations
 ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=INFO
 
-# Default port for SSE hub
-EXPOSE 8377
-
-# Run the server in SSE mode by default
-# --host 0.0.0.0 is crucial for Docker
-ENTRYPOINT ["python", "-m", "shared_memory.server", "--sse", "--port", "8377"]
+# Start the Ripen server in SSE mode by default
+# This allows it to act as a centralized knowledge hub out of the box
+ENTRYPOINT ["ripen", "--sse", "--port", "8377"]

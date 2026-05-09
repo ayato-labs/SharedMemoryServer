@@ -5,9 +5,9 @@ import sys
 # Ensure project root is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from shared_memory.core.logic import save_memory_core
-from shared_memory.infra.database import async_get_connection, init_db
-from shared_memory.ops import management
+from ripen.core.logic import save_memory_core
+from ripen.infra.database import async_get_connection, init_db
+from ripen.ops import management
 
 async def verify():
     print("--- Dashboard & Conflict Resolution Verification ---")

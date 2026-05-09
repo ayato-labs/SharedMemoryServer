@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.core import logic
+from ripen.core import logic
 
 
 @pytest.mark.asyncio
@@ -22,7 +22,7 @@ async def test_corrupt_llm_json_response(mock_llm):
         await logic.save_memory_core(entities=entities)
     except json.JSONDecodeError as e:
         # もしデコードエラーがそのまま上がる設計なら、それはそれで検知
-        from shared_memory.common.utils import get_logger
+        from ripen.common.utils import get_logger
 
         get_logger("tests").error(f"JSON corruption detected as expected: {e}")
     except Exception as e:
@@ -36,11 +36,11 @@ async def test_corrupt_llm_json_response(mock_llm):
 async def test_database_busy_simulation(fake_llm):
     """異常系: データベースがロックされている状況をシミュレート (Adversarial)"""
     # init_db をモックして失敗させる
-    with patch("shared_memory.api.server.init_db", side_effect=Exception("database is locked")):
+    with patch("ripen.api.server.init_db", side_effect=Exception("database is locked")):
         # ensure_initialized を呼ぶ。内部で init_db が失敗するはず。
         # 実際には _background_init が走っているが、テスト環境では同期待ちが必要な場合がある。
         # ここでは単純に init_db の失敗が波及するかを確認。
-        from shared_memory.api import server
+        from ripen.api import server
 
         # 既存の状態をリセット（テスト用）
         server._INITIALIZED = False

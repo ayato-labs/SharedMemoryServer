@@ -17,7 +17,7 @@ jobs:
         with:
           script: |
             const prBody = context.payload.pull_request.body || '';
-            const claAgreed = prBody.includes('I have read and agree to the CLA for SharedMemoryServer');
+            const claAgreed = prBody.includes('I have read and agree to the CLA for Ripen');
             
             if (!claAgreed) {
               const commentBody = `## ⚠️ CLA Agreement Required
@@ -27,7 +27,7 @@ jobs:
               **Action Required:**
               Please edit your PR description and add the following line:
               
-              > I have read and agree to the CLA for SharedMemoryServer.
+              > I have read and agree to the CLA for Ripen.
               
               [Read the CLA here](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CLA.md)
               

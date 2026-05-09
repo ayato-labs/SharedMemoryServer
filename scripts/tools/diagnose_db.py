@@ -6,12 +6,12 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from shared_memory.database import get_db_path  # noqa: E402
-from shared_memory.utils import get_thoughts_db_path  # noqa: E402
+from ripen.database import get_db_path  # noqa: E402
+from ripen.utils import get_thoughts_db_path  # noqa: E402
 
 
 def run_diagnostics():
-    """CLI utility to inspect SharedMemoryServer database health and schema."""
+    """CLI utility to inspect Ripen database health and schema."""
     print("=" * 60)
     print(" SHARED MEMORY SERVER - DATABASE DIAGNOSTICS")
     print("=" * 60)

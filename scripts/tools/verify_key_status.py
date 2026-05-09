@@ -3,7 +3,7 @@ import os
 
 from google import genai
 
-from shared_memory.embeddings import _find_key_recursive
+from ripen.embeddings import _find_key_recursive
 
 
 def verify():
@@ -23,9 +23,9 @@ def verify():
             settings = json.load(f)
 
             # Target path check
-            env_config = settings.get("mcpServers", {}).get("SharedMemoryServer", {}).get("env", {})
+            env_config = settings.get("mcpServers", {}).get("Ripen", {}).get("env", {})
             api_key = env_config.get("GOOGLE_API_KEY")
-            source = "mcpServers.SharedMemoryServer.env.GOOGLE_API_KEY"
+            source = "mcpServers.Ripen.env.GOOGLE_API_KEY"
 
             if not api_key:
                 api_key = _find_key_recursive(settings, "GOOGLE_API_KEY")

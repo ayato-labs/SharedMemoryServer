@@ -4,7 +4,7 @@
 **Rejected**
 
 ## Context
-In the pursuit of optimizing the `SharedMemoryServer`'s knowledge retention, a proposal was made to replace the existing simple Garbage Collection (GC) mechanism (which archives knowledge unaccessed for 180 days) with a complex, biologically-inspired memory decay model based on the **Ebbinghaus Forgetting Curve**. 
+In the pursuit of optimizing the `Ripen`'s knowledge retention, a proposal was made to replace the existing simple Garbage Collection (GC) mechanism (which archives knowledge unaccessed for 180 days) with a complex, biologically-inspired memory decay model based on the **Ebbinghaus Forgetting Curve**. 
 
 The proposed formula would calculate retrievability ($R$) based on:
 $R = I \times \exp(-\frac{D \times t}{S})$

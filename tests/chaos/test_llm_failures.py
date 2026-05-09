@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from shared_memory.api import server
-from shared_memory.core import logic
+from ripen.api import server
+from ripen.core import logic
 
 
 @pytest.mark.asyncio
@@ -52,12 +52,12 @@ async def test_llm_quota_exhaustion_retry(mock_llm):
 
     # Force Gemini engine
     with patch.dict("os.environ", {"EMBEDDING_ENGINE": "gemini", "GOOGLE_API_KEY": "fake"}):
-        with patch("shared_memory.infra.embeddings.get_gemini_client") as mock_factory:
+        with patch("ripen.infra.embeddings.get_gemini_client") as mock_factory:
             mock_client = MagicMock()
             mock_client.aio.models.embed_content.side_effect = side_effect
             mock_factory.return_value = mock_client
 
-            with patch("shared_memory.core.ai_control.asyncio.sleep", return_value=None):
+            with patch("ripen.core.ai_control.asyncio.sleep", return_value=None):
                 result = await logic.save_memory_core(
                     entities=[{"name": "RetryNode", "description": "Testing quota retry"}]
                 )

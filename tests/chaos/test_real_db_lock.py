@@ -3,8 +3,8 @@ import asyncio
 import aiosqlite
 import pytest
 
-from shared_memory.api.server import ensure_initialized, save_memory
-from shared_memory.infra.database import get_db_path
+from ripen.api.server import ensure_initialized, save_memory
+from ripen.infra.database import get_db_path
 
 
 @pytest.mark.asyncio

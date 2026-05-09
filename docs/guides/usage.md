@@ -1,6 +1,6 @@
 # Usage Guide
 
-SharedMemoryServer can be deployed as a local process or a centralized team hub.
+Ripen can be deployed as a local process or a centralized team hub.
 
 ## 1. Prerequisites
 - Python 3.10+
@@ -9,8 +9,8 @@ SharedMemoryServer can be deployed as a local process or a centralized team hub.
 
 ## 2. Installation
 ```bash
-git clone https://github.com/ayato-labs/SharedMemoryServer.git
-cd SharedMemoryServer
+git clone https://github.com/ayato-labs/Ripen.git
+cd Ripen
 uv pip install -e .
 ```
 
@@ -30,7 +30,7 @@ uv run shared-memory --sse --port 8377 --host 0.0.0.0
 ```
 **Client Configuration:**
 ```json
-"SharedMemoryServer": {
+"Ripen": {
   "command": "npx",
   "args": ["-y", "mcp-remote", "http://<server-ip>:8377/sse"]
 }

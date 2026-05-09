@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from shared_memory.api.server import (
+from ripen.api.server import (
     ensure_initialized,
     get_insights,
     read_memory,
@@ -60,7 +60,7 @@ async def test_reasoning_and_distillation_system_flow(mock_llm):
 
     # 3. 抽出された知識の検索検証
     # Direct DB Check for debugging
-    from shared_memory.infra.database import async_get_connection
+    from ripen.infra.database import async_get_connection
 
     async with await async_get_connection() as conn:
         cursor = await conn.execute("SELECT name FROM entities WHERE name='Project X'")

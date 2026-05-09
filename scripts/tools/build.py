@@ -19,15 +19,15 @@ def build():
     if os.path.exists("build"):
         shutil.rmtree("build")
 
-    print("--- Building SharedMemoryServer ---")
+    print("--- Building Ripen ---")
     run_command(
         [
             "pyinstaller",
             "--onefile",
             "--name",
-            "SharedMemoryServer",
+            "Ripen",
             "--clean",
-            "src/shared_memory/server.py",
+            "src/ripen/server.py",
         ]
     )
 
@@ -39,7 +39,7 @@ def build():
             "--name",
             "SharedMemoryRegister",
             "--clean",
-            "src/shared_memory/register.py",
+            "src/ripen/register.py",
         ]
     )
 

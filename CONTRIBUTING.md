@@ -1,4 +1,4 @@
-# Contributing to SharedMemoryServer
+# Contributing to Ripen
 
 We welcome contributions! To maintain the long-term sustainability of the project as a Single Vendor Commercial Open Source (SV-COS) product, we follow a specific contribution process.
 
@@ -8,7 +8,7 @@ Before we can merge your code, you must agree to our [Contributor License Agreem
 
 **How to sign:**
 In your Pull Request description, simply include the following line:
-> I have read and agree to the CLA for SharedMemoryServer.
+> I have read and agree to the CLA for Ripen.
 
 ## 2. Our Acceptance Policy
 

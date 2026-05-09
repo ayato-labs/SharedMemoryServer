@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from shared_memory.core.distiller import auto_distill_knowledge
+from ripen.core.distiller import auto_distill_knowledge
 
 
 @pytest.mark.asyncio
@@ -20,8 +20,8 @@ async def test_auto_distill_knowledge_logging_fix():
             return await mock_client.aio.models.generate_content(prompt, system_instruction)
 
     with (
-        patch("shared_memory.core.distiller.get_llm_provider", return_value=FakeProvider()),
-        patch("shared_memory.core.ai_control.AIRateLimiter.throttle", AsyncMock()),
+        patch("ripen.core.distiller.get_llm_provider", return_value=FakeProvider()),
+        patch("ripen.core.ai_control.AIRateLimiter.throttle", AsyncMock()),
     ):
         # This should NOT raise KeyError even though the exception string has braces
         # and the code uses logger.exception() or logger.error(..., exc_info=True)

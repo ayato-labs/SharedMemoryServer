@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from shared_memory.core import logic
+from ripen.core import logic
 from tests.unit.fake_client import FakeGeminiClient
 
 
@@ -36,7 +36,7 @@ async def test_save_memory_harsh_ai_repeated_errors():
     fake_client = FakeGeminiClient()
     fake_client.models.set_error("embed_content", Exception("Rate Limit Exceeded"))
 
-    with patch("shared_memory.infra.embeddings.get_gemini_client", return_value=fake_client):
+    with patch("ripen.infra.embeddings.get_gemini_client", return_value=fake_client):
         # We also need to patch compute_embeddings_bulk if it's used directly
         # actually save_memory_core uses logic_module.compute_embedding which uses
         # embeddings.compute_embedding which uses get_gemini_client().
@@ -49,7 +49,7 @@ async def test_save_memory_harsh_ai_repeated_errors():
         assert "Saved 1 entities" in res
 
         # 裏取り: 本当にDBに保存されているか
-        from shared_memory.infra.database import async_get_connection
+        from ripen.infra.database import async_get_connection
 
         async with await async_get_connection() as conn:
             cursor = await conn.execute("SELECT name FROM entities WHERE name='ResilientNode'")

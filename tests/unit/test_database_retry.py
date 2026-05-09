@@ -3,7 +3,7 @@ import asyncio
 import aiosqlite
 import pytest
 
-from shared_memory.infra.database import async_get_connection, init_db, retry_on_db_lock
+from ripen.infra.database import async_get_connection, init_db, retry_on_db_lock
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ async def test_retry_on_db_lock_exhaustion():
     """
     call_count = 0
 
-    from shared_memory.common.exceptions import DatabaseLockedError
+    from ripen.common.exceptions import DatabaseLockedError
 
     @retry_on_db_lock(max_retries=2, initial_delay=0.1)
     async def failing_db_op():
@@ -63,7 +63,7 @@ async def test_real_db_lock_contention():
     # Note: Our singleton connection architecture might make this tricky
     # if they share the same object.
     # We'll use a direct aiosqlite connect to ensure it's a DIFFERENT connection object.
-    from shared_memory.common.utils import get_db_path
+    from ripen.common.utils import get_db_path
 
     db_path = get_db_path()
 

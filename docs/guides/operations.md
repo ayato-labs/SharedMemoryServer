@@ -9,8 +9,8 @@ uv run pytest tests -v
 ```
 
 ## 2. Database Maintenance
-SharedMemoryServer uses SQLite with WAL (Write-Ahead Logging) mode for high concurrency.
-- **Location**: `data/shared_memory.db`
+Ripen uses SQLite with WAL (Write-Ahead Logging) mode for high concurrency.
+- **Location**: `data/ripen.db`
 - **Backup**: Simply copy the `.db` file while the server is stopped.
 - **Integrity**: Use the `admin_repair` tool to reconstruct the Graph from Memory Bank mirrors if corruption occurs.
 

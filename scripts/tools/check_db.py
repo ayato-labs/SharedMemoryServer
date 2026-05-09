@@ -2,7 +2,7 @@ import sqlite3
 
 
 def check_db():
-    conn = sqlite3.connect("shared_memory.db")
+    conn = sqlite3.connect("ripen.db")
     cursor = conn.cursor()
 
     print("--- troubleshooting_knowledge ---")

@@ -6,8 +6,8 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from shared_memory.core.logic import read_memory_core, save_memory_core  # noqa: E402
-from shared_memory.core.thought_logic import process_thought_core  # noqa: E402
+from ripen.core.logic import read_memory_core, save_memory_core  # noqa: E402
+from ripen.core.thought_logic import process_thought_core  # noqa: E402
 
 
 async def simulate_behavior():
