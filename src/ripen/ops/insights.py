@@ -3,10 +3,6 @@ from datetime import datetime
 from typing import Any
 
 from ripen.common.utils import get_logger
-from ripen.core.thought_logic import init_thoughts_db
-from ripen.infra.database import (
-    retry_on_db_lock,
-)
 
 logger = get_logger("insights")
 
@@ -89,6 +85,7 @@ class InsightEngine:
 
         # 4. 推論ログの観測 (Reasoning Observation)
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork(is_thoughts=True) as t_uow:
             t_count = await t_uow.thoughts.get_total_thought_count()
             s_count = await t_uow.thoughts.get_total_session_count() or 1

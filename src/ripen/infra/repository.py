@@ -32,7 +32,9 @@ class BankRepository(BaseSQLiteRepository, IBankRepository):
         return [r[0] for r in await cursor.fetchall()]
 
     async def get_active_files_content(self) -> list[tuple[str, str]]:
-        cursor = await self.conn.execute("SELECT filename, content FROM bank_files WHERE status = 'active'")
+        cursor = await self.conn.execute(
+            "SELECT filename, content FROM bank_files WHERE status = 'active'"
+        )
         return await cursor.fetchall()
 
     async def get_all_files_content(self) -> list[tuple[str, str]]:
@@ -40,7 +42,9 @@ class BankRepository(BaseSQLiteRepository, IBankRepository):
         return await cursor.fetchall()
 
     async def get_file_content(self, filename: str) -> str | None:
-        cursor = await self.conn.execute("SELECT content FROM bank_files WHERE filename = ?", (filename,))
+        cursor = await self.conn.execute(
+            "SELECT content FROM bank_files WHERE filename = ?", (filename,)
+        )
         row = await cursor.fetchone()
         return row[0] if row else None
 
@@ -108,7 +112,9 @@ class EntityRepository(BaseSQLiteRepository, IEntityRepository):
         return [r[0] for r in await cursor.fetchall()]
 
     async def get_entity_details(self, name: str) -> dict | None:
-        cursor = await self.conn.execute("SELECT entity_type, description FROM entities WHERE name = ?", (name,))
+        cursor = await self.conn.execute(
+            "SELECT entity_type, description FROM entities WHERE name = ?", (name,)
+        )
         row = await cursor.fetchone()
         return dict(row) if row else None
 
@@ -127,7 +133,8 @@ class EntityRepository(BaseSQLiteRepository, IEntityRepository):
 
     async def increment_importance(self, name: str) -> None:
         await self.conn.execute(
-            "UPDATE entities SET importance = MIN(importance + 1, 10), updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+            "UPDATE entities SET importance = MIN(importance + 1, 10), "
+            "updated_at = CURRENT_TIMESTAMP WHERE name = ?",
             (name,),
         )
 
@@ -152,26 +159,25 @@ class RelationRepository(BaseSQLiteRepository, IRelationRepository):
         self, subject: str, object_name: str, predicate: str, agent_id: str
     ) -> None:
         await self.conn.execute(
-            "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) "
+            "VALUES (?, ?, ?, ?)",
             (subject, object_name, predicate, agent_id),
         )
 
-    async def upsert_relations_bulk(
-        self, relations: Sequence[tuple[str, str, str, str]]
-    ) -> None:
+    async def upsert_relations_bulk(self, relations: Sequence[tuple[str, str, str, str]]) -> None:
         await self.conn.executemany(
-            "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) VALUES (?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO relations (subject, object, predicate, created_by) "
+            "VALUES (?, ?, ?, ?)",
             relations,
         )
 
-    async def get_relations_by_subjects_or_objects(
-        self, names: list[str]
-    ) -> list[dict[str, Any]]:
+    async def get_relations_by_subjects_or_objects(self, names: list[str]) -> list[dict[str, Any]]:
         if not names:
             return []
         placeholders = ",".join(["?"] * len(names))
         cursor = await self.conn.execute(
-            f"SELECT * FROM relations WHERE (subject IN ({placeholders}) OR object IN ({placeholders})) AND status = 'active'",
+            f"SELECT * FROM relations WHERE (subject IN ({placeholders}) "
+            f"OR object IN ({placeholders})) AND status = 'active'",
             names + names,
         )
         return [dict(r) for r in await cursor.fetchall()]
@@ -193,34 +199,30 @@ class RelationRepository(BaseSQLiteRepository, IRelationRepository):
 class ObservationRepository(BaseSQLiteRepository, IObservationRepository):
     async def get_recent_observations(self, entity_name: str, limit: int = 5) -> list[str]:
         cursor = await self.conn.execute(
-            "SELECT content FROM observations WHERE entity_name = ? ORDER BY timestamp DESC LIMIT ?",
-            (entity_name, limit)
+            "SELECT content FROM observations WHERE entity_name = ? "
+            "ORDER BY timestamp DESC LIMIT ?",
+            (entity_name, limit),
         )
         return [row[0] for row in await cursor.fetchall()]
 
-    async def insert_observation(
-        self, entity_name: str, content: str, agent_id: str
-    ) -> None:
+    async def insert_observation(self, entity_name: str, content: str, agent_id: str) -> None:
         await self.conn.execute(
             "INSERT INTO observations (entity_name, content, created_by) VALUES (?, ?, ?)",
             (entity_name, content, agent_id),
         )
 
-    async def get_observations_by_entity_names(
-        self, names: list[str]
-    ) -> list[dict[str, Any]]:
+    async def get_observations_by_entity_names(self, names: list[str]) -> list[dict[str, Any]]:
         if not names:
             return []
         placeholders = ",".join(["?"] * len(names))
         cursor = await self.conn.execute(
-            f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) AND status = 'active'",
+            f"SELECT * FROM observations WHERE entity_name IN ({placeholders}) "
+            "AND status = 'active'",
             names,
         )
         return [dict(r) for r in await cursor.fetchall()]
 
-    async def get_active_observations_by_entity(
-        self, entity_name: str
-    ) -> list[tuple[str, str]]:
+    async def get_active_observations_by_entity(self, entity_name: str) -> list[tuple[str, str]]:
         cursor = await self.conn.execute(
             "SELECT content, timestamp FROM observations WHERE entity_name = ? AND status='active'",
             (entity_name,),
@@ -244,7 +246,8 @@ class ConflictRepository(BaseSQLiteRepository, IConflictRepository):
         agent_id: str,
     ) -> None:
         await self.conn.execute(
-            "INSERT INTO conflicts (entity_name, existing_content, new_content, reason, agent_id) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO conflicts (entity_name, existing_content, new_content, reason, agent_id) "
+            "VALUES (?, ?, ?, ?, ?)",
             (entity_name, existing_content, new_content, reason, agent_id),
         )
 
@@ -256,23 +259,21 @@ class ConflictRepository(BaseSQLiteRepository, IConflictRepository):
         cursor = await self.conn.execute("SELECT * FROM conflicts WHERE id = ?", (conflict_id,))
         row = await cursor.fetchone()
         if row:
-            await self.conn.execute("UPDATE conflicts SET resolved = 1 WHERE id = ?", (conflict_id,))
+            await self.conn.execute(
+                "UPDATE conflicts SET resolved = 1 WHERE id = ?", (conflict_id,)
+            )
             return dict(row)
         return None
 
 
 class EmbeddingRepository(BaseSQLiteRepository, IEmbeddingRepository):
-    async def upsert_embedding(
-        self, content_id: str, vector: list[float], model_name: str
-    ) -> None:
+    async def upsert_embedding(self, content_id: str, vector: list[float], model_name: str) -> None:
         await self.conn.execute(
             "INSERT OR REPLACE INTO embeddings (content_id, vector, model_name) VALUES (?, ?, ?)",
             (content_id, json.dumps(vector).encode("utf-8"), model_name),
         )
 
-    async def get_cached_embedding(
-        self, content_hash: str, model_name: str
-    ) -> list[float] | None:
+    async def get_cached_embedding(self, content_hash: str, model_name: str) -> list[float] | None:
         cursor = await self.conn.execute(
             "SELECT vector FROM embedding_cache WHERE content_hash = ? AND model_name = ?",
             (content_hash, model_name),
@@ -315,9 +316,7 @@ class TroubleshootingRepository(BaseSQLiteRepository, ITroubleshootingRepository
 
 
 class TagRepository(BaseSQLiteRepository, ITagRepository):
-    async def replace_tags(
-        self, content_id: str, content_type: str, tags: list[str]
-    ) -> None:
+    async def replace_tags(self, content_id: str, content_type: str, tags: list[str]) -> None:
         await self.conn.execute(
             "DELETE FROM tags WHERE content_id = ? AND content_type = ?", (content_id, content_type)
         )
@@ -357,7 +356,9 @@ class GraphRepository(BaseSQLiteRepository, IGraphRepository):
         observations = [dict(r) for r in await cursor.fetchall()]
         return entities, relations, observations
 
-    async def search_graph(self, query: str) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    async def search_graph(
+        self, query: str
+    ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         cursor = await self.conn.execute(
             "SELECT * FROM entities WHERE "
             "(name LIKE ? OR description LIKE ? OR entity_type LIKE ?) AND status = 'active'",
@@ -392,7 +393,7 @@ class GraphRepository(BaseSQLiteRepository, IGraphRepository):
             all_matched_names,
         )
         linked_observations = [dict(r) for r in await cursor.fetchall()]
-        
+
         return matched_entities, relations, direct_observations, linked_observations
 
 
@@ -461,14 +462,12 @@ class MetadataRepository(BaseSQLiteRepository, IMetadataRepository):
             "SELECT SUM(access_count), COUNT(*) FROM knowledge_metadata"
         )
         row = await cursor.fetchone()
-        return {
-            "total_access": row[0] or 0,
-            "accessed_units": row[1] or 0
-        }
+        return {"total_access": row[0] or 0, "accessed_units": row[1] or 0}
 
     async def get_successful_search_stats(self) -> list[dict[str, Any]]:
         cursor = await self.conn.execute(
-            "SELECT results_count, hit_content_ids, avg_similarity, timestamp FROM search_stats WHERE results_count > 0"
+            "SELECT results_count, hit_content_ids, avg_similarity, timestamp "
+            "FROM search_stats WHERE results_count > 0"
         )
         return [dict(r) for r in await cursor.fetchall()]
 
@@ -514,13 +513,15 @@ class ThoughtRepository(BaseSQLiteRepository, IThoughtRepository):
         )
         # Create FTS5 table for thought search
         await self.conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS thought_history_fts USING fts5(session_id, thought, content='thought_history')"
+            "CREATE VIRTUAL TABLE IF NOT EXISTS thought_history_fts "
+            "USING fts5(session_id, thought, content='thought_history')"
         )
         # Triggers for FTS
         await self.conn.execute(
             """
             CREATE TRIGGER IF NOT EXISTS thought_history_ai AFTER INSERT ON thought_history BEGIN
-                INSERT INTO thought_history_fts(rowid, session_id, thought) VALUES (new.rowid, new.session_id, new.thought);
+                INSERT INTO thought_history_fts(rowid, session_id, thought) 
+                VALUES (new.rowid, new.session_id, new.thought);
             END;
         """
         )
@@ -548,9 +549,17 @@ class ThoughtRepository(BaseSQLiteRepository, IThoughtRepository):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
-                session_id, thought_number, total_thoughts, thought,
-                1 if next_thought_needed else 0, 1 if is_revision else 0,
-                revises_thought, branch_from_thought, branch_id, agent_id, meta_data
+                session_id,
+                thought_number,
+                total_thoughts,
+                thought,
+                1 if next_thought_needed else 0,
+                1 if is_revision else 0,
+                revises_thought,
+                branch_from_thought,
+                branch_id,
+                agent_id,
+                meta_data,
             ),
         )
 

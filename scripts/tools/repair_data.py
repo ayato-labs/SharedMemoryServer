@@ -12,11 +12,12 @@ sys.path.insert(0, src_path)
 
 from ripen.common.utils import get_db_path
 
+
 def analyze_and_fix_orphans(db_path, dry_run=True):
     print(f"\n--- Analyzing Data Integrity for: {db_path} ---")
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    
+
     try:
         # 1. Orphaned Embeddings Analysis
         print("\n[1] Analyzing Orphaned Embeddings...")
@@ -30,7 +31,7 @@ def analyze_and_fix_orphans(db_path, dry_run=True):
         orphans = cursor.fetchall()
         print(f"Found {len(orphans)} unique content_ids with orphaned embeddings.")
         if orphans:
-            print("Sample orphaned IDs:", [r['content_id'] for r in orphans[:5]])
+            print("Sample orphaned IDs:", [r["content_id"] for r in orphans[:5]])
             if not dry_run:
                 print("Deleting orphaned embeddings...")
                 conn.execute("""
@@ -55,13 +56,15 @@ def analyze_and_fix_orphans(db_path, dry_run=True):
             missing_entities = set()
             for r in broken:
                 # Check which one is missing
-                c = conn.execute("SELECT name FROM entities WHERE name = ?", (r['subject'],))
-                if not c.fetchone(): missing_entities.add(r['subject'])
-                c = conn.execute("SELECT name FROM entities WHERE name = ?", (r['object'],))
-                if not c.fetchone(): missing_entities.add(r['object'])
-            
+                c = conn.execute("SELECT name FROM entities WHERE name = ?", (r["subject"],))
+                if not c.fetchone():
+                    missing_entities.add(r["subject"])
+                c = conn.execute("SELECT name FROM entities WHERE name = ?", (r["object"],))
+                if not c.fetchone():
+                    missing_entities.add(r["object"])
+
             print(f"Missing entities causing broken relations: {list(missing_entities)[:10]}...")
-            
+
             if not dry_run:
                 print("Deleting broken relations...")
                 conn.execute("""
@@ -83,7 +86,7 @@ def analyze_and_fix_orphans(db_path, dry_run=True):
         obs_orphans = cursor.fetchall()
         print(f"Found {len(obs_orphans)} entities with orphaned observations.")
         if obs_orphans:
-            print("Sample orphaned entity names:", [r['entity_name'] for r in obs_orphans[:5]])
+            print("Sample orphaned entity names:", [r["entity_name"] for r in obs_orphans[:5]])
             if not dry_run:
                 print("Deleting orphaned observations...")
                 conn.execute("""
@@ -108,10 +111,11 @@ def analyze_and_fix_orphans(db_path, dry_run=True):
     finally:
         conn.close()
 
+
 if __name__ == "__main__":
     path = get_db_path()
     dry_run = "--fix" not in sys.argv
     analyze_and_fix_orphans(path, dry_run=dry_run)
-    
+
     if dry_run:
         print("\nTo apply fixes, run: .venv/Scripts/python.exe scripts/tools/repair_data.py --fix")

@@ -51,7 +51,7 @@ async def restore_snapshot_logic(snapshot_id: int, uow):
 
 
 async def get_audit_history_logic(limit: int, table_name: str | None, uow):
-    logs = await uow.audit.get_audit_logs(limit, table_name)
+    logs = await uow.audit.get_history(limit, table_name)
     return [
         {
             "id": log["id"],
@@ -116,10 +116,12 @@ async def get_memory_health_logic(uow):
         )
 
         from ripen.common.config import settings
+
         if settings.embedding_engine == "fastembed":
             health["semantic_search_active"] = True
         else:
             from ripen.infra.embeddings import get_gemini_client
+
             health["semantic_search_active"] = get_gemini_client() is not None
 
         isolated = await uow.management.get_isolated_entities()

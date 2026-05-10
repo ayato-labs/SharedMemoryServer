@@ -71,7 +71,7 @@ class Settings:
         env_val = os.environ.get(key.upper())
         if env_val is not None:
             return env_val
-        
+
         # config.jsonは小文字キーでチェック
         return self._config_data.get(key.lower(), default)
 
@@ -122,11 +122,7 @@ class Settings:
                     # Also check for "SharedMemoryServer" for backward compatibility
                     server_names = ["Ripen", "SharedMemoryServer"]
                     for name in server_names:
-                        mcp_env = (
-                            settings_json.get("mcpServers", {})
-                            .get(name, {})
-                            .get("env", {})
-                        )
+                        mcp_env = settings_json.get("mcpServers", {}).get(name, {}).get("env", {})
                         api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get("GEMINI_API_KEY")
                         if api_key:
                             self._api_key = api_key.strip()
@@ -200,6 +196,16 @@ class Settings:
     def is_enterprise(self) -> bool:
         """商用版プラグインが有効かどうかを返す。"""
         return any(getattr(p, "is_enterprise", False) for p in self._plugins)
+
+    @property
+    def default_transport(self) -> str:
+        """デフォルトの通信方式 (stdio or sse) を返す。"""
+        return self.get("DEFAULT_TRANSPORT", "stdio").lower()
+
+    @property
+    def sse_port(self) -> int:
+        """SSEモードで使用するポート番号を返す。"""
+        return int(self.get("SSE_PORT", "8377"))
 
 
 # Singleton instance

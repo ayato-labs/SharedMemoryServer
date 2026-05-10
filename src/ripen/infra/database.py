@@ -198,9 +198,6 @@ async def _async_get_connection_raw(db_path: str, is_thoughts: bool = False):
     return AsyncSQLiteConnection(db_path, is_thoughts=is_thoughts)
 
 
-
-
-
 async def _add_column_if_missing(cursor, table, col_def):
     """
     Safely adds a column to a table if it doesn't already exist.
@@ -535,7 +532,9 @@ async def init_db(force: bool = False):
         await cursor.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
         await cursor.execute("INSERT INTO observations_fts(observations_fts) VALUES('rebuild')")
         await cursor.execute("INSERT INTO bank_files_fts(bank_files_fts) VALUES('rebuild')")
-        await cursor.execute("INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts) VALUES('rebuild')")
+        await cursor.execute(
+            "INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts) VALUES('rebuild')"
+        )
 
         await conn.commit()
 
@@ -555,6 +554,3 @@ async def init_db(force: bool = False):
         else:
             _DB_INITIALIZED = True
             logger.info("Main database initialization successful.")
-
-
-

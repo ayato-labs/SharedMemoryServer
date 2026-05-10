@@ -90,6 +90,7 @@ async def compute_embedding(
                 compute_map.append((original_idx, content_hash))
 
     from ripen.infra.uow import UnitOfWork
+
     if conn:
         # If conn is already a UoW or compatible repo provider
         await _process_cache(conn)

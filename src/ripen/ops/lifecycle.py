@@ -1,12 +1,6 @@
 import asyncio
 
-import aiosqlite
-
-from ripen.common.exceptions import DatabaseError
 from ripen.common.utils import get_logger
-from ripen.infra.database import (
-    retry_on_db_lock,
-)
 
 logger = get_logger("lifecycle")
 
@@ -18,12 +12,13 @@ async def run_maintenance_logic(uow):
     logger.info("Database maintenance starting (PRAGMA optimize)...")
     try:
         await uow.management.optimize_database()
-        
+
         # Maintenance for thoughts DB (cross-UoW or dedicated task)
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork(is_thoughts=True) as t_uow:
             await t_uow.management.optimize_database()
-            
+
         logger.info("Database maintenance complete.")
     except Exception as e:
         logger.error(f"Maintenance failed: {e}")
@@ -35,6 +30,7 @@ async def start_database_maintenance(interval_seconds: int = 3600):
     """
     logger.info(f"Maintenance loop started (Interval: {interval_seconds}s)")
     from ripen.infra.uow import SecureWriteContext
+
     while True:
         try:
             await asyncio.sleep(interval_seconds)
@@ -57,16 +53,16 @@ async def manage_knowledge_activation_logic(ids: list[str], status: str, uow):
 
     try:
         changes = 0
-        
+
         # Entities
         changes += await uow.entities.update_status(ids, status)
-        
+
         # Bank Files
         changes += await uow.bank.update_status(ids, status)
-        
+
         # Observations (by id or by entity name)
         changes += await uow.observations.update_status_by_entities(ids, status)
-        
+
         # Relations (by id or by entity name)
         changes += await uow.relations.update_status_by_entities(ids, status)
 

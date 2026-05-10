@@ -26,19 +26,21 @@ def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict
     try:
         for e in entities or []:
             if isinstance(e, str):
-                normalized.append({
-                    "name": normalize_text(e, truncate=255), 
-                    "entity_type": "concept", 
-                    "description": ""
-                })
+                normalized.append(
+                    {
+                        "name": normalize_text(e, truncate=255),
+                        "entity_type": "concept",
+                        "description": "",
+                    }
+                )
             elif isinstance(e, dict):
                 # Ensure name exists and map common synonyms
                 raw_name = e.get("name") or e.get("id") or e.get("title") or "Unnamed"
                 e["name"] = normalize_text(raw_name, truncate=255)
-                
+
                 raw_type = e.get("entity_type") or e.get("type") or "concept"
                 e["entity_type"] = normalize_text(raw_type, truncate=100)
-                
+
                 raw_desc = e.get("description") or e.get("desc") or e.get("content") or ""
                 e["description"] = normalize_text(raw_desc, truncate=5000)
                 normalized.append(e)
@@ -57,11 +59,11 @@ def normalize_observation_item(obs: dict[str, Any] | str) -> dict[str, Any] | No
         raw_content = obs.get("content") or obs.get("observation") or obs.get("text")
         if not raw_content:
             return None
-        
+
         raw_entity = obs.get("entity_name") or obs.get("entity") or "Unknown"
         return {
-            "content": normalize_text(raw_content), 
-            "entity_name": normalize_text(raw_entity, truncate=255)
+            "content": normalize_text(raw_content),
+            "entity_name": normalize_text(raw_entity, truncate=255),
         }
     return None
 
@@ -234,6 +236,7 @@ async def save_memory_core(
         db_start_time = time.perf_counter()
         try:
             from ripen.infra.uow import SecureWriteContext
+
             async with SecureWriteContext() as uow:
                 # 2.1 Conflict Checks
                 local_logger.info(
@@ -319,9 +322,7 @@ async def save_memory_core(
                         )
                         results.append(res)
                         for obs, tags in zip(observations, observation_tags, strict=True):
-                            await graph.save_tags(
-                                obs.get("entity_name"), "observation", tags, uow
-                            )
+                            await graph.save_tags(obs.get("entity_name"), "observation", tags, uow)
                         if conflicts:
                             local_logger.warning(f"Conflicts detected: {len(conflicts)}")
                             results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
@@ -368,6 +369,7 @@ async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
     logger.info(f"read_memory_core START query='{query}'")
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             if query:
                 graph_data, bank_data = await search.perform_search(query, uow)
@@ -397,6 +399,7 @@ async def save_troubleshooting_knowledge_core(
 
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             affected = (
                 json.dumps(affected_functions)
@@ -405,9 +408,7 @@ async def save_troubleshooting_knowledge_core(
             )
             env = json.dumps(env_metadata or {})
 
-            await uow.troubleshooting.insert_troubleshooting(
-                title, solution, affected, env
-            )
+            await uow.troubleshooting.insert_troubleshooting(title, solution, affected, env)
             await uow.commit()
             local_logger.info("Troubleshooting knowledge saved successfully")
             return f"Successfully saved troubleshooting knowledge: {title}"
@@ -419,6 +420,7 @@ async def save_troubleshooting_knowledge_core(
 async def get_audit_history_core(limit: int = 20, table_name: str | None = None):
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             return await management.get_audit_history_logic(limit, table_name, uow)
     except Exception:
@@ -429,6 +431,7 @@ async def get_audit_history_core(limit: int = 20, table_name: str | None = None)
 async def synthesize_entity(entity_name: str):
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             return await search.synthesize_knowledge(entity_name, uow)
     except Exception:
@@ -439,6 +442,7 @@ async def synthesize_entity(entity_name: str):
 async def rollback_memory_core(audit_id: int):
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await management.rollback_memory_logic(audit_id, uow)
             await uow.commit()
@@ -451,6 +455,7 @@ async def rollback_memory_core(audit_id: int):
 async def create_snapshot_core(name: str, description: str = ""):
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await management.create_snapshot_logic(name, description, uow)
             await uow.commit()
@@ -463,6 +468,7 @@ async def create_snapshot_core(name: str, description: str = ""):
 async def restore_snapshot_core(snapshot_id: int):
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await management.restore_snapshot_logic(snapshot_id, uow)
             await uow.commit()
@@ -475,6 +481,7 @@ async def restore_snapshot_core(snapshot_id: int):
 async def get_memory_health_core():
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             mgmt_health = await management.get_memory_health_logic(uow)
             deep_health = await health.get_comprehensive_diagnostics(uow)
@@ -488,6 +495,7 @@ async def get_memory_health_core():
 async def repair_memory_core():
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await bank.repair_memory_logic(uow)
             await uow.commit()
@@ -500,6 +508,7 @@ async def repair_memory_core():
 async def get_value_report_core(format_type: str = "markdown"):
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             if format_type == "json":
                 metrics_data = await InsightEngine.get_summary_metrics(uow)
@@ -515,6 +524,7 @@ async def get_value_report_core(format_type: str = "markdown"):
 async def manage_knowledge_activation_core(ids: list[str], status: str):
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await lifecycle.manage_knowledge_activation_logic(ids, status, uow)
             await uow.commit()
@@ -527,6 +537,7 @@ async def manage_knowledge_activation_core(ids: list[str], status: str):
 async def list_inactive_knowledge_core():
     try:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as uow:
             return await lifecycle.list_inactive_knowledge_logic(uow)
     except Exception:
@@ -537,6 +548,7 @@ async def list_inactive_knowledge_core():
 async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
     try:
         from ripen.infra.uow import SecureWriteContext
+
         async with SecureWriteContext() as uow:
             res = await lifecycle.run_knowledge_gc_logic(age_days, dry_run, uow)
             await uow.commit()

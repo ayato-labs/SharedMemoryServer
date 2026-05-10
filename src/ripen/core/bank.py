@@ -121,7 +121,10 @@ async def save_bank_files(
             for entity_name in existing_entities:
                 if entity_name.lower() in content.lower():
                     await uow.relations.upsert_relation(
-                        subject=filename, object_name=entity_name, predicate="mentions", agent_id=agent_id
+                        subject=filename,
+                        object_name=entity_name,
+                        predicate="mentions",
+                        agent_id=agent_id,
                     )
 
     return f"Updated {len(items_to_process)} bank files"
@@ -136,6 +139,7 @@ async def read_bank_data(uow=None, query: str | None = None):
 
         if uow is None:
             from ripen.infra.uow import UnitOfWork
+
             async with UnitOfWork() as managed_uow:
                 active_files = await managed_uow.bank.get_active_filenames()
                 db_files = await managed_uow.bank.get_active_files_content()
@@ -153,11 +157,11 @@ async def read_bank_data(uow=None, query: str | None = None):
                             if not query or query.lower() in content.lower():
                                 bank_data[filename] = content
                                 found_files.add(filename)
-                                # update_access requires a uow/repo now? 
+                                # update_access requires a uow/repo now?
                                 # Actually update_access was a helper in database.py
                                 # Let's skip it or update it if it's important.
                                 # For now, let's keep it if it's static or refactor it.
-                                # await update_access(filename) 
+                                # await update_access(filename)
                     except (Exception, ValueError) as e:
                         log_error(f"Failed to read bank file {filename}", e)
 

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 class IBankRepository(ABC):
@@ -92,15 +93,11 @@ class IRelationRepository(ABC):
         pass
 
     @abstractmethod
-    async def upsert_relations_bulk(
-        self, relations: Sequence[tuple[str, str, str, str]]
-    ) -> None:
+    async def upsert_relations_bulk(self, relations: Sequence[tuple[str, str, str, str]]) -> None:
         pass
 
     @abstractmethod
-    async def get_relations_by_subjects_or_objects(
-        self, names: list[str]
-    ) -> list[dict[str, Any]]:
+    async def get_relations_by_subjects_or_objects(self, names: list[str]) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -118,21 +115,15 @@ class IObservationRepository(ABC):
         pass
 
     @abstractmethod
-    async def insert_observation(
-        self, entity_name: str, content: str, agent_id: str
-    ) -> None:
+    async def insert_observation(self, entity_name: str, content: str, agent_id: str) -> None:
         pass
 
     @abstractmethod
-    async def get_observations_by_entity_names(
-        self, names: list[str]
-    ) -> list[dict[str, Any]]:
+    async def get_observations_by_entity_names(self, names: list[str]) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def get_active_observations_by_entity(
-        self, entity_name: str
-    ) -> list[tuple[str, str]]:
+    async def get_active_observations_by_entity(self, entity_name: str) -> list[tuple[str, str]]:
         pass
 
     @abstractmethod
@@ -186,9 +177,7 @@ class IConflictRepository(ABC):
 
 class IEmbeddingRepository(ABC):
     @abstractmethod
-    async def get_cached_embedding(
-        self, content_hash: str, model_name: str
-    ) -> list[float] | None:
+    async def get_cached_embedding(self, content_hash: str, model_name: str) -> list[float] | None:
         """Get a cached embedding by content hash and model name."""
         pass
 
@@ -214,9 +203,7 @@ class ITroubleshootingRepository(ABC):
 
 class ITagRepository(ABC):
     @abstractmethod
-    async def replace_tags(
-        self, content_id: str, content_type: str, tags: list[str]
-    ) -> None:
+    async def replace_tags(self, content_id: str, content_type: str, tags: list[str]) -> None:
         pass
 
     @abstractmethod
@@ -234,7 +221,9 @@ class IGraphRepository(ABC):
         pass
 
     @abstractmethod
-    async def search_graph(self, query: str) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    async def search_graph(
+        self, query: str
+    ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         pass
 
 

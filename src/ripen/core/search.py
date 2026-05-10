@@ -44,9 +44,25 @@ async def perform_keyword_search(
 
     # 1. Search Knowledge DB using FTS5 (Entities, Observations, Bank, Troubleshooting)
     fts_sources = [
-        ("troubleshooting_knowledge", "troubleshooting_knowledge_fts", "id", "solution", "STABLE", 2.5, "title"),
+        (
+            "troubleshooting_knowledge",
+            "troubleshooting_knowledge_fts",
+            "id",
+            "solution",
+            "STABLE",
+            2.5,
+            "title",
+        ),
         ("entities", "entities_fts", "name", "description", "STABLE", 1.5, "name"),
-        ("observations", "observations_fts", "entity_name", "content", "STABLE", 1.2, "entity_name"),
+        (
+            "observations",
+            "observations_fts",
+            "entity_name",
+            "content",
+            "STABLE",
+            1.2,
+            "entity_name",
+        ),
         ("bank_files", "bank_files_fts", "filename", "content", "OBSERVED", 1.0, "filename"),
     ]
 
@@ -69,9 +85,7 @@ async def perform_keyword_search(
                 current_score, _, _ = scored_results.get(key, (0.0, "", ""))
                 scored_results[key] = (current_score + score, str(content), maturity)
         except Exception:
-            rows = await uow.search.perform_like_search(
-                source_name, id_col, content_col, query
-            )
+            rows = await uow.search.perform_like_search(source_name, id_col, content_col, query)
             for row_id, content in rows:
                 key = (source_name, row_id)
                 current_score, _, _ = scored_results.get(key, (0.0, "", ""))
@@ -86,12 +100,8 @@ async def perform_keyword_search(
             source_label = "entities"
 
         key = (source_label, cid)
-        maturity = (
-            "STABLE" if ctype in ["entity", "observation", "troubleshooting"] else "OBSERVED"
-        )
-        current_score, content, _ = scored_results.get(
-            key, (0.0, f"Matched tag: {tag}", maturity)
-        )
+        maturity = "STABLE" if ctype in ["entity", "observation", "troubleshooting"] else "OBSERVED"
+        current_score, content, _ = scored_results.get(key, (0.0, f"Matched tag: {tag}", maturity))
         scored_results[key] = (current_score + score, content, maturity)
 
     # 2. Search Thoughts DB (Transient)
@@ -101,10 +111,9 @@ async def perform_keyword_search(
                 raise ValueError("Empty FTS query")
 
             from ripen.infra.uow import UnitOfWork
+
             async with UnitOfWork(is_thoughts=True) as t_uow:
-                rows = await t_uow.thoughts.search_thoughts(
-                    fts_query, exclude_session_id or ""
-                )
+                rows = await t_uow.thoughts.search_thoughts(fts_query, exclude_session_id or "")
                 for sess_id, t_num, thought, rank in rows:
                     score = max(0.1, abs(rank) * 0.3)
                     key = ("thought_history", f"{sess_id}#{t_num}")
@@ -131,9 +140,7 @@ async def perform_keyword_search(
     return formatted_results
 
 
-async def perform_search(
-    query: str, uow, limit: int = 10, include_transient: bool = True
-):
+async def perform_search(query: str, uow, limit: int = 10, include_transient: bool = True):
     """Hybrid search logic (Semantic + Keyword)."""
     logger.info(f"perform_search START query={query}")
     start_search = datetime.datetime.now()
@@ -168,10 +175,12 @@ async def perform_search(
             importance = calculate_importance(count, last)
             k_res = next((r for r in keyword_results if r["id"] == cid), None)
             k_score = k_res["score"] if k_res else 0.0
-            
+
             maturity = k_res["maturity"] if k_res else "STABLE"
-            maturity_boost = 1.5 if maturity == "STABLE" else (0.3 if maturity == "TRANSIENT" else 1.0)
-            
+            maturity_boost = (
+                1.5 if maturity == "STABLE" else (0.3 if maturity == "TRANSIENT" else 1.0)
+            )
+
             final_score = ((sim * 0.4) + (importance * 0.15) + (k_score * 0.45)) * maturity_boost
             results.append((cid, final_score))
             seen_cids.add(cid)
@@ -181,8 +190,10 @@ async def perform_search(
             if cid not in seen_cids:
                 k_score = res["score"]
                 maturity = res["maturity"]
-                maturity_boost = 1.5 if maturity == "STABLE" else (0.3 if maturity == "TRANSIENT" else 1.0)
-                
+                maturity_boost = (
+                    1.5 if maturity == "STABLE" else (0.3 if maturity == "TRANSIENT" else 1.0)
+                )
+
                 count, last = meta_map.get(cid, (0, datetime.datetime.now().isoformat()))
                 importance = calculate_importance(count, last)
                 final_score = ((k_score * 0.5) + (importance * 0.5)) * maturity_boost
@@ -216,7 +227,7 @@ async def get_graph_data_by_cids(cids: list[str], uow):
 
     entities = await uow.entities.get_entities_by_names(cids)
     obs = await uow.observations.get_observations_by_entity_names(cids)
-    
+
     ts_ids = [int(c) for c in cids if str(c).isdigit()]
     ts_rows = await uow.troubleshooting.get_troubleshooting_by_ids(ts_ids)
 
@@ -271,9 +282,7 @@ async def synthesize_knowledge(entity_name: str, uow):
             + "\n".join([f"- ({o['timestamp']}) {o['content']}" for o in obs])
             + "\n\n"
             "RELATIONS:\n"
-            + "\n".join(
-                [f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels]
-            )
+            + "\n".join([f"- {r['subject']} --({r['predicate']})--> {r['object']}" for r in rels])
         )
 
         system_instruction = (

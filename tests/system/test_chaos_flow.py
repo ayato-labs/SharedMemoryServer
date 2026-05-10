@@ -45,9 +45,7 @@ async def test_chaos_failure_resilience():
                 from ripen.core.logic import save_memory_core
 
                 # Mocking graph.save_entities to avoid actual DB write on odd attempts
-                with patch(
-                    "ripen.core.graph.save_entities", return_value="Saved 1 entities"
-                ):
+                with patch("ripen.core.graph.save_entities", return_value="Saved 1 entities"):
                     result = await save_memory_core(entities=[{"name": "ChaosEntity"}])
                     assert "Saved 1 entities" in result
 

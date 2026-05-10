@@ -162,9 +162,8 @@ mcp = FastMCP(
 )
 
 
-
-
 from ripen.infra.uow import UnitOfWork, SecureWriteContext
+
 
 @mcp.tool(
     description=(
@@ -310,9 +309,7 @@ async def list_inactive_knowledge() -> str:
     return json.dumps(results, indent=2, ensure_ascii=False)
 
 
-@mcp.tool(
-    description="Generate a high-level value report and ROI of the memory system."
-)
+@mcp.tool(description="Generate a high-level value report and ROI of the memory system.")
 async def get_insights(format: str = "markdown") -> str:
     """Generate a high-level value report and ROI of the memory system."""
     async with UnitOfWork() as uow:
@@ -338,43 +335,74 @@ def _kill_port_process(port: int):
     try:
         import subprocess
 
+        # findstr returns exit code 1 if no match is found, which is normal
         cmd = f"netstat -ano | findstr :{port}"
-        output = subprocess.check_output(cmd, shell=True).decode()
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            # No process found on this port, which is good!
+            return
+
+        output = result.stdout
         for line in output.strip().split("\n"):
             if "LISTENING" in line:
                 pid = line.strip().split()[-1]
                 logger.warning(f"Killing zombie process {pid} on port {port}")
-                subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
+                subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
     except Exception as e:
-        logger.error(f"Failed to kill zombie process on port {port}: {e}")
+        # Unexpected errors (like missing taskkill) are still logged
+        logger.error(f"Unexpected error during zombie cleanup on port {port}: {e}")
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sse", action="store_true")
-    parser.add_argument("--port", type=int, default=8377)
+    parser.add_argument("--sse", action="store_true", help="Start in SSE mode (HTTP server)")
+    parser.add_argument("--stdio", action="store_true", help="Start in stdio mode (Standard I/O)")
+    parser.add_argument("--port", type=int, help="SSE port (overrides config)")
+    parser.add_argument(
+        "--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts"
+    )
     args = parser.parse_args()
+
+    if args.uninstall:
+        from ripen.cli.uninstall import perform_uninstall
+
+        perform_uninstall()
 
     # --- Plugin Loading ---
     logger.info("Discovering plugins...")
     context = {"settings": settings}
     settings._plugins = PluginLoader.load_all(context)
 
-    if args.sse:
-        _kill_port_process(args.port)
-        
-        print("\n" + "="*50)
-        print("\033[1;32m✅ Ripen v0.1.0 is running (SSE Mode)\033[0m")
-        print(f"  Transport: \033[1;36mSSE on port {args.port}\033[0m")
-        print(f"  LLM:       \033[1;33m{settings.llm_provider} ({settings.generative_model})\033[0m")
-        print(f"  Data:      \033[1;34m{settings.base_dir}\033[0m")
-        print(f"  Dashboard: \033[1;35mhttp://localhost:{args.port}/dashboard\033[0m")
-        print("="*50 + "\n")
-        
-        mcp.run(transport="sse", port=args.port)
+    # Mode Detection
+    use_sse = args.sse
+    if not args.sse and not args.stdio:
+        # Default to config if no explicit flag
+        use_sse = settings.default_transport == "sse"
+
+    port = args.port or settings.sse_port or 8377
+
+    if use_sse:
+        _kill_port_process(port)
+
+        # Premium Startup Banner
+        print("\n\033[1;32m" + "═" * 60)
+        print("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m")
+        print("  \033[1;34m" + "─" * 56 + "\033[0m")
+        print(f"  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m")
+        print(f"  📡 Port:      \033[1;36m{port}\033[0m")
+        print(
+            f"  🤖 LLM:       \033[1;33m{settings.llm_provider} ({settings.generative_model})\033[0m"
+        )
+        print(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m")
+        print(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m")
+        print("\033[1;32m" + "═" * 60 + "\033[0m\n")
+
+        mcp.run(transport="sse", port=port)
     else:
+        # Stdio mode (quiet, for IDE integration)
         mcp.run(transport="stdio")
 
 

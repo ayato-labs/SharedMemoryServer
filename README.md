@@ -5,6 +5,10 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/ripen)](https://pypi.org/project/ripen/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Beta-orange)](CHANGELOG.md)
+[![Download Official Binary](https://img.shields.io/badge/Download-Official%20ripen.exe-brightgreen?style=for-the-badge&logo=github)](https://github.com/ayato-labs/ripen/releases)
+
+> [!IMPORTANT]
+> **Official Distribution**: Always download `ripen.exe` from the [Official GitHub Releases](https://github.com/ayato-labs/ripen/releases). This ensures you have the latest signed binary with all security patches.
 
 > [!TIP]
 > **🚀 180-Day Free Commercial Trial Available!**
@@ -158,25 +162,28 @@ Visit `http://localhost:8377/dashboard` to see:
 
 ## Installation
 
-### Option A: Zero-install (Recommended)
+### Option A: Native Binary (Easiest for Windows) 🚀
+No Python required. Best for a quick, stable setup.
+1. Download `ripen.exe` from [GitHub Releases](https://github.com/ayato-labs/ripen/releases).
+2. Run `ripen.exe init` in your terminal to set up your Hub or Client.
+3. Use the generated Desktop shortcut to start Ripen anytime.
+
+### Option B: Zero-install (For Python users)
 ```bash
-uvx ripen --sse        # Hub
+uvx ripen --sse        # Start Hub
 uvx ripen-init         # Setup wizard
 ```
 
-### Option B: Persistent install
+### Option C: Persistent install
 ```bash
 pip install ripen
 ripen-init
 ```
 
-### Option C: Docker (Team Hub)
+### Option D: Docker (Team Hub)
 ```bash
 docker run -d -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen
 ```
-
-### Option D: Native Binary
-Download from [GitHub Releases](https://github.com/ayato-labs/ripen/releases) — no Python required.
 
 ---
 
@@ -202,7 +209,22 @@ Download from [GitHub Releases](https://github.com/ayato-labs/ripen/releases) �
 
 ---
 
-## License & Governance
+## Data Governance & Privacy 🛡️
+
+Your knowledge is your most valuable asset. Ripen is designed to give you full control over it:
+
+- **Local-First**: All data is stored on your machine in a single SQLite database.
+- **Data Location**: By default, everything lives in `~/.ripen/` (Windows: `C:\Users\<User>\.ripen`).
+- **Portability**: To backup or migrate, simply copy the `~/.ripen/knowledge.db` file.
+- **Complete Erasure**: If you decide to stop using Ripen and want to ensure no data is left behind, run:
+  ```bash
+  ripen --uninstall
+  ```
+  This will permanently delete the database, configurations, and shortcuts.
+
+---
+
+## License
 
 - **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
 - **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. **Includes a 180-day (6-month) free trial.**

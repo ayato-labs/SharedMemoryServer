@@ -210,6 +210,7 @@ def temp_env(env_vars):
 async def uow():
     """Provides a UnitOfWork for the test database."""
     from ripen.infra.uow import UnitOfWork
+
     async with UnitOfWork() as uow:
         yield uow
 

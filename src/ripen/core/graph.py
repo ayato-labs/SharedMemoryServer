@@ -208,6 +208,7 @@ async def check_conflict(entity_name: str, new_contents: list[str], agent_id: st
         logger.info(f"Checking conflicts for entity='{entity_name}' ({len(new_contents)} items)")
         if uow is None:
             from ripen.infra.uow import SecureWriteContext
+
             async with SecureWriteContext() as managed_uow:
                 return await _check_conflicts_internal(
                     entity_name, new_contents, agent_id, managed_uow
@@ -365,9 +366,7 @@ async def save_entities(
                 "timestamp": datetime.now().isoformat(),
             }
         )
-        await uow.audit.log_action(
-            "entities", name, action, old_data, new_data, agent_id, meta
-        )
+        await uow.audit.log_action("entities", name, action, old_data, new_data, agent_id, meta)
 
         if vector:
             await uow.embeddings.upsert_embedding(name, vector, settings.embedding_model)
@@ -458,7 +457,7 @@ async def save_observations(
 
         await uow.observations.insert_observation(entity_name, content, agent_id)
         await uow.entities.increment_importance(entity_name)
-        
+
         meta = json.dumps(
             {
                 "agent_context": "development_trace",
@@ -485,6 +484,7 @@ async def save_observations(
 async def get_graph_data(uow=None):
     if uow is None:
         from ripen.infra.uow import UnitOfWork
+
         async with UnitOfWork() as managed_uow:
             return await _get_graph_data_internal(managed_uow)
     return await _get_graph_data_internal(uow)

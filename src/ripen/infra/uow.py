@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import aiosqlite
@@ -11,20 +10,20 @@ from ripen.infra.repository import (
     EmbeddingRepository,
     EntityRepository,
     GraphRepository,
+    ManagementRepository,
     MetadataRepository,
     ObservationRepository,
     RelationRepository,
     SearchRepository,
     TagRepository,
-    TroubleshootingRepository,
     ThoughtRepository,
-    ManagementRepository,
+    TroubleshootingRepository,
 )
 
 
 class UnitOfWork:
     """
-    Manages database transactions and ensures repository instances 
+    Manages database transactions and ensures repository instances
     share the same connection within a session.
     """
 
@@ -38,13 +37,17 @@ class UnitOfWork:
         if self.is_thoughts:
             from ripen.common.utils import get_thoughts_db_path
             from ripen.core.thought_logic import init_thoughts_db
+
             await init_thoughts_db()
-            self._conn = await AsyncSQLiteConnection(get_thoughts_db_path(), is_thoughts=True).__aenter__()
+            self._conn = await AsyncSQLiteConnection(
+                get_thoughts_db_path(), is_thoughts=True
+            ).__aenter__()
         else:
             from ripen.common.utils import get_db_path
+
             await init_db()
             self._conn = await AsyncSQLiteConnection(get_db_path()).__aenter__()
-        
+
         # Initialize repositories with this connection
         self.bank = BankRepository(self._conn)
         self.audit = AuditRepository(self._conn)
@@ -60,7 +63,7 @@ class UnitOfWork:
         self.thoughts = ThoughtRepository(self._conn)
         self.metadata = MetadataRepository(self._conn)
         self._management = ManagementRepository(self._conn)
-        
+
         return self
 
     @property
@@ -92,6 +95,7 @@ class SecureWriteContext:
     """
     Context manager that combines the write semaphore and a UnitOfWork.
     """
+
     def __init__(self, is_thoughts: bool = False):
         self.is_thoughts = is_thoughts
         self.uow = UnitOfWork(is_thoughts)

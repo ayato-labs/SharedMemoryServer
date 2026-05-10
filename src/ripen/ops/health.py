@@ -4,10 +4,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-import aiosqlite
-
 from ripen.common.utils import get_bank_dir, get_db_path, log_error
-
 
 
 async def check_db_health(uow) -> dict[str, Any]:
@@ -34,7 +31,7 @@ async def check_db_health(uow) -> dict[str, Any]:
     try:
         db_stats = await uow.management.get_database_stats()
         stats.update(db_stats)
-        
+
         # Entity count for sanity
         stats["entities_count"] = await uow.management.get_count("entities")
         stats["status"] = "healthy"
@@ -92,11 +89,13 @@ async def check_provider_health() -> dict[str, Any]:
     try:
         if settings.llm_provider == "ollama":
             import aiohttp
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{settings.ollama_base_url}/api/tags") as resp:
                     status = "healthy" if resp.status == 200 else "unhealthy"
         else:
             from ripen.infra.embeddings import get_gemini_client
+
             client = get_gemini_client()
             status = "healthy" if client else "unhealthy"
 
