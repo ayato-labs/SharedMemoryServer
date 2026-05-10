@@ -25,9 +25,7 @@ class TestLogicParallel:
             # Just return no conflicts
             return [(False, "No conflict")] * len(new_contents)
 
-        with patch(
-            "ripen.core.logic.graph.check_conflict", side_effect=mock_check_conflict
-        ):
+        with patch("ripen.core.logic.graph.check_conflict", side_effect=mock_check_conflict):
             observations = [
                 {"entity_name": "Entity1", "content": "Fact 1.1"},
                 {"entity_name": "Entity2", "content": "Fact 2.1"},

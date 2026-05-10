@@ -8,7 +8,6 @@ import aiosqlite
 from ripen.common.utils import get_logger, normalize_text
 from ripen.core import bank, graph, search
 from ripen.infra.database import (
-    async_get_connection,
     get_write_semaphore,
     init_db,
     retry_on_db_lock,
@@ -27,19 +26,21 @@ def normalize_entities(entities: list[dict[str, Any] | str] | None) -> list[dict
     try:
         for e in entities or []:
             if isinstance(e, str):
-                normalized.append({
-                    "name": normalize_text(e, truncate=255), 
-                    "entity_type": "concept", 
-                    "description": ""
-                })
+                normalized.append(
+                    {
+                        "name": normalize_text(e, truncate=255),
+                        "entity_type": "concept",
+                        "description": "",
+                    }
+                )
             elif isinstance(e, dict):
                 # Ensure name exists and map common synonyms
                 raw_name = e.get("name") or e.get("id") or e.get("title") or "Unnamed"
                 e["name"] = normalize_text(raw_name, truncate=255)
-                
+
                 raw_type = e.get("entity_type") or e.get("type") or "concept"
                 e["entity_type"] = normalize_text(raw_type, truncate=100)
-                
+
                 raw_desc = e.get("description") or e.get("desc") or e.get("content") or ""
                 e["description"] = normalize_text(raw_desc, truncate=5000)
                 normalized.append(e)
@@ -58,11 +59,11 @@ def normalize_observation_item(obs: dict[str, Any] | str) -> dict[str, Any] | No
         raw_content = obs.get("content") or obs.get("observation") or obs.get("text")
         if not raw_content:
             return None
-        
+
         raw_entity = obs.get("entity_name") or obs.get("entity") or "Unknown"
         return {
-            "content": normalize_text(raw_content), 
-            "entity_name": normalize_text(raw_entity, truncate=255)
+            "content": normalize_text(raw_content),
+            "entity_name": normalize_text(raw_entity, truncate=255),
         }
     return None
 
@@ -234,7 +235,9 @@ async def save_memory_core(
         local_logger.info("Phase 2 (Protected Write) started")
         db_start_time = time.perf_counter()
         try:
-            async with get_write_semaphore():
+            from ripen.infra.uow import SecureWriteContext
+
+            async with SecureWriteContext() as uow:
                 # 2.1 Conflict Checks
                 local_logger.info(
                     f"Phase 2.1 (Conflict Checks) for {len(observations)} observations"
@@ -291,63 +294,56 @@ async def save_memory_core(
                     )
 
                 # 2.2 Rapid DB Write
-                async with await async_get_connection() as conn:
-                    local_logger.debug("Database connection acquired for Phase 2.2")
-                    results = []
-                    try:
-                        if entities:
-                            local_logger.info(f"Saving {len(entities)} entities...")
-                            results.append(
-                                await graph.save_entities(
-                                    entities,
-                                    agent_id,
-                                    conn,
-                                    precomputed_vectors=precomputed_entity_vectors,
-                                )
-                            )
-                            for e, tags in zip(entities, entity_tags, strict=True):
-                                await graph.save_tags(e.get("name"), "entity", tags, conn)
-                        if relations:
-                            local_logger.info(f"Saving {len(relations)} relations...")
-                            results.append(await graph.save_relations(relations, agent_id, conn))
-                        if observations:
-                            local_logger.info(f"Saving {len(observations)} observations...")
-                            res, conflicts = await graph.save_observations(
-                                observations,
+                local_logger.debug("Executing rapid DB write using UoW")
+                results = []
+                try:
+                    if entities:
+                        local_logger.info(f"Saving {len(entities)} entities...")
+                        results.append(
+                            await graph.save_entities(
+                                entities,
                                 agent_id,
-                                conn,
-                                precomputed_conflicts=precomputed_observations_conflicts,
+                                uow,
+                                precomputed_vectors=precomputed_entity_vectors,
                             )
-                            results.append(res)
-                            for obs, tags in zip(observations, observation_tags, strict=True):
-                                await graph.save_tags(
-                                    obs.get("entity_name"), "observation", tags, conn
-                                )
-                            if conflicts:
-                                local_logger.warning(f"Conflicts detected: {len(conflicts)}")
-                                results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
-                        if bank_files:
-                            local_logger.info(f"Saving {len(bank_files)} bank files...")
-                            results.append(
-                                await bank.save_bank_files(
-                                    bank_files,
-                                    agent_id,
-                                    conn,
-                                    precomputed_vectors=precomputed_bank_vectors,
-                                )
+                        )
+                        for e, tags in zip(entities, entity_tags, strict=True):
+                            await graph.save_tags(e.get("name"), "entity", tags, uow)
+                    if relations:
+                        local_logger.info(f"Saving {len(relations)} relations...")
+                        results.append(await graph.save_relations(relations, agent_id, uow))
+                    if observations:
+                        local_logger.info(f"Saving {len(observations)} observations...")
+                        res, conflicts = await graph.save_observations(
+                            observations,
+                            agent_id,
+                            uow,
+                            precomputed_conflicts=precomputed_observations_conflicts,
+                        )
+                        results.append(res)
+                        for obs, tags in zip(observations, observation_tags, strict=True):
+                            await graph.save_tags(obs.get("entity_name"), "observation", tags, uow)
+                        if conflicts:
+                            local_logger.warning(f"Conflicts detected: {len(conflicts)}")
+                            results.append(f"CONFLICTS DETECTED: {json.dumps(conflicts)}")
+                    if bank_files:
+                        local_logger.info(f"Saving {len(bank_files)} bank files...")
+                        results.append(
+                            await bank.save_bank_files(
+                                bank_files,
+                                agent_id,
+                                uow,
+                                precomputed_vectors=precomputed_bank_vectors,
                             )
+                        )
 
-                        local_logger.debug("Committing database transaction...")
-                        await conn.commit()
-                        local_logger.info("Database transaction committed successfully")
-                    except aiosqlite.Error as e:
-                        local_logger.exception("DB Transaction Error")
-                        await conn.rollback()
-                        raise RuntimeError(f"Database Error: Transaction failed: {e}") from e
-                    except Exception as e:
-                        local_logger.exception("Unexpected error during DB phase")
-                        await conn.rollback()
-                        raise RuntimeError(f"Internal Error during database write: {e}") from e
+                    local_logger.debug("Committing database transaction...")
+                    await uow.commit()
+                    local_logger.info("Database transaction committed successfully")
+                except Exception as e:
+                    local_logger.exception("Unexpected error during DB phase")
+                    await uow.rollback()
+                    raise RuntimeError(f"Internal Error during database write: {e}") from e
         except Exception as e:
             local_logger.exception("Critical Error in Phase 2 (Protected Write)")
             if isinstance(e, RuntimeError):
@@ -372,126 +368,21 @@ async def read_memory_core(query: str | None = None) -> dict[str, Any] | str:
     start_time = time.perf_counter()
     logger.info(f"read_memory_core START query='{query}'")
     try:
-        await init_db()
-    except Exception as e:
-        logger.exception("Database initialization failed in read_memory_core")
-        return f"Database Error: Initialization failed. {e}"
+        from ripen.infra.uow import UnitOfWork
 
-    try:
-        if query:
-            graph_data, bank_data = await search.perform_search(query)
-        else:
-            graph_data = await graph.get_graph_data()
-            bank_data = await bank.read_bank_data()
+        async with UnitOfWork() as uow:
+            if query:
+                graph_data, bank_data = await search.perform_search(query, uow)
+            else:
+                graph_data = await graph.get_graph_data(uow)
+                bank_data = await bank.read_bank_data(uow)
 
-        duration = time.perf_counter() - start_time
-        logger.info(f"read_memory_core COMPLETE query='{query}' duration={duration:.2f}s")
-        return {"graph": graph_data, "bank": bank_data}
-    except aiosqlite.OperationalError as e:
-        if "locked" in str(e).lower():
-            logger.warning("Database locked during read_memory_core")
-            return "Database Error: Database is currently locked by another process."
-        logger.exception(f"Query failed in read_memory_core: {e}")
-        return f"Database Error: Query failed. {e}"
+            duration = time.perf_counter() - start_time
+            logger.info(f"read_memory_core COMPLETE query='{query}' duration={duration:.2f}s")
+            return {"graph": graph_data, "bank": bank_data}
     except Exception as e:
         logger.exception(f"Unexpected error in read_memory_core: {e}")
         return f"Read Error: {e}"
-
-
-async def get_audit_history_core(limit: int = 20, table_name: str | None = None):
-    try:
-        return await management.get_audit_history_logic(limit, table_name)
-    except Exception:
-        logger.exception("Failed to retrieve audit history")
-        raise
-
-
-async def synthesize_entity(entity_name: str):
-    try:
-        return await search.synthesize_knowledge(entity_name)
-    except Exception:
-        logger.exception(f"Knowledge synthesis failed for {entity_name}")
-        raise
-
-
-async def rollback_memory_core(audit_id: int):
-    try:
-        return await management.rollback_memory_logic(audit_id)
-    except Exception:
-        logger.exception(f"Rollback failed for audit_id {audit_id}")
-        raise
-
-
-async def create_snapshot_core(name: str, description: str = ""):
-    try:
-        return await management.create_snapshot_logic(name, description)
-    except Exception:
-        logger.exception(f"Snapshot creation failed: {name}")
-        raise
-
-
-async def restore_snapshot_core(snapshot_id: int):
-    try:
-        return await management.restore_snapshot_logic(snapshot_id)
-    except Exception:
-        logger.exception(f"Snapshot restoration failed: {snapshot_id}")
-        raise
-
-
-async def get_memory_health_core():
-    try:
-        mgmt_health = await management.get_memory_health_logic()
-        deep_health = await health.get_comprehensive_diagnostics()
-        deep_health["management_stats"] = mgmt_health
-        return deep_health
-    except Exception:
-        logger.exception("Health diagnostics failed")
-        raise
-
-
-async def repair_memory_core():
-    try:
-        return await bank.repair_memory_logic()
-    except Exception:
-        logger.exception("Memory repair failed")
-        raise
-
-
-async def get_value_report_core(format_type: str = "markdown"):
-    try:
-        if format_type == "json":
-            metrics_data = await InsightEngine.get_summary_metrics()
-            return json.dumps(metrics_data, indent=2, ensure_ascii=False)
-
-        metrics_data = await InsightEngine.get_summary_metrics()
-        return InsightEngine.generate_report_markdown(metrics_data)
-    except Exception:
-        logger.exception("Value report generation failed")
-        raise
-
-
-async def manage_knowledge_activation_core(ids: list[str], status: str):
-    try:
-        return await lifecycle.manage_knowledge_activation_logic(ids, status)
-    except Exception:
-        logger.exception(f"Knowledge activation update failed for {ids}")
-        raise
-
-
-async def list_inactive_knowledge_core():
-    try:
-        return await lifecycle.list_inactive_knowledge_logic()
-    except Exception:
-        logger.exception("Failed to list inactive knowledge")
-        raise
-
-
-async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
-    try:
-        return await lifecycle.run_knowledge_gc_logic(age_days, dry_run)
-    except Exception:
-        logger.exception("Garbage collection task failed")
-        raise
 
 
 async def save_troubleshooting_knowledge_core(
@@ -507,22 +398,161 @@ async def save_troubleshooting_knowledge_core(
     local_logger.info(f"Saving troubleshooting knowledge: {title}")
 
     try:
-        await init_db()
-        async with get_write_semaphore():
-            async with await async_get_connection() as conn:
-                affected = (
-                    json.dumps(affected_functions)
-                    if isinstance(affected_functions, list)
-                    else str(affected_functions or "")
-                )
-                env = json.dumps(env_metadata or {})
+        from ripen.infra.uow import SecureWriteContext
 
-                await TroubleshootingRepository.insert_troubleshooting(
-                    conn, title, solution, affected, env
-                )
-                await conn.commit()
-                local_logger.info("Troubleshooting knowledge saved successfully")
-                return f"Successfully saved troubleshooting knowledge: {title}"
+        async with SecureWriteContext() as uow:
+            affected = (
+                json.dumps(affected_functions)
+                if isinstance(affected_functions, list)
+                else str(affected_functions or "")
+            )
+            env = json.dumps(env_metadata or {})
+
+            await uow.troubleshooting.insert_troubleshooting(title, solution, affected, env)
+            await uow.commit()
+            local_logger.info("Troubleshooting knowledge saved successfully")
+            return f"Successfully saved troubleshooting knowledge: {title}"
     except Exception as e:
         local_logger.exception("Failed to save troubleshooting knowledge")
         return f"Error: {e}"
+
+
+async def get_audit_history_core(limit: int = 20, table_name: str | None = None):
+    try:
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            return await management.get_audit_history_logic(limit, table_name, uow)
+    except Exception:
+        logger.exception("Failed to retrieve audit history")
+        raise
+
+
+async def synthesize_entity(entity_name: str):
+    try:
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            return await search.synthesize_knowledge(entity_name, uow)
+    except Exception:
+        logger.exception(f"Knowledge synthesis failed for {entity_name}")
+        raise
+
+
+async def rollback_memory_core(audit_id: int):
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await management.rollback_memory_logic(audit_id, uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception(f"Rollback failed for audit_id {audit_id}")
+        raise
+
+
+async def create_snapshot_core(name: str, description: str = ""):
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await management.create_snapshot_logic(name, description, uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception(f"Snapshot creation failed: {name}")
+        raise
+
+
+async def restore_snapshot_core(snapshot_id: int):
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await management.restore_snapshot_logic(snapshot_id, uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception(f"Snapshot restoration failed: {snapshot_id}")
+        raise
+
+
+async def get_memory_health_core():
+    try:
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            mgmt_health = await management.get_memory_health_logic(uow)
+            deep_health = await health.get_comprehensive_diagnostics(uow)
+            deep_health["management_stats"] = mgmt_health
+            return deep_health
+    except Exception:
+        logger.exception("Health diagnostics failed")
+        raise
+
+
+async def repair_memory_core():
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await bank.repair_memory_logic(uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception("Memory repair failed")
+        raise
+
+
+async def get_value_report_core(format_type: str = "markdown"):
+    try:
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            if format_type == "json":
+                metrics_data = await InsightEngine.get_summary_metrics(uow)
+                return json.dumps(metrics_data, indent=2, ensure_ascii=False)
+
+            metrics_data = await InsightEngine.get_summary_metrics(uow)
+            return InsightEngine.generate_report_markdown(metrics_data)
+    except Exception:
+        logger.exception("Value report generation failed")
+        raise
+
+
+async def manage_knowledge_activation_core(ids: list[str], status: str):
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await lifecycle.manage_knowledge_activation_logic(ids, status, uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception(f"Knowledge activation update failed for {ids}")
+        raise
+
+
+async def list_inactive_knowledge_core():
+    try:
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            return await lifecycle.list_inactive_knowledge_logic(uow)
+    except Exception:
+        logger.exception("Failed to list inactive knowledge")
+        raise
+
+
+async def admin_run_knowledge_gc_core(age_days: int = 180, dry_run: bool = False):
+    try:
+        from ripen.infra.uow import SecureWriteContext
+
+        async with SecureWriteContext() as uow:
+            res = await lifecycle.run_knowledge_gc_logic(age_days, dry_run, uow)
+            await uow.commit()
+            return res
+    except Exception:
+        logger.exception("Garbage collection task failed")
+        raise

@@ -12,6 +12,7 @@ from starlette.applications import Starlette
 
 from ripen.api.auth import AuthMiddleware, get_current_user
 from ripen.common.config import settings
+from ripen.common.plugins import PluginLoader
 from ripen.common.tasks import create_background_task
 from ripen.common.utils import configure_logging, get_logger
 from ripen.ops.lifecycle import start_database_maintenance
@@ -161,6 +162,7 @@ mcp = FastMCP(
 )
 
 
+from ripen.infra.uow import UnitOfWork, SecureWriteContext
 
 
 @mcp.tool(
@@ -179,8 +181,8 @@ async def save_memory(
     agent_id: str | None = None,
 ) -> str:
     """The gateway to your long-term memory."""
-
     user = agent_id or get_current_user() or "default_agent"
+    # save_memory_core handles its own SecureWriteContext for the write phase
     return await logic_module.save_memory_core(entities, relations, observations, bank_files, user)
 
 
@@ -193,8 +195,8 @@ async def save_memory(
 )
 async def read_memory(query: str | None = None) -> str:
     """A hybrid semantic/full-text search interface to your external hippocampus."""
-
-    results = await logic_module.read_memory_core(query)
+    async with UnitOfWork() as uow:
+        results = await logic_module.read_memory_core(uow, query)
     return json.dumps(results, indent=2, ensure_ascii=False)
 
 
@@ -206,8 +208,8 @@ async def read_memory(query: str | None = None) -> str:
 )
 async def synthesize_entity(entity_name: str) -> str:
     """Synthesize all available knowledge about a specific entity."""
-
-    summary = await logic_module.synthesize_entity(entity_name)
+    async with UnitOfWork() as uow:
+        summary = await logic_module.synthesize_entity(entity_name, uow)
     return json.dumps(summary, indent=2, ensure_ascii=False)
 
 
@@ -224,10 +226,12 @@ async def save_troubleshooting_knowledge(
     env_metadata: dict | None = None,
 ) -> str:
     """Explicitly save verified troubleshooting knowledge."""
-
-    return await logic_module.save_troubleshooting_knowledge_core(
-        title, solution, affected_functions, env_metadata
-    )
+    async with SecureWriteContext() as uow:
+        res = await logic_module.save_troubleshooting_knowledge_core(
+            uow, title, solution, affected_functions, env_metadata
+        )
+        await uow.commit()
+    return res
 
 
 @mcp.tool(
@@ -239,8 +243,8 @@ async def save_troubleshooting_knowledge(
 )
 async def get_graph_data(query: str | None = None) -> str:
     """Retrieve the structural relationships (graph) of knowledge."""
-
-    data = await graph_module.get_graph_data(query)
+    async with UnitOfWork() as uow:
+        data = await graph_module.get_graph_data(uow, query)
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
@@ -262,7 +266,6 @@ async def sequential_thinking(
     revises_thought: int | None = None,
 ) -> str:
     """An advanced reasoning tool to externalize and govern your inference process."""
-
     user = get_current_user() or "default_agent"
     result = await thought_module.process_thought_core(
         thought=thought,
@@ -287,8 +290,9 @@ async def sequential_thinking(
 )
 async def manage_knowledge_activation(ids: Any, status: str) -> str:
     """Govern the 'Maturity' and 'Activation' of knowledge."""
-
-    await logic_module.manage_knowledge_activation_core(ids, status)
+    async with SecureWriteContext() as uow:
+        await logic_module.manage_knowledge_activation_core(ids, status, uow)
+        await uow.commit()
     return f"Status updated to {status}."
 
 
@@ -300,18 +304,17 @@ async def manage_knowledge_activation(ids: Any, status: str) -> str:
 )
 async def list_inactive_knowledge() -> str:
     """List archived or low-maturity knowledge."""
-
-    results = await logic_module.list_inactive_knowledge_core()
+    async with UnitOfWork() as uow:
+        results = await logic_module.list_inactive_knowledge_core(uow)
     return json.dumps(results, indent=2, ensure_ascii=False)
 
 
-@mcp.tool(
-    description="Generate a high-level value report and ROI of the memory system."
-)
+@mcp.tool(description="Generate a high-level value report and ROI of the memory system.")
 async def get_insights(format: str = "markdown") -> str:
     """Generate a high-level value report and ROI of the memory system."""
-
-    return await logic_module.get_value_report_core(format)
+    async with UnitOfWork() as uow:
+        res = await logic_module.get_value_report_core(uow, format)
+    return res
 
 
 @mcp.tool(
@@ -322,53 +325,90 @@ async def get_insights(format: str = "markdown") -> str:
 )
 async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False) -> str:
     """System maintenance: Garbage collection."""
-
-    return await logic_module.admin_run_knowledge_gc_core(age_days, dry_run)
+    async with SecureWriteContext() as uow:
+        res = await logic_module.admin_run_knowledge_gc_core(uow, age_days, dry_run)
+        await uow.commit()
+    return res
 
 
 def _kill_port_process(port: int):
     try:
         import subprocess
 
+        # findstr returns exit code 1 if no match is found, which is normal
         cmd = f"netstat -ano | findstr :{port}"
-        output = subprocess.check_output(cmd, shell=True).decode()
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            # No process found on this port, which is good!
+            return
+
+        output = result.stdout
         for line in output.strip().split("\n"):
             if "LISTENING" in line:
                 pid = line.strip().split()[-1]
                 logger.warning(f"Killing zombie process {pid} on port {port}")
-                subprocess.run(["taskkill", "/F", "/PID", pid], check=True)
+                subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
     except Exception as e:
-        logger.error(f"Failed to kill zombie process on port {port}: {e}")
+        # Unexpected errors (like missing taskkill) are still logged
+        logger.error(f"Unexpected error during zombie cleanup on port {port}: {e}")
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sse", action="store_true")
-    parser.add_argument("--port", type=int, default=8377)
+    parser.add_argument("--sse", action="store_true", help="Start in SSE mode (HTTP server)")
+    parser.add_argument("--stdio", action="store_true", help="Start in stdio mode (Standard I/O)")
+    parser.add_argument("--port", type=int, help="SSE port (overrides config)")
+    parser.add_argument(
+        "--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts"
+    )
     args = parser.parse_args()
 
-    if args.sse:
-        _kill_port_process(args.port)
-        
-        print("\n" + "="*50)
-        print("\033[1;32m✅ Ripen v0.1.0 is running (SSE Mode)\033[0m")
-        print(f"  Transport: \033[1;36mSSE on port {args.port}\033[0m")
-        print(f"  LLM:       \033[1;33m{settings.llm_provider} ({settings.generative_model})\033[0m")
-        print(f"  Data:      \033[1;34m{settings.base_dir}\033[0m")
-        print(f"  Dashboard: \033[1;35mhttp://localhost:{args.port}/dashboard\033[0m")
-        print("="*50 + "\n")
-        
-        mcp.run(transport="sse", port=args.port)
+    if args.uninstall:
+        from ripen.cli.uninstall import perform_uninstall
+
+        perform_uninstall()
+
+    # --- Plugin Loading ---
+    logger.info("Discovering plugins...")
+    context = {"settings": settings}
+    settings._plugins = PluginLoader.load_all(context)
+
+    # Mode Detection
+    use_sse = args.sse
+    if not args.sse and not args.stdio:
+        # Default to config if no explicit flag
+        use_sse = settings.default_transport == "sse"
+
+    port = args.port or settings.sse_port or 8377
+
+    if use_sse:
+        _kill_port_process(port)
+
+        # Premium Startup Banner
+        print("\n\033[1;32m" + "═" * 60)
+        print("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m")
+        print("  \033[1;34m" + "─" * 56 + "\033[0m")
+        print(f"  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m")
+        print(f"  📡 Port:      \033[1;36m{port}\033[0m")
+        print(
+            f"  🤖 LLM:       \033[1;33m{settings.llm_provider} ({settings.generative_model})\033[0m"
+        )
+        print(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m")
+        print(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m")
+        print("\033[1;32m" + "═" * 60 + "\033[0m\n")
+
+        mcp.run(transport="sse", port=port)
     else:
+        # Stdio mode (quiet, for IDE integration)
         mcp.run(transport="stdio")
 
 
 async def ensure_initialized():
     """
     Explicitly ensures the database and infrastructure are initialized.
-    Used primarily by system tests to synchronize state.
     """
     logger.info("Server: Ensuring initialization...")
     await init_db()
@@ -379,7 +419,6 @@ async def ensure_initialized():
 async def wait_for_background_tasks(timeout: float = 5.0):
     """
     Waits for all background tasks to complete or timeout.
-    Used during server shutdown and test teardown.
     """
     from ripen.common.tasks import (
         wait_for_background_tasks as wait_tasks,

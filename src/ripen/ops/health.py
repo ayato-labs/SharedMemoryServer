@@ -4,13 +4,10 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-import aiosqlite
-
 from ripen.common.utils import get_bank_dir, get_db_path, log_error
-from ripen.infra.database import async_get_connection
 
 
-async def check_db_health() -> dict[str, Any]:
+async def check_db_health(uow) -> dict[str, Any]:
     """
     Checks the physical health and fragmentation of the SQLite database.
     """
@@ -31,31 +28,15 @@ async def check_db_health() -> dict[str, Any]:
 
     stats["size_bytes"] = os.path.getsize(db_path)
 
-    async with await async_get_connection() as conn:
-        try:
-            # Get page stats
-            cursor = await conn.execute("PRAGMA page_count")
-            stats["page_count"] = (await cursor.fetchone())[0]
-            cursor = await conn.execute("PRAGMA page_size")
-            stats["page_size"] = (await cursor.fetchone())[0]
+    try:
+        db_stats = await uow.management.get_database_stats()
+        stats.update(db_stats)
 
-            # Check WAL mode
-            cursor = await conn.execute("PRAGMA journal_mode")
-            stats["wal_mode"] = (await cursor.fetchone())[0].lower() == "wal"
-
-            # Check fragmentation (freelist pages)
-            cursor = await conn.execute("PRAGMA freelist_count")
-            freelist_count = (await cursor.fetchone())[0]
-            if stats["page_count"] > 0:
-                stats["fragmentation_ratio"] = freelist_count / stats["page_count"]
-
-            # Entity count for sanity
-            cursor = await conn.execute("SELECT COUNT(*) FROM entities")
-            stats["entities_count"] = (await cursor.fetchone())[0]
-            stats["status"] = "healthy"
-
-        except aiosqlite.Error as e:
-            log_error("Failed to check DB health", e)
+        # Entity count for sanity
+        stats["entities_count"] = await uow.management.get_count("entities")
+        stats["status"] = "healthy"
+    except Exception as e:
+        log_error("Failed to check DB health", e)
 
     return stats
 
@@ -90,9 +71,6 @@ async def check_provider_health() -> dict[str, Any]:
     # 1. Check Embedding Engine
     emb_start = time.time()
     try:
-        # Lightweight test: embed a tiny string
-        # FastEmbed is local, so this checks if the model is loaded
-        # Gemini checks network connectivity
         vec = await compute_embedding("health_check")
         results["embedding"] = {
             "engine": settings.embedding_engine,
@@ -109,26 +87,17 @@ async def check_provider_health() -> dict[str, Any]:
     # 2. Check LLM Provider
     llm_start = time.time()
     try:
-        # We don't want to generate a full response, so we just check if it's reachable
-        # For Ollama, we check the base URL. For Gemini, we check the client.
         if settings.llm_provider == "ollama":
             import aiohttp
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{settings.ollama_base_url}/api/tags") as resp:
-                    if resp.status == 200:
-                        status = "healthy"
-                    else:
-                        status = "unhealthy"
+                    status = "healthy" if resp.status == 200 else "unhealthy"
         else:
-            # Gemini health check (Legacy logic)
             from ripen.infra.embeddings import get_gemini_client
 
             client = get_gemini_client()
-            if client:
-                status = "healthy"
-            else:
-                status = "unhealthy"
+            status = "healthy" if client else "unhealthy"
 
         results["llm"] = {
             "provider": settings.llm_provider,
@@ -145,18 +114,18 @@ async def check_provider_health() -> dict[str, Any]:
     return results
 
 
-async def get_comprehensive_diagnostics() -> dict[str, Any]:
+async def get_comprehensive_diagnostics(uow) -> dict[str, Any]:
     """
     Aggregates all health checks into a single report.
     """
-    db = await check_db_health()
+    db = await check_db_health(uow)
     disk = await check_disk_usage()
     providers = await check_provider_health()
 
     overall_status = "healthy"
     issues = []
 
-    if db["fragmentation_ratio"] > 0.3:
+    if db.get("fragmentation_ratio", 0) > 0.3:
         issues.append("High DB fragmentation detected. VACUUM recommended.")
     if disk["percent_free"] < 10:
         overall_status = "warning"

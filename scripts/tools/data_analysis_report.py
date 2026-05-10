@@ -11,6 +11,7 @@ sys.path.insert(0, src_path)
 
 from ripen.common.utils import get_db_path
 
+
 def deep_data_analysis():
     db_path = get_db_path()
     if not os.path.exists(db_path):
@@ -19,20 +20,24 @@ def deep_data_analysis():
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    
-    print("="*60)
+
+    print("=" * 60)
     print(" RIPEN (ex SharedMemory) - PRODUCTION DATA ANALYSIS REPORT")
-    print("="*60)
+    print("=" * 60)
 
     # 1. Entity Statistics
     print("\n[1] Entity Composition")
-    cursor = conn.execute("SELECT entity_type, COUNT(*) as count FROM entities GROUP BY entity_type ORDER BY count DESC")
+    cursor = conn.execute(
+        "SELECT entity_type, COUNT(*) as count FROM entities GROUP BY entity_type ORDER BY count DESC"
+    )
     for row in cursor.fetchall():
         print(f"  - {row['entity_type']:15}: {row['count']} items")
 
     # 2. Top Knowledge Assets (by Importance)
     print("\n[2] High-Value Knowledge (Top 10 by Importance)")
-    cursor = conn.execute("SELECT name, importance, entity_type FROM entities ORDER BY importance DESC, updated_at DESC LIMIT 10")
+    cursor = conn.execute(
+        "SELECT name, importance, entity_type FROM entities ORDER BY importance DESC, updated_at DESC LIMIT 10"
+    )
     for row in cursor.fetchall():
         print(f"  - [{row['importance']:2}/10] {row['name']} ({row['entity_type']})")
 
@@ -62,12 +67,15 @@ def deep_data_analysis():
 
     # 5. Recent Activity
     print("\n[5] Recent System Activity (Audit Logs)")
-    cursor = conn.execute("SELECT action, table_name, count(*) as c FROM audit_logs GROUP BY action, table_name ORDER BY c DESC")
+    cursor = conn.execute(
+        "SELECT action, table_name, count(*) as c FROM audit_logs GROUP BY action, table_name ORDER BY c DESC"
+    )
     for row in cursor.fetchall():
         print(f"  - {row['action']:8} on {row['table_name']:12}: {row['c']} times")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     conn.close()
+
 
 if __name__ == "__main__":
     deep_data_analysis()

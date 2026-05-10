@@ -5,7 +5,7 @@ from typing import Any
 from ripen.common.config import settings
 from ripen.common.utils import get_logger, normalize_text
 from ripen.core.ai_control import AIRateLimiter, retry_on_ai_quota
-from ripen.infra.database import async_get_connection, retry_on_db_lock
+from ripen.infra.database import retry_on_db_lock
 
 logger = get_logger("embeddings")
 
@@ -79,25 +79,24 @@ async def compute_embedding(
     model_name = settings.embedding_model
     logger.debug(f"Checking cache for {len(valid_entries)} entries using model {model_name}")
 
-    async def _process_cache(db):
+    async def _process_cache(uow_obj):
         for original_idx, txt in valid_entries:
             content_hash = _get_text_hash(txt)
-            cursor = await db.execute(
-                "SELECT vector FROM embedding_cache WHERE content_hash = ? AND model_name = ?",
-                (content_hash, model_name),
-            )
-            row = await cursor.fetchone()
-            if row:
-                results[original_idx] = json.loads(row[0])
+            cached = await uow_obj.embeddings.get_cached_embedding(content_hash, model_name)
+            if cached:
+                results[original_idx] = cached
             else:
                 to_compute.append(txt)
                 compute_map.append((original_idx, content_hash))
 
+    from ripen.infra.uow import UnitOfWork
+
     if conn:
+        # If conn is already a UoW or compatible repo provider
         await _process_cache(conn)
     else:
-        async with await async_get_connection() as db:
-            await _process_cache(db)
+        async with UnitOfWork() as uow:
+            await _process_cache(uow)
 
     if not to_compute:
         logger.info(f"All {len(items)} embeddings retrieved from CACHE (SHA-256).")
@@ -111,12 +110,8 @@ async def compute_embedding(
     computed_vectors = []
     if settings.embedding_engine == "fastembed":
         model = get_fastembed_model()
-        # FastEmbed is sync but fast, no need for async overhead here
-        computed_vectors = list(model.embed(to_compute))
-        # Convert ndarray to list
-        computed_vectors = [v.tolist() for v in computed_vectors]
+        computed_vectors = [v.tolist() for v in list(model.embed(to_compute))]
     else:
-        # Gemini API
         client = get_gemini_client()
         if not client:
             raise ValueError("Gemini engine selected but API key is missing.")
@@ -130,25 +125,17 @@ async def compute_embedding(
         computed_vectors = [emb.values for emb in response.embeddings]
 
     # 3. Save results to cache
-    async def _save_cache(db_conn):
+    async def _save_cache(uow_obj):
         for idx, (original_idx, content_hash) in enumerate(compute_map):
             vector = computed_vectors[idx]
             results[original_idx] = vector
-            await db_conn.execute(
-                """
-                INSERT OR REPLACE INTO embedding_cache
-                (content_hash, vector, model_name)
-                VALUES (?, ?, ?)
-            """,
-                (content_hash, json.dumps(vector), model_name),
-            )
-        await db_conn.commit()
+            await uow_obj.embeddings.insert_cache_entry(content_hash, vector, model_name)
 
     if conn:
         await _save_cache(conn)
     else:
-        async with await async_get_connection() as db:
-            await _save_cache(db)
+        async with UnitOfWork() as uow:
+            await _save_cache(uow)
 
     # Ensure all slots are filled
     dim = 384 if settings.embedding_engine == "fastembed" else 768

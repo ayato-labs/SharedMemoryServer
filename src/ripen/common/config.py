@@ -35,6 +35,7 @@ class Settings:
     _base_dir: Path | None = None
     _api_key: str | None = None
     _config_data: dict = {}
+    _plugins: list = []
 
     def __new__(cls):
         if cls._instance is None:
@@ -70,7 +71,7 @@ class Settings:
         env_val = os.environ.get(key.upper())
         if env_val is not None:
             return env_val
-        
+
         # config.jsonは小文字キーでチェック
         return self._config_data.get(key.lower(), default)
 
@@ -100,8 +101,35 @@ class Settings:
         # 1. Environment variables or config.json
         api_key = self.get("GOOGLE_API_KEY") or self.get("GEMINI_API_KEY")
         if api_key:
-            self._api_key = api_key
-            return api_key
+            self._api_key = api_key.strip()
+            return self._api_key
+
+        # 2. Claude Desktop config (settings.json) search
+        try:
+            config_paths = [
+                Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json",
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "Claude"
+                / "claude_desktop_config.json",
+            ]
+            for path in config_paths:
+                if path.exists():
+                    with open(path, encoding="utf-8") as f:
+                        settings_json = json.load(f)
+
+                    # Search in mcpServers -> Ripen -> env
+                    # Also check for "SharedMemoryServer" for backward compatibility
+                    server_names = ["Ripen", "SharedMemoryServer"]
+                    for name in server_names:
+                        mcp_env = settings_json.get("mcpServers", {}).get(name, {}).get("env", {})
+                        api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get("GEMINI_API_KEY")
+                        if api_key:
+                            self._api_key = api_key.strip()
+                            return self._api_key
+        except Exception as e:
+            logger.debug(f"Failed to read settings.json: {e}")
 
         # 2. .env (via load_dotenv in __init__) - already handled by self.get()
         return None
@@ -163,6 +191,26 @@ class Settings:
     def log_level(self) -> str:
         \"\"\"ログレベルを返す。\"\"\"
         return self.get("LOG_LEVEL", "INFO").upper()
+
+    @property
+    def plugins(self) -> list:
+        """ロードされたプラグインのリストを返す。"""
+        return self._plugins
+
+    @property
+    def is_enterprise(self) -> bool:
+        """商用版プラグインが有効かどうかを返す。"""
+        return any(getattr(p, "is_enterprise", False) for p in self._plugins)
+
+    @property
+    def default_transport(self) -> str:
+        """デフォルトの通信方式 (stdio or sse) を返す。"""
+        return self.get("DEFAULT_TRANSPORT", "stdio").lower()
+
+    @property
+    def sse_port(self) -> int:
+        """SSEモードで使用するポート番号を返す。"""
+        return int(self.get("SSE_PORT", "8377"))
 
 
 # Global settings instance

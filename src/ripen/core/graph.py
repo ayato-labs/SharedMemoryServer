@@ -10,7 +10,7 @@ from ripen.common.utils import (
     log_error,
     mask_sensitive_data,
 )
-from ripen.infra.database import async_get_connection
+
 from ripen.infra.embeddings import compute_embeddings_bulk
 from ripen.infra.llm import get_llm_provider
 from ripen.infra.repository import (
@@ -184,45 +184,45 @@ async def extract_hashtags_ai(content: str) -> list[str]:
         return []
 
 
-async def save_tags(content_id: str, content_type: str, tags: list[str], conn):
+async def save_tags(content_id: str, content_type: str, tags: list[str], uow):
     """
     Saves tags for a piece of knowledge in the tags table.
-    Deletes existing tags for the content first to ensure a clean refresh.
     """
     if not tags:
         return
 
     try:
-        await TagRepository.replace_tags(conn, content_id, content_type, tags)
+        await uow.tags.replace_tags(content_id, content_type, tags)
     except Exception as e:
         logger.error(f"Failed to save tags for {content_id}: {e}")
 
 
-async def check_conflict(entity_name: str, new_contents: list[str], agent_id: str, conn=None):
+async def check_conflict(entity_name: str, new_contents: list[str], agent_id: str, uow=None):
     """
-    Checks if a list of new observations contradicts existing knowledge using the configured LLM.
-    Returns a list of (is_conflict, reason) tuples.
+    Checks if a list of new observations contradicts existing knowledge.
     """
     if not new_contents:
         return []
 
     try:
         logger.info(f"Checking conflicts for entity='{entity_name}' ({len(new_contents)} items)")
-        if conn is None:
-            async with await async_get_connection() as managed_conn:
+        if uow is None:
+            from ripen.infra.uow import SecureWriteContext
+
+            async with SecureWriteContext() as managed_uow:
                 return await _check_conflicts_internal(
-                    entity_name, new_contents, agent_id, managed_conn
+                    entity_name, new_contents, agent_id, managed_uow
                 )
         else:
-            return await _check_conflicts_internal(entity_name, new_contents, agent_id, conn)
+            return await _check_conflicts_internal(entity_name, new_contents, agent_id, uow)
     except Exception as e:
         log_error("Conflict check failed", e)
         raise e
 
 
-async def _check_conflicts_internal(entity_name: str, new_contents: list[str], agent_id: str, conn):
+async def _check_conflicts_internal(entity_name: str, new_contents: list[str], agent_id: str, uow):
     # Fetch up to 5 most recent observations for richer context
-    existing = await ObservationRepository.get_recent_observations(conn, entity_name, limit=5)
+    existing = await uow.observations.get_recent_observations(entity_name, limit=5)
 
     if not existing:
         return [(False, None)] * len(new_contents)
@@ -268,24 +268,22 @@ async def _check_conflicts_internal(entity_name: str, new_contents: list[str], a
 
             if is_conflict:
                 logger.warning(f"CONFLICT DETECTED in '{entity_name}': {reason}")
-                await ConflictRepository.insert_conflict(
-                    conn, entity_name, existing_text, new_contents[i], reason, agent_id
+                await uow.conflicts.insert_conflict(
+                    entity_name, existing_text, new_contents[i], reason, agent_id
                 )
-        await conn.commit()
         return final_results
     except Exception as e:
         log_error("Conflict check failed during AI call", e)
         # Record failure as a conflict so a human can decide
         reason = f"Conflict check failed (AI error): {e}"
         for content in new_contents:
-            await ConflictRepository.insert_conflict(
-                conn, entity_name, existing_text, content, reason, agent_id
+            await uow.conflicts.insert_conflict(
+                entity_name, existing_text, content, reason, agent_id
             )
-        await conn.commit()
         return [(True, reason)] * len(new_contents)
 
 
-async def search_by_tags(tags: list[str], conn) -> list[str]:
+async def search_by_tags(tags: list[str], uow) -> list[str]:
     """
     Returns content_ids that match ANY of the given tags.
     """
@@ -293,7 +291,7 @@ async def search_by_tags(tags: list[str], conn) -> list[str]:
         return []
 
     try:
-        return await TagRepository.get_content_ids_by_tags(conn, tags)
+        return await uow.tags.get_content_ids_by_tags(tags)
     except Exception as e:
         get_logger("graph").error(f"Tag search failed: {e}")
         return []
@@ -302,17 +300,15 @@ async def search_by_tags(tags: list[str], conn) -> list[str]:
 async def save_entities(
     entities: list[dict[str, Any]],
     agent_id: str,
-    conn,
+    uow,
     precomputed_vectors: list[list[float]] | None = None,
 ):
     """
     Saves entities to the database.
-    Accepts precomputed_vectors to support 'Compute-then-Write' architecture.
     """
     results = []
     success_count = 0
 
-    # 1. Prepare data
     items_to_process = []
     logger.info(f"Saving {len(entities)} entities (agent={agent_id})...")
     for e in entities:
@@ -328,12 +324,8 @@ async def save_entities(
         try:
             importance = max(1, min(10, int(importance)))
         except (ValueError, TypeError):
-            get_logger("graph").debug(
-                f"Invalid importance value for {name}: {importance}. Defaulting to 5."
-            )
             importance = 5
 
-        logger.debug(f"Preparing entity: {name} ({e_type})")
         items_to_process.append(
             {
                 "name": name,
@@ -345,18 +337,14 @@ async def save_entities(
         )
 
     if not items_to_process:
-        if results:
-            return f"Saved 0 entities (Errors: {len(results)})"
-        return "Saved 0 entities"
+        return f"Saved 0 entities (Errors: {len(results)})" if results else "Saved 0 entities"
 
-    # 2. Assign Vectors (Precomputed or Fresh)
     if precomputed_vectors is not None:
         vectors = precomputed_vectors
     else:
         embedding_texts = [item["embedding_text"] for item in items_to_process]
         vectors = await compute_embeddings_bulk(embedding_texts)
 
-    # 3. Fast Database Sync
     for i, item in enumerate(items_to_process):
         name = item["name"]
         e_type = item["type"]
@@ -364,63 +352,48 @@ async def save_entities(
         importance = item["importance"]
         vector = vectors[i] if i < len(vectors) else None
 
-        # Fetch old state for audit
-        old_row = await EntityRepository.get_entity_details(conn, name)
+        old_row = await uow.entities.get_entity_details(name)
         old_data = json.dumps(old_row) if old_row else None
         action = "UPDATE" if old_row else "INSERT"
 
-        await EntityRepository.upsert_entity(conn, name, e_type, desc, importance, agent_id)
+        await uow.entities.upsert_entity(name, e_type, desc, importance, agent_id)
 
-        # Log Audit
         new_data = json.dumps({"name": name, "type": e_type, "desc": desc})
         meta = json.dumps(
             {
                 "model": settings.embedding_model if vector else None,
                 "has_vector": bool(vector),
-                "conflict_info": None,
                 "timestamp": datetime.now().isoformat(),
             }
         )
-        await AuditRepository.log_action(
-            conn, "entities", name, action, old_data, new_data, agent_id, meta
-        )
+        await uow.audit.log_action("entities", name, action, old_data, new_data, agent_id, meta)
 
         if vector:
-            await EmbeddingRepository.upsert_embedding(conn, name, vector, settings.embedding_model)
+            await uow.embeddings.upsert_embedding(name, vector, settings.embedding_model)
         success_count += 1
 
-    msg = f"Saved {success_count} entities (agent={agent_id})"
-    if results:
-        msg += f" (Errors: {len(results)})"
-    logger.info(msg)
-    return msg
+    return f"Saved {success_count} entities (agent={agent_id})"
 
 
-async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
+async def save_relations(relations: list[dict[str, Any]], agent_id: str, uow):
     valid_relations = []
     errors = []
     logger.info(f"Saving {len(relations)} relations (agent={agent_id})...")
     for r in relations:
-        # Standard terminology: Subject-Predicate-Object
-        # Fallback to source/target/relation_type for migration period
         subject = (r.get("subject") or r.get("source") or "").strip()
         obj = (r.get("object") or r.get("target") or "").strip()
         predicate = (r.get("predicate") or r.get("relation_type") or "").strip()
 
         if not all([subject, obj, predicate]):
-            msg = f"Error: Relation requires subject, object, and predicate: {r}"
-            errors.append(msg)
+            errors.append(f"Error: Relation requires subject, object, and predicate: {r}")
             continue
         valid_relations.append((subject, obj, predicate, agent_id))
 
     if valid_relations:
-        # DB schema was updated to use subject, object, predicate
-        await RelationRepository.upsert_relations_bulk(conn, valid_relations)
+        await uow.relations.upsert_relations_bulk(valid_relations)
 
-        # Log Audit for each relation
         for subject, obj, predicate, creator in valid_relations:
-            await AuditRepository.log_action(
-                conn,
+            await uow.audit.log_action(
                 "relations",
                 f"{subject}->{predicate}->{obj}",
                 "INSERT",
@@ -430,7 +403,6 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
                 json.dumps(
                     {
                         "agent_context": "relation_mapping",
-                        "conflict_info": None,
                         "timestamp": datetime.now().isoformat(),
                     }
                 ),
@@ -439,19 +411,17 @@ async def save_relations(relations: list[dict[str, Any]], agent_id: str, conn):
     msg = f"Saved {len(valid_relations)} relations (agent={agent_id})"
     if errors:
         msg += f" (Errors: {len(errors)})"
-    logger.info(msg)
     return msg
 
 
 async def save_observations(
     observations: list[dict[str, Any]],
     agent_id: str,
-    conn,
+    uow,
     precomputed_conflicts: list[dict[str, Any]] | None = None,
 ):
     """
     Saves observations.
-    Accepts precomputed_conflicts to minimize transaction duration.
     """
     conflicts_to_report = []
     errors = []
@@ -468,10 +438,8 @@ async def save_observations(
 
         content = mask_sensitive_data(content)
 
-        # Conflict check
         is_actually_conflict = False
         if precomputed_conflicts is not None:
-            # Match conflict from precomputed results if available
             conflict_info = precomputed_conflicts[i] if i < len(precomputed_conflicts) else None
             if conflict_info and conflict_info.get("is_conflict"):
                 conflicts_to_report.append(
@@ -479,29 +447,24 @@ async def save_observations(
                 )
                 is_actually_conflict = True
         else:
-            results = await check_conflict(entity_name, [content], agent_id, conn=conn)
+            results = await check_conflict(entity_name, [content], agent_id, uow=uow)
             if results and results[0][0]:
-                is_conflict, reason = results[0]
-                conflicts_to_report.append({"entity": entity_name, "reason": reason})
                 is_actually_conflict = True
+                conflicts_to_report.append({"entity": entity_name, "reason": results[0][1]})
 
         if is_actually_conflict:
             continue
 
-        await ObservationRepository.insert_observation(conn, entity_name, content, agent_id)
-        await EntityRepository.increment_importance(conn, entity_name)
-        
-        # Log Audit
-        conflict_meta = next((c for c in conflicts_to_report if c["entity"] == entity_name), None)
+        await uow.observations.insert_observation(entity_name, content, agent_id)
+        await uow.entities.increment_importance(entity_name)
+
         meta = json.dumps(
             {
                 "agent_context": "development_trace",
-                "conflict_info": conflict_meta,
                 "timestamp": datetime.now().isoformat(),
             }
         )
-        await AuditRepository.log_action(
-            conn,
+        await uow.audit.log_action(
             "observations",
             entity_name,
             "INSERT",
@@ -515,49 +478,30 @@ async def save_observations(
     msg = f"Saved {success_count} observations (agent={agent_id})"
     if errors:
         msg += f" (Errors: {len(errors)})"
-    logger.info(msg)
     return msg, conflicts_to_report
 
 
-async def get_graph_data(query: str | None = None):
-    async with await async_get_connection() as conn:
-        if query:
-            matched_entities, relations, direct_observations, linked_observations = await GraphRepository.search_graph(conn, query)
+async def get_graph_data(uow=None):
+    if uow is None:
+        from ripen.infra.uow import UnitOfWork
 
-            # Combine and de-duplicate observations by content/entity
-            final_obs_map = {}
-            for o in list(direct_observations) + list(linked_observations):
-                key = (o["entity_name"], o["content"])
-                if key not in final_obs_map:
-                    final_obs_map[key] = o
+        async with UnitOfWork() as managed_uow:
+            return await _get_graph_data_internal(managed_uow)
+    return await _get_graph_data_internal(uow)
 
-            final_observations = list(final_obs_map.values())
 
-            return {
-                "entities": [dict(e) for e in matched_entities],
-                "relations": [dict(r) for r in relations],
-                "observations": [
-                    {
-                        "entity": o["entity_name"],
-                        "content": o["content"],
-                        "at": o["timestamp"],
-                    }
-                    for o in final_observations
-                ],
-                "troubleshooting": [],
+async def _get_graph_data_internal(uow):
+    entities, relations, observations = await uow.graph.get_full_graph()
+    return {
+        "entities": entities,
+        "relations": relations,
+        "observations": [
+            {
+                "entity": o["entity_name"],
+                "content": o["content"],
+                "at": o["timestamp"],
             }
-        else:
-            entities, relations, observations = await GraphRepository.get_full_graph(conn)
-            return {
-                "entities": [dict(e) for e in entities],
-                "relations": [dict(r) for r in relations],
-                "observations": [
-                    {
-                        "entity": o["entity_name"],
-                        "content": o["content"],
-                        "at": o["timestamp"],
-                    }
-                    for o in observations
-                ],
-                "troubleshooting": [],
-            }
+            for o in observations
+        ],
+        "troubleshooting": [],
+    }

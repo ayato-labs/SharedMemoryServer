@@ -4,12 +4,14 @@ import aiosqlite
 import pytest
 
 from ripen.common.exceptions import DatabaseLockedError
+from ripen.common.utils import get_logger
 from ripen.infra.database import (
-    async_get_connection,
+    AsyncSQLiteConnection,
     get_db_path,
     init_db,
     retry_on_db_lock,
 )
+from ripen.infra.uow import UnitOfWork
 
 
 @pytest.mark.asyncio
@@ -21,7 +23,7 @@ async def test_init_db_creates_file():
     assert os.path.exists(db_path)
 
     # Check if tables exist
-    async with await async_get_connection() as db:
+    async with await AsyncSQLiteConnection(db_path) as db:
         async with db.execute("SELECT name FROM sqlite_master WHERE type='table'") as cursor:
             rows = await cursor.fetchall()
             tables = [row["name"] for row in rows]
@@ -31,13 +33,14 @@ async def test_init_db_creates_file():
 
 
 @pytest.mark.asyncio
-async def test_async_get_connection_singleton():
-    """Verify that async_get_connection returns a valid connection wrapper."""
-    conn_wrapper = await async_get_connection()
+async def test_async_sqlite_connection_singleton():
+    """Verify that AsyncSQLiteConnection returns a valid connection wrapper and maintains singleton."""
+    db_path = get_db_path()
+    conn_wrapper = await AsyncSQLiteConnection(db_path)
     async with conn_wrapper as conn1:
         assert isinstance(conn1, aiosqlite.Connection)
 
-        conn_wrapper2 = await async_get_connection()
+        conn_wrapper2 = await AsyncSQLiteConnection(db_path)
         async with conn_wrapper2 as conn2:
             assert conn1 is conn2  # Should be the same underlying singleton connection
 
