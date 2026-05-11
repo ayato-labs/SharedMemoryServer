@@ -232,9 +232,21 @@ Your knowledge is your most valuable asset. Ripen is designed to give you full c
 
 ---
 
+## Donations & Support ☕
+
+開発者への寄付やサポートをご検討いただける場合、以下のサービスをご利用いただけます。
+日本在住のため Stripe や GitHub Sponsors が利用できないため、**OFUSE (オフセ)** を通じてご支援いただければ幸いです。
+
+👉 **[OFUSE で Ripen を支援する](https://ofuse.me/21cfc1d2)**
+
+---
+
 ## License
 
 - **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
-- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. **Includes a 180-day (6-month) free trial.**
+- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. 
+  - **180-day (6-month) free trial** is standard for all teams.
+  - **Special Campaign**: Currently, 1-year Professional Licenses are being distributed for **FREE**. 
+  - **Why Free?**: Ripen is open-sourced under AGPL-3.0. We have implemented a strict licensing model specifically to prevent unauthorized "copy-and-sell" practices by third parties while ensuring the community and developers can use it safely and freely.
 
 *Ripen: Making AI agents remember what your team already decided.*
