@@ -65,6 +65,31 @@ async def run_recover_thoughts(args):
     print("Recovery scan complete.")
 
 
+async def run_license(args):
+    from ripen.api.licensing import LicenseManager
+    manager = LicenseManager()
+
+    if args.subcommand == "status":
+        is_valid = manager.validate_locally()
+        info = manager.info
+        print(f"--- License Status ---")
+        print(f"Type: {info.get('type')}")
+        if info.get("user"):
+            print(f"User: {info.get('user')}")
+        if info.get("expiry"):
+            print(f"Expiry: {info.get('expiry')}")
+        
+        print(f"Status: {'VALID' if is_valid else 'INVALID/EXPIRED'}")
+        print(f"----------------------")
+
+    elif args.subcommand == "activate":
+        success = manager.activate(args.path)
+        if success:
+            print("License activated successfully!")
+        else:
+            print("Failed to activate license. Please check the file and try again.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ripen Admin CLI")
     subparsers = parser.add_subparsers(dest="command", help="Admin commands")
@@ -99,6 +124,15 @@ def main():
     # Recover Thoughts
     subparsers.add_parser("recover-thoughts", help="Manually trigger thought recovery")
 
+    # License
+    lic_parser = subparsers.add_parser("license", help="Manage licensing")
+    lic_sub = lic_parser.add_subparsers(dest="subcommand")
+
+    lic_sub.add_parser("status", help="Show license status")
+    
+    activate_lic = lic_sub.add_parser("activate", help="Activate license from file")
+    activate_lic.add_argument("path", help="Path to license.rpn file")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -113,6 +147,7 @@ def main():
         "snapshot": run_snapshot,
         "health": run_health,
         "recover-thoughts": run_recover_thoughts,
+        "license": run_license,
     }
 
     asyncio.run(cmd_map[args.command](args))

@@ -29,10 +29,10 @@ async def auto_distill_knowledge(session_id: str, thought_history: list[dict[str
     Analyze the following thinking process and extract key facts, entities,
     and relations that should be stored in a long-term knowledge graph.
 
-    GUIDELINES:
-    - Identify important entities (concepts, people, tools, etc.)
-    - Identify relations between these entities.
-    - Identify specific observations or facts mentioned.
+    CRITICAL GUIDELINES:
+    - STRICTLY SEPARATE verified facts from hypotheses, planning, or transient thoughts.
+    - DO NOT extract hypotheses, trial-and-error attempts, or internal monologue.
+    - Extract ONLY definite, established information, important entities, and relations.
     - "Simple is best": Focus on high-quality, definite information.
     - Output MUST be valid JSON matching the schema below.
 
@@ -110,8 +110,9 @@ async def incremental_distill_knowledge(session_id: str, thought: str):
 
     prompt = f"""
     Analyze the following SINGLE THOUGHT from a reasoning process.
-    If it contains definite facts, new entities, or relations, extract them.
-    If it is just internal monologue or planning without new information, return empty lists.
+    If it contains definite facts, new entities, or verified relations, extract them.
+    CRITICAL: You MUST IGNORE hypotheses, internal monologue, plans, or trial-and-error steps. 
+    Do NOT extract unverified assumptions. If there are no definite facts, return empty lists.
 
     THOUGHT:
     {thought}

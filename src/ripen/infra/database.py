@@ -171,33 +171,31 @@ async def close_all_connections():
         _DB_INITIALIZED = False
 
 
+async def async_get_connection():
+    """
+    [DEPRECATED] Legacy connection helper. Use UnitOfWork or AsyncSQLiteConnection directly.
+    """
+    await init_db()
+    return await AsyncSQLiteConnection(get_db_path())
+
+
+async def async_get_thoughts_connection():
+    """
+    [DEPRECATED] Legacy thoughts connection helper. Use UnitOfWork or AsyncSQLiteConnection directly.
+    """
+    from ripen.common.utils import get_thoughts_db_path
+    from ripen.core.thought_logic import init_thoughts_db
+
+    await init_thoughts_db()
+    return await AsyncSQLiteConnection(get_thoughts_db_path(), is_thoughts=True)
+
+
 async def _async_get_connection_raw(db_path: str, is_thoughts: bool = False):
     """
     INTERNAL USE ONLY. Returns a connection wrapper without triggering
     lazy initialization.
     """
     return AsyncSQLiteConnection(db_path, is_thoughts=is_thoughts)
-
-
-async def async_get_connection():
-    """
-    Returns an AsyncSQLiteConnection wrapper for the main database.
-    Usage: async with await async_get_connection() as conn:
-    """
-    await init_db()
-    return await _async_get_connection_raw(get_db_path())
-
-
-async def async_get_thoughts_connection():
-    """
-    Returns an AsyncSQLiteConnection wrapper for the thoughts database.
-    Guarantees that init_thoughts_db() has been called.
-    """
-    from ripen.common.utils import get_thoughts_db_path
-    from ripen.core.thought_logic import init_thoughts_db
-
-    await init_thoughts_db()
-    return await _async_get_connection_raw(get_thoughts_db_path(), is_thoughts=True)
 
 
 async def _add_column_if_missing(cursor, table, col_def):
@@ -386,6 +384,7 @@ async def init_db(force: bool = False):
                 affected_functions TEXT,
                 env_metadata TEXT,
                 access_count INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -432,6 +431,12 @@ async def init_db(force: bool = False):
             CREATE VIRTUAL TABLE IF NOT EXISTS bank_files_fts USING fts5(
                 filename, content, 
                 content='bank_files'
+            )
+        """)
+        await cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS troubleshooting_knowledge_fts USING fts5(
+                title, solution, affected_functions,
+                content='troubleshooting_knowledge', content_rowid='id'
             )
         """)
 
@@ -501,10 +506,35 @@ async def init_db(force: bool = False):
             END;
         """)
 
+        # FTS Triggers: troubleshooting_knowledge
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_ai AFTER INSERT ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts(rowid, title, solution, affected_functions) 
+                VALUES (new.id, new.title, new.solution, new.affected_functions);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_ad AFTER DELETE ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts, rowid, title, solution, affected_functions) 
+                VALUES('delete', old.id, old.title, old.solution, old.affected_functions);
+            END;
+        """)
+        await cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_au AFTER UPDATE ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts, rowid, title, solution, affected_functions) 
+                VALUES('delete', old.id, old.title, old.solution, old.affected_functions);
+                INSERT INTO troubleshooting_knowledge_fts(rowid, title, solution, affected_functions) 
+                VALUES (new.id, new.title, new.solution, new.affected_functions);
+            END;
+        """)
+
         # Population: Ensure existing data is indexed
         await cursor.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
         await cursor.execute("INSERT INTO observations_fts(observations_fts) VALUES('rebuild')")
         await cursor.execute("INSERT INTO bank_files_fts(bank_files_fts) VALUES('rebuild')")
+        await cursor.execute(
+            "INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts) VALUES('rebuild')"
+        )
 
         await conn.commit()
 
@@ -524,75 +554,3 @@ async def init_db(force: bool = False):
         else:
             _DB_INITIALIZED = True
             logger.info("Main database initialization successful.")
-
-
-@retry_on_db_lock()
-async def update_access(content_id: str, conn=None):
-    # Guard: Ensure DB is initialized before any access update
-    await init_db()
-    if conn is None:
-        async with await async_get_connection() as managed_conn:
-            await managed_conn.execute(
-                """
-                INSERT INTO knowledge_metadata (
-                    content_id, access_count, last_accessed,
-                    importance_score, stability, decay_rate
-                )
-                VALUES (?, 1, CURRENT_TIMESTAMP, 1.0, 1.1, 0.01)
-                ON CONFLICT(content_id) DO UPDATE SET
-                    access_count = access_count + 1,
-                    last_accessed = CURRENT_TIMESTAMP,
-                    stability = stability * 1.1
-                """,
-                (content_id,),
-            )
-            await managed_conn.commit()
-    else:
-        await conn.execute(
-            """
-            INSERT INTO knowledge_metadata (
-                content_id, access_count, last_accessed,
-                importance_score, stability, decay_rate
-            )
-            VALUES (?, 1, CURRENT_TIMESTAMP, 1.0, 1.1, 0.01)
-            ON CONFLICT(content_id) DO UPDATE SET
-                access_count = access_count + 1,
-                last_accessed = CURRENT_TIMESTAMP,
-                stability = stability * 1.1
-        """,
-            (content_id,),
-        )
-
-
-@retry_on_db_lock()
-async def log_search_stat(
-    query: str,
-    results_count: int,
-    hit_ids: list[str] = None,
-    avg_sim: float = 0.0,
-    conn=None,
-):
-    """
-    Logs the result count of a search for hit rate and knowledge age calculation.
-    """
-    # Guard: Ensure DB is initialized before logging stats
-    await init_db()
-
-    hit_ids_json = json.dumps(hit_ids or [])
-
-    async def _execute(c):
-        await c.execute(
-            """
-            INSERT INTO search_stats (
-                query, results_count, hit_content_ids, avg_similarity
-            ) VALUES (?, ?, ?, ?)
-            """,
-            (query, results_count, hit_ids_json, avg_sim),
-        )
-        await c.commit()
-
-    if conn is not None:
-        await _execute(conn)
-    else:
-        async with await async_get_connection() as managed_conn:
-            await _execute(managed_conn)

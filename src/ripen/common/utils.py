@@ -13,6 +13,22 @@ from ripen.common.exceptions import SecurityError
 _LOGGING_CONFIGURED = False
 
 
+def get_resource_path(relative_path: str) -> Path:
+    """
+    Resolves resource paths relative to the 'ripen' package root.
+    Works for both standard execution and PyInstaller 'frozen' state.
+    """
+    if hasattr(sys, "_MEIPASS"):
+        # PyInstaller mode: resources are bundled under _MEIPASS/ripen
+        base_path = Path(getattr(sys, "_MEIPASS")) / "ripen"
+    else:
+        # Dev mode: resolve relative to src/ripen
+        # utils.py is in src/ripen/common/utils.py
+        base_path = Path(__file__).parent.parent
+
+    return (base_path / relative_path).absolute()
+
+
 def configure_logging():
     """
     Configures Loguru for structured JSON logging.

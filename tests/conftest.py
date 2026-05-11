@@ -207,11 +207,15 @@ def temp_env(env_vars):
 
 
 @pytest.fixture
-async def db_conn():
-    """Provides a connection to the test database."""
-    from ripen.infra.database import async_get_connection
+async def uow():
+    """Provides a UnitOfWork for the test database."""
+    from ripen.infra.uow import UnitOfWork
 
-    async with await async_get_connection() as conn:
-        yield conn
-    # We don't close it here because it's a singleton connection managed by infra.database
-    # setup_teardown_db will close it.
+    async with UnitOfWork() as uow:
+        yield uow
+
+
+@pytest.fixture
+async def db_conn(uow):
+    """Provides a connection to the test database via UoW."""
+    yield uow._conn

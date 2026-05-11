@@ -42,7 +42,7 @@ jobs:
           uv pip install ruff pytest-timeout
       - name: Lint
         run: |
-          uv run ruff check .
+          uv run ruff check src tests
       - name: Run Tests
         run: |
           # Tiered Testing: PRs only run fast unit tests. Full tests run on main.

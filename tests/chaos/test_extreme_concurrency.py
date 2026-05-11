@@ -1,10 +1,13 @@
 import asyncio
 import random
-import pytest
+
 import aiosqlite
-from ripen.core.logic import save_memory_core, read_memory_core
-from ripen.infra.database import async_get_connection, get_db_path
+import pytest
+
 from ripen.common.tasks import wait_for_background_tasks
+from ripen.core.logic import read_memory_core, save_memory_core
+from ripen.infra.database import get_db_path
+
 
 @pytest.mark.asyncio
 async def test_extreme_concurrency_and_data_durability(fake_llm):
@@ -15,9 +18,11 @@ async def test_extreme_concurrency_and_data_durability(fake_llm):
     """
     entity_name = "ChaosEntity"
     num_concurrent = 10
-    
+
     # 1. 初期エンティティの作成
-    await save_memory_core(entities=[{"name": entity_name, "description": "Resilience test target"}])
+    await save_memory_core(
+        entities=[{"name": entity_name, "description": "Resilience test target"}]
+    )
 
     # 2. 並列書き込みタスクの生成
     async def worker(worker_id):
@@ -26,13 +31,13 @@ async def test_extreme_concurrency_and_data_durability(fake_llm):
         content = f"Observation from worker {worker_id}"
         result = await save_memory_core(
             observations=[{"entity_name": entity_name, "content": content}],
-            agent_id=f"worker_{worker_id}"
+            agent_id=f"worker_{worker_id}",
         )
         return result
 
     # 3. 同時実行
     tasks = [worker(i) for i in range(num_concurrent)]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks, return_exceptions=True)
 
     # 4. バックグラウンドタスク（蒸留など）の完了を待機
     await wait_for_background_tasks(timeout=10.0)
@@ -41,28 +46,31 @@ async def test_extreme_concurrency_and_data_durability(fake_llm):
     db_path = get_db_path()
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
-        
+
         # 投入したすべての観察が漏れなく保存されているか
         cursor = await conn.execute(
-            "SELECT COUNT(*) as cnt FROM observations WHERE entity_name = ?",
-            (entity_name,)
+            "SELECT COUNT(*) as cnt FROM observations WHERE entity_name = ?", (entity_name,)
         )
         row = await cursor.fetchone()
         count = row["cnt"]
-        
+
         # すべて成功していれば num_concurrent 個あるはず
-        assert count == num_concurrent, f"Data loss detected! Expected {num_concurrent}, got {count}"
-        
+        assert count == num_concurrent, (
+            f"Data loss detected! Expected {num_concurrent}, got {count}"
+        )
+
         # 監査ログとの照合 (裏取り)
         cursor = await conn.execute(
             "SELECT COUNT(*) as cnt FROM audit_logs WHERE table_name = 'observations' AND content_id = ?",
-            (entity_name,)
+            (entity_name,),
         )
         row = await cursor.fetchone()
         assert row["cnt"] == num_concurrent, "Audit logs are missing for some operations"
-        
+
         # 重要度（Importance）の累積チェック
-        cursor = await conn.execute("SELECT importance FROM entities WHERE name = ?", (entity_name,))
+        cursor = await conn.execute(
+            "SELECT importance FROM entities WHERE name = ?", (entity_name,)
+        )
         importance = (await cursor.fetchone())[0]
         # 初期5 + 10回更新 = 15 だが、上限10のはず
         assert importance == 10, f"Importance logic failed. Expected 10, got {importance}"

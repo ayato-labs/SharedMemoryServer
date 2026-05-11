@@ -101,9 +101,7 @@ async def test_read_memory_hybrid_search(mock_llm):
             res["entities"].append({"name": "Python", "description": "Programming language"})
         return res
 
-    with patch(
-        "ripen.core.search.get_graph_data_by_cids", new_callable=AsyncMock
-    ) as mock_get:
+    with patch("ripen.core.search.get_graph_data_by_cids", new_callable=AsyncMock) as mock_get:
         mock_get.side_effect = side_effect
         # We need to make sure 'Java' is in top_cids.
         # For simplicity, we just mock the return of get_graph_data_by_cids.

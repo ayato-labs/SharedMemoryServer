@@ -12,6 +12,7 @@ def test_escape_fts5_query():
     assert escape_fts5_query("   ") == ""
     assert escape_fts5_query('"') == '""""'
 
+
 @pytest.mark.asyncio
 async def test_perform_keyword_search_with_special_chars():
     # This test ensures that perform_keyword_search does not crash with special characters
@@ -21,6 +22,7 @@ async def test_perform_keyword_search_with_special_chars():
         assert isinstance(results, list)
     except Exception as e:
         pytest.fail(f"perform_keyword_search raised an exception: {e}")
+
 
 @pytest.mark.asyncio
 async def test_perform_keyword_search_empty_query():

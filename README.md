@@ -1,10 +1,21 @@
 # Ripen: The "Trust Layer" for Multi-Agent AI Teams 🧠
 
-**Centralized Knowledge Hub for AI-Driven Development. One server. Every tool. Every teammate.**
+**Centralized Knowledge Hub for AI-Driven Development. Designed for Local and Small-Team workflows.**
 
 [![PyPI - Version](https://img.shields.io/pypi/v/ripen)](https://pypi.org/project/ripen/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Beta-orange)](CHANGELOG.md)
+[![Download Official Binary](https://img.shields.io/badge/Download-Official%20ripen.exe-brightgreen?style=for-the-badge&logo=github)](https://github.com/ayato-labs/ripen/releases)
+
+> [!IMPORTANT]
+> **Official Distribution**: Always download `ripen.exe` from the [Official GitHub Releases](https://github.com/ayato-labs/ripen/releases). This ensures you have the latest signed binary with all security patches.
+
+> [!TIP]
+> **🚀 Special Campaign: 1-Year Free Professional License!**
+> To celebrate our launch, we are distributing **1-year Professional Licenses for FREE**!
+> **Features**: Unlimited sync, commercial rights, and priority updates.
+> **How to Apply**: Open a [GitHub Issue](https://github.com/ayato-labs/ripen/issues/new?title=Request+Pro+License) or email [contact@ayato-labs.com](mailto:contact@ayato-labs.com).
+> **Activation**: `ripen-admin license activate ./license.rpn`
 
 > 🇯🇵 **Claude Code・Cursor・Antigravity・Gemini CLI——違うアカウントを使った別の人のPCで稼働するAIエージェントとの間でも、知識を共有できる。これが Ripen の根本的な価値です。**
 
@@ -16,9 +27,9 @@ Most MCP memory servers run in `stdio` mode — a 1:1 connection between **one I
 
 **Ripen runs as an SSE Hub** — an HTTP server that accepts **N:1 connections**. Multiple agents, multiple IDEs, multiple teammates on **different machines with different accounts**, all reading and writing to the same shared brain simultaneously.
 
-> **The core innovation that no agent framework can replicate:**
-> Claude Code, Cursor, Antigravity, and Gemini CLI can share knowledge —
-> even if they run on **different PCs under different user accounts**.
+> **Note on Scale**: Ripen is currently optimized for **local multi-agent usage or small teams (2-3 people)**. It uses SQLite + WAL mode under the hood, which provides excellent local concurrency but is not designed for high-throughput network writes from large distributed teams.
+
+> **Privacy Warning**: Ripen uses background processes (`incremental_distill_knowledge`) to organize memory. **If you configure an external LLM (like Gemini or OpenAI), snippets of your codebase and prompts may be sent to these external APIs.** For strict enterprise environments, we strongly recommend using a local LLM via Ollama.
 
 ```
 [Typical MCP Memory]                    [Ripen Hub Mode]
@@ -159,25 +170,28 @@ Ripen prioritizes **system stability** over massive internal dependencies.
 
 ## Installation
 
-### Option A: Zero-install (Recommended)
+### Option A: Native Binary (Easiest for Windows) 🚀
+No Python required. Best for a quick, stable setup.
+1. Download `ripen.exe` from [GitHub Releases](https://github.com/ayato-labs/ripen/releases).
+2. Run `ripen.exe init` in your terminal to set up your Hub or Client.
+3. Use the generated Desktop shortcut to start Ripen anytime.
+
+### Option B: Zero-install (For Python users)
 ```bash
-uvx ripen --sse        # Hub
+uvx ripen --sse        # Start Hub
 uvx ripen-init         # Setup wizard
 ```
 
-### Option B: Persistent install
+### Option C: Persistent install
 ```bash
 pip install ripen
 ripen-init
 ```
 
-### Option C: Docker (Team Hub)
+### Option D: Docker (Team Hub)
 ```bash
 docker run -d -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen
 ```
-
-### Option D: Native Binary
-Download from [GitHub Releases](https://github.com/ayato-labs/ripen/releases) — no Python required.
 
 ---
 
@@ -203,9 +217,24 @@ Download from [GitHub Releases](https://github.com/ayato-labs/ripen/releases) �
 
 ---
 
-## License & Governance
+## Data Governance & Privacy 🛡️
+
+Your knowledge is your most valuable asset. Ripen is designed to give you full control over it:
+
+- **Local-First**: All data is stored on your machine in a single SQLite database.
+- **Data Location**: By default, everything lives in `~/.ripen/` (Windows: `C:\Users\<User>\.ripen`).
+- **Portability**: To backup or migrate, simply copy the `~/.ripen/knowledge.db` file.
+- **Complete Erasure**: If you decide to stop using Ripen and want to ensure no data is left behind, run:
+  ```bash
+  ripen --uninstall
+  ```
+  This will permanently delete the database, configurations, and shortcuts.
+
+---
+
+## License
 
 - **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
-- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available.
+- **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. **Includes a 180-day (6-month) free trial.**
 
 *Ripen: Making AI agents remember what your team already decided.*

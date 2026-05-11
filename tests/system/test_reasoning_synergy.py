@@ -96,5 +96,5 @@ async def test_reasoning_and_distillation_system_flow(mock_llm):
 
     # get_insights (json) returns keys under 'facts' like 'stored_entities'
     assert insights_data["facts"]["stored_entities"] >= 1
-    # also check if the Project X observation is counted 
+    # also check if the Project X observation is counted
     # (though it might be in 'stored_entities' or similar)

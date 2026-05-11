@@ -27,3 +27,11 @@ You have access to Ripen MCP.
 - Use it to maintain project-wide entities, relations, and factual observations.
 - Always call `read_memory(query=...)` at the start of a task to gather relevant context.
 - Use `save_memory` to persist important architectural roles, technical decisions, and multi-step progress.
+
+# RIPEN MEMORY SERVER INSTRUCTION
+You have access to Ripen MCP.
+- This is a shared knowledge hub. Changes made here are visible to other agents/users.
+- Use it to maintain project-wide entities, relations, and factual observations.
+- Always call `read_memory(query=...)` at the start of a task to gather relevant context.
+- Use `save_memory` to persist important architectural roles, technical decisions, and multi-step progress.
+- Knowledge 'ripens' over time based on access frequency and importance.

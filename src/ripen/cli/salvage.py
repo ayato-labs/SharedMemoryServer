@@ -16,21 +16,29 @@ async def salvage_related_knowledge(
     """
     try:
         # Fetch Top Candidates (already ranked by Hybrid Search logic in core.search)
-        # Using a limit of 5 to 7 provides sufficient context without overwhelming the client LLM.
-        graph_data, bank_data = await perform_search(thought, candidate_limit=7)
+        # We EXPLICITLY exclude TRANSIENT logs from automated salvage to prevent noise/hallucination loops.
+        graph_data, bank_data = await perform_search(
+            thought, candidate_limit=7, include_transient=False
+        )
 
         results = []
-        # 1. Flatten entities
+        # 1. Flatten troubleshooting (Highest Priority)
+        for ts in graph_data.get("troubleshooting", []):
+            results.append(
+                {"type": "troubleshooting", "id": f"TS-{ts['id']}", "content": ts["solution"]}
+            )
+
+        # 2. Flatten entities
         for ent in graph_data.get("entities", []):
             results.append({"type": "entity", "id": ent["name"], "content": ent["description"]})
 
-        # 2. Flatten observations
+        # 3. Flatten observations
         for obs in graph_data.get("observations", []):
             results.append(
                 {"type": "observation", "id": f"{obs['entity']}_obs", "content": obs["content"]}
             )
 
-        # 3. Flatten bank files
+        # 4. Flatten bank files
         for filename, content in bank_data.items():
             results.append({"type": "bank_file", "id": filename, "content": content})
 
@@ -38,7 +46,7 @@ async def salvage_related_knowledge(
         final_results = results[:7]
 
         logger.info(
-            f"Salvage (FastPath): Retrieved {len(final_results)} items for session {session_id}"
+            f"Salvage (FastPath): Retrieved {len(final_results)} high-signal items for session {session_id}"
         )
         return final_results
 

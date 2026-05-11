@@ -1,15 +1,13 @@
-import asyncio
-import os
-import sqlite3
 import pytest
-import aiosqlite
+
 from ripen.core.logic import (
-    save_memory_core, 
-    manage_knowledge_activation_core, 
+    admin_run_knowledge_gc_core,
     list_inactive_knowledge_core,
-    admin_run_knowledge_gc_core
+    manage_knowledge_activation_core,
+    save_memory_core,
 )
-from ripen.infra.database import async_get_connection, get_db_path
+from ripen.infra.database import async_get_connection
+
 
 @pytest.mark.asyncio
 async def test_knowledge_lifecycle_management_integrity(mock_llm):
@@ -17,20 +15,22 @@ async def test_knowledge_lifecycle_management_integrity(mock_llm):
     総合テスト: 知識の有効化/無効化と、ガベージコレクションの裏取り調査。
     """
     # 1. データの準備 (保存)
-    await save_memory_core(entities=[
-        {"name": "OldKnowledge", "description": "This is very old."},
-        {"name": "ActiveKnowledge", "description": "This is active."}
-    ])
-    
+    await save_memory_core(
+        entities=[
+            {"name": "OldKnowledge", "description": "This is very old."},
+            {"name": "ActiveKnowledge", "description": "This is active."},
+        ]
+    )
+
     # 2. 知識の無効化 (manage_knowledge_activation_core)
     await manage_knowledge_activation_core(ids=["OldKnowledge"], status="inactive")
-    
+
     # 裏取り調査 (DB)
     async with await async_get_connection() as conn:
         cursor = await conn.execute("SELECT status FROM entities WHERE name = 'OldKnowledge'")
         row = await cursor.fetchone()
         assert row[0] == "inactive"
-        
+
         cursor = await conn.execute("SELECT status FROM entities WHERE name = 'ActiveKnowledge'")
         row = await cursor.fetchone()
         assert row[0] == "active"
@@ -44,7 +44,7 @@ async def test_knowledge_lifecycle_management_integrity(mock_llm):
 
     # 4. ガベージコレクション (admin_run_knowledge_gc_core)
     # run_knowledge_gc_logic は「アクティブだが長期間アクセスされていない知識」を inactive に変える。
-    
+
     # 既存のデータを「非常に古い（作成から時間が経過し、アクセスもない）」状態に更新
     async with await async_get_connection() as conn:
         await conn.execute(
@@ -62,6 +62,7 @@ async def test_knowledge_lifecycle_management_integrity(mock_llm):
         row = await cursor.fetchone()
         assert row[0] == "inactive", "ActiveKnowledge should be moved to inactive by GC"
 
+
 @pytest.mark.asyncio
 async def test_adversarial_gc_dry_run():
     """
@@ -69,16 +70,16 @@ async def test_adversarial_gc_dry_run():
     """
     await save_memory_core(entities=[{"name": "DryRunTarget", "description": "Should stay."}])
     await manage_knowledge_activation_core(ids=["DryRunTarget"], status="inactive")
-    
+
     async with await async_get_connection() as conn:
         await conn.execute(
             "UPDATE entities SET updated_at = datetime('now', '-365 days') WHERE name = 'DryRunTarget'"
         )
         await conn.commit()
-    
+
     # Dry Run 実行
     await admin_run_knowledge_gc_core(age_days=30, dry_run=True)
-    
+
     # 裏取り調査: 消えていないことを確認
     async with await async_get_connection() as conn:
         cursor = await conn.execute("SELECT COUNT(*) FROM entities WHERE name = 'DryRunTarget'")

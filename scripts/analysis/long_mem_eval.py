@@ -11,15 +11,16 @@ from ripen.infra.llm import get_llm_provider
 # Optional: RAGAS integration
 try:
     import ragas  # noqa: F401
+
     RAGAS_AVAILABLE = True
 except ImportError:
     RAGAS_AVAILABLE = False
 
+
 async def run_eval(use_ragas: bool = False):
     logger.info("Starting LongMemEval session (Industry Standard Mode)...")
     logger.info(
-        f"Configuration: LLM={settings.llm_provider}, "
-        f"Embedding={settings.embedding_engine}"
+        f"Configuration: LLM={settings.llm_provider}, Embedding={settings.embedding_engine}"
     )
 
     # 1. Latency Test: Embedding
@@ -54,9 +55,10 @@ async def run_eval(use_ragas: bool = False):
 
     logger.info("LongMemEval completed successfully.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use-ragas", action="store_true", help="Use RAGAS metrics for evaluation")
     args = parser.parse_args()
-    
+
     asyncio.run(run_eval(use_ragas=args.use_ragas))

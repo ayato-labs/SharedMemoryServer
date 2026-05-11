@@ -86,17 +86,17 @@ class GeminiProvider(LlmProvider):
         Uses the 'compression' model pool.
         """
         client = self._get_client()
-        # In settings.py, generative_model returns model_manager.get_current_model() 
-        # which defaults to 'generation' pool. We need to manually pick from 
+        # In settings.py, generative_model returns model_manager.get_current_model()
+        # which defaults to 'generation' pool. We need to manually pick from
         # the compression pool here.
         from ripen.core.ai_control import model_manager
+
         model = model_manager.get_current_model(pool_name="compression")
-        
+
         logger.info(
-            f"Triggering context compression using model: {model} "
-            f"(Target: {target_tokens} tokens)"
+            f"Triggering context compression using model: {model} (Target: {target_tokens} tokens)"
         )
-        
+
         system_instruction = (
             "You are a high-precision data distillation engine. "
             "Your goal is to compress the provided text by removing redundant modifiers, "
@@ -105,16 +105,14 @@ class GeminiProvider(LlmProvider):
             f"Aim to reduce the token count to approximately {target_tokens} tokens. "
             "Output ONLY the distilled facts, preferably as a dense list."
         )
-        
+
         full_prompt = f"DISTILL THE FOLLOWING KNOWLEDGE:\n\n{content}"
-        
+
         try:
             # We use the same throttle for compression to be safe
             await AIRateLimiter.throttle(task_type="generation")
             response = await client.aio.models.generate_content(
-                model=model,
-                contents=full_prompt,
-                config={"system_instruction": system_instruction}
+                model=model, contents=full_prompt, config={"system_instruction": system_instruction}
             )
             compressed_text = response.text
             new_tokens = await self._count_tokens(model, compressed_text)
@@ -134,7 +132,7 @@ class GeminiProvider(LlmProvider):
         # Main generation model
         model = settings.generative_model
         metadata = await self._get_model_metadata(model)
-        
+
         # Combine system instruction with prompt for Gemini if provided
         full_prompt = prompt
         if system_instruction:
@@ -143,10 +141,10 @@ class GeminiProvider(LlmProvider):
         # Token management
         token_count = await self._count_tokens(model, full_prompt)
         limit = metadata["input_token_limit"]
-        
+
         # Threshold for compression (90% of limit)
         safe_threshold = int(limit * 0.9)
-        
+
         if token_count > safe_threshold:
             logger.warning(
                 f"Token count ({token_count}) exceeds safe threshold ({safe_threshold}). "
@@ -154,20 +152,18 @@ class GeminiProvider(LlmProvider):
             )
             # We compress the USER prompt part primarily, as system instructions are usually static
             compressed_prompt = await self._compress_content(prompt, safe_threshold // 2)
-            
+
             # Re-construct full prompt
             if system_instruction:
                 full_prompt = f"SYSTEM: {system_instruction}\n\nUSER: {compressed_prompt}"
             else:
                 full_prompt = compressed_prompt
-                
+
             # Final check
             token_count = await self._count_tokens(model, full_prompt)
             logger.info(f"Post-compression token count: {token_count}")
 
-        logger.info(
-            f"Gemini API Request - Model: {model}, Tokens: {token_count}/{limit}"
-        )
+        logger.info(f"Gemini API Request - Model: {model}, Tokens: {token_count}/{limit}")
 
         await AIRateLimiter.throttle(task_type="generation")
 
