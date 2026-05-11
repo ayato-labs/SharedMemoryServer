@@ -123,11 +123,14 @@ class AsyncSQLiteConnection:
                             await _MAIN_CONNECTION.execute("PRAGMA busy_timeout = 5000")
                             await _MAIN_CONNECTION.execute("PRAGMA cache_size = -64000")  # ~64MB
                             logger.info("Main connection successfully established and configured.")
-                        except Exception:
-                            logger.exception("CRITICAL: Failed to establish main DB connection")
+                        except Exception as e:
+                            logger.error(f"CRITICAL: Failed to establish main DB connection: {e}")
                             raise
                     self.conn = _MAIN_CONNECTION
 
+            logger.debug(
+                f"AsyncSQLiteConnection: Returning connection for {self.db_path} (is_thoughts={self.is_thoughts})"
+            )
             return self.conn
         except Exception as e:
             from ripen.common.exceptions import DatabaseError
@@ -238,10 +241,10 @@ async def init_db(force: bool = False):
             await conn.execute("SELECT 1")
             logger.info("DB Integrity Check: PASSED.")
         except (aiosqlite.DatabaseError, sqlite3.DatabaseError) as e:
-            logger.error(f"DB Integrity Check: FAILED. {e}")
+            logger.error(f"DB Integrity Check: FAILED for {db_path}. {e}")
             raise
 
-        logger.info("Starting table creation/verification sequence...")
+        logger.debug(f"Starting table creation/verification sequence for {db_path}...")
         cursor = await conn.cursor()
         try:
             await cursor.execute("""

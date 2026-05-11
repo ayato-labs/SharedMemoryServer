@@ -37,7 +37,9 @@ class Settings:
     _config_data: dict = {}
     _plugins: list = []
     # --- Licensing ---
-    license_public_key: str = os.getenv("RIPEN_LICENSE_PUBLIC_KEY", "vF9JtiTPlurcpy6F4UywkLdyisrHXEaU75CjeCVvZfg=")
+    license_public_key: str = os.getenv(
+        "RIPEN_LICENSE_PUBLIC_KEY", "vF9JtiTPlurcpy6F4UywkLdyisrHXEaU75CjeCVvZfg="
+    )
 
     def __new__(cls):
         if cls._instance is None:
@@ -152,6 +154,20 @@ class Settings:
         return DEFAULT_LLM_PROVIDER
 
     @property
+    def generative_model(self) -> str:
+        """現在のプロバイダーに応じた生成モデル名を返す。"""
+        if self.llm_provider == "gemini":
+            return self.google_ai_model
+        return self.ollama_model
+
+    @property
+    def embedding_model(self) -> str:
+        """現在のエンジンに応じたEmbeddingモデル名を返す。"""
+        if self.embedding_engine == "gemini":
+            return self.google_embedding_model
+        return self.fastembed_model
+
+    @property
     def ollama_base_url(self) -> str:
         """OllamaのベースURLを返す。"""
         return self.get("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
@@ -205,6 +221,28 @@ class Settings:
     def sse_port(self) -> int:
         """SSEモードで使用するポート番号を返す。"""
         return int(self.get("SSE_PORT", "8377"))
+
+    @property
+    def db_path(self) -> Path:
+        """メインデータベースのパスを返す。"""
+        # 1. Environment variable
+        env_path = os.environ.get("MEMORY_DB_PATH")
+        if env_path:
+            return Path(env_path).absolute()
+
+        # 2. Config home
+        return self.base_dir / "knowledge.db"
+
+    @property
+    def thoughts_db_path(self) -> Path:
+        """思考履歴データベースのパスを返す。"""
+        # 1. Environment variable
+        env_path = os.environ.get("THOUGHTS_DB_PATH")
+        if env_path:
+            return Path(env_path).absolute()
+
+        # 2. Config home
+        return self.base_dir / "thoughts.db"
 
     @property
     def license_key_path(self) -> Path:

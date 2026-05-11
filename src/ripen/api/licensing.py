@@ -11,6 +11,7 @@ from ripen.common.utils import get_logger
 
 logger = get_logger("licensing")
 
+
 class LicenseManager:
     """ライセンス管理を行うクラス。オフライン署名検証に対応。"""
 
@@ -56,7 +57,7 @@ class LicenseManager:
                 return self._check_trial_status()
 
             # 3. Parse and Check Expiry
-            payload = json.loads(payload_bytes.decode('utf-8'))
+            payload = json.loads(payload_bytes.decode("utf-8"))
             self._cached_license_info = payload
 
             expiry_str = payload.get("expiry")
@@ -88,8 +89,9 @@ class LicenseManager:
         try:
             # Copy to app directory
             import shutil
+
             shutil.copy2(source_path, self.license_path)
-            
+
             # Re-validate
             return self.validate_locally()
         except Exception as e:
@@ -101,7 +103,7 @@ class LicenseManager:
         180日間の試用期間内かどうかをチェックする。
         """
         trial_marker = settings.base_dir / ".trial_start"
-        
+
         if not trial_marker.exists():
             # First run, create marker
             with open(trial_marker, "w") as f:
@@ -112,18 +114,39 @@ class LicenseManager:
             with open(trial_marker, "r") as f:
                 start_str = f.read().strip()
             start_date = datetime.fromisoformat(start_str)
-            
+
             trial_days = 180
             expiry_date = start_date + timedelta(days=trial_days)
-            
+
             if datetime.now() < expiry_date:
-                logger.debug(f"Within trial period. Remaining days: {(expiry_date - datetime.now()).days}")
+                logger.debug(
+                    f"Within trial period. Remaining days: {(expiry_date - datetime.now()).days}"
+                )
                 return True
             else:
                 logger.warning("Trial period has expired.")
                 return False
         except Exception:
             return False
+
+    def get_status_summary(self) -> str:
+        """人間が読みやすい形式のライセンスステータスを返す。"""
+        info = self.info
+        if info.get("type") == "trial":
+            status = info.get("status", "unknown")
+            if status == "active":
+                # Calculate remaining days
+                trial_marker = settings.base_dir / ".trial_start"
+                if trial_marker.exists():
+                    with open(trial_marker, "r") as f:
+                        start_date = datetime.fromisoformat(f.read().strip())
+                    remaining = (start_date + timedelta(days=180)) - datetime.now()
+                    return f"FREE TRIAL ({remaining.days} days remaining)"
+            return f"FREE TRIAL ({status.upper()})"
+
+        user = info.get("user", "Registered User")
+        expiry = info.get("expiry", "Never")
+        return f"PREMIUM (Registered to: {user}, Expiry: {expiry})"
 
     @property
     def info(self) -> dict:

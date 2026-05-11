@@ -45,11 +45,13 @@ async def test_knowledge_lifecycle_management_integrity(mock_llm):
     # 4. ガベージコレクション (admin_run_knowledge_gc_core)
     # run_knowledge_gc_logic は「アクティブだが長期間アクセスされていない知識」を inactive に変える。
 
-    # 既存のデータを「非常に古い（作成から時間が経過し、アクセスもない）」状態に更新
+    # 既存のデータを「非常に古い (作成から時間が経過し、アクセスもない)」状態に更新
     async with await async_get_connection() as conn:
-        await conn.execute(
-            "UPDATE entities SET created_at = datetime('now', '-200 days') WHERE name = 'ActiveKnowledge'"
+        sql = (
+            "UPDATE entities SET created_at = datetime('now', '-200 days') "
+            "WHERE name = 'ActiveKnowledge'"
         )
+        await conn.execute(sql)
         await conn.commit()
 
     # GC実行
@@ -72,9 +74,11 @@ async def test_adversarial_gc_dry_run():
     await manage_knowledge_activation_core(ids=["DryRunTarget"], status="inactive")
 
     async with await async_get_connection() as conn:
-        await conn.execute(
-            "UPDATE entities SET updated_at = datetime('now', '-365 days') WHERE name = 'DryRunTarget'"
+        sql = (
+            "UPDATE entities SET updated_at = datetime('now', '-365 days') "
+            "WHERE name = 'DryRunTarget'"
         )
+        await conn.execute(sql)
         await conn.commit()
 
     # Dry Run 実行

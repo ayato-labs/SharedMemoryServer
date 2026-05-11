@@ -44,9 +44,11 @@ async def test_hybrid_search_scoring_and_audit(fake_llm):
         conn.row_factory = aiosqlite.Row
 
         # search_stats テーブルの検証
-        cursor = await conn.execute(
-            "SELECT * FROM search_stats WHERE query = 'Python expert' ORDER BY timestamp DESC LIMIT 1"
+        sql = (
+            "SELECT * FROM search_stats WHERE query = 'Python expert' "
+            "ORDER BY timestamp DESC LIMIT 1"
         )
+        cursor = await conn.execute(sql)
         row = await cursor.fetchone()
         assert row is not None, "Search stat should be logged"
         assert row["results_count"] >= 1
@@ -55,7 +57,7 @@ async def test_hybrid_search_scoring_and_audit(fake_llm):
         hit_ids = json.loads(row["hit_content_ids"])
         assert "PythonExpert" in hit_ids
 
-    # 4. アクセス頻度による重要度（Importance）の更新検証
+    # 4. アクセス頻度による重要度 (Importance) の更新検証
     async with aiosqlite.connect(db_path) as conn:
         cursor = await conn.execute("SELECT importance FROM entities WHERE name = 'PythonExpert'")
         importance = (await cursor.fetchone())[0]
@@ -89,7 +91,7 @@ async def test_adversarial_empty_or_special_char_search():
 @pytest.mark.asyncio
 async def test_search_isolation_by_status():
     """
-    厳しいテスト: 非アクティブ（inactive/archived）な知識が検索にヒットしないことを検証。
+    厳しいテスト: 非アクティブ (inactive/archived) な知識が検索にヒットしないことを検証。
     """
     from ripen.core.logic import manage_knowledge_activation_core
 

@@ -9,7 +9,7 @@ from ripen.infra.database import async_get_connection
 async def test_save_memory_core_no_mocks(fake_llm):
     """
     単体テスト: Mockを使用せず、Fake implementationを使用して
-    すべてのデータ型（エンティティ、関係、観察、バンク）の保存とDB裏取りを行う。
+    すべてのデータ型 (エンティティ、関係、観察、バンク) の保存とDB裏取りを行う。
     """
     # 1. 準備
     entities = [{"name": "UnitNode", "description": "Unit desc"}]

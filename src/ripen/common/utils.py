@@ -31,21 +31,20 @@ def get_resource_path(relative_path: str) -> Path:
 
 def configure_logging():
     """
-    Configures Loguru for structured JSON logging.
-    - Rotates on every startup to track separate executions.
-    - Keeps exactly the last 2 execution logs (logs/server.jsonl).
-    - Isolates errors to logs/error.log.
+    Configures Loguru for structured JSON logging and traceability.
+    - stderr: Human-readable colored output for development.
+    - logs/server.jsonl: Structured JSON for traceability (retains last 2 executions).
+    - logs/error.log: Isolated quarantine for ERROR and CRITICAL levels.
     """
     global _LOGGING_CONFIGURED
 
-    # In Windows environment, multiple attempts to add file sinks can cause WinError 32
-    # if the file is already open by the same process.
     if _LOGGING_CONFIGURED:
         return
 
     logger.remove()
 
-    # 1. Human-readable output to stderr (Development)
+    # 1. Stderr (Development)
+    # Uses a clean, colored format for local debugging.
     stderr_format = (
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level:7}</level> | "
@@ -64,8 +63,8 @@ def configure_logging():
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
 
-    # Isolated Error Log (Captures ONLY Error/Critical, persistent)
-    # Always active to catch bugs even during tests
+    # 2. Isolated Error Log (Quarantine)
+    # Captures ONLY Error/Critical. Uses non-JSON for direct readability.
     logger.add(
         "logs/error.log",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:7} | {name}:{function}:{line} - {message}",
@@ -81,20 +80,22 @@ def configure_logging():
 
     if "PYTEST_CURRENT_TEST" in os.environ:
         _LOGGING_CONFIGURED = True
-        logger.info("Logging infrastructure initialized (STDOUT + error.log for tests)")
+        logger.info("Logging infrastructure initialized for TEST environment")
         return
 
-    # 2. Main Structured JSON log
+    # 3. Main Structured JSON log (Traceability)
+    # Rotation=lambda: True ensures a new file is started on every execution.
+    # Retention=2 keeps exactly the last two files.
     _startup_time = datetime.now().isoformat()
     logger.add(
         "logs/server.jsonl",
         format="{message}",
         level="DEBUG",
         serialize=True,
-        rotation=lambda _, __: True,  # Rotate every time it starts (on first write)
+        rotation=lambda _, __: True,
         retention=2,
         encoding="utf-8",
-        enqueue=True,  # Better for async/parallel
+        enqueue=True,
     )
 
     _LOGGING_CONFIGURED = True
@@ -124,26 +125,17 @@ def log_error(msg: str, error: Exception | None = None):
 
 
 def get_db_path() -> str:
-    """
-    Returns the absolute path to the knowledge database.
-    Prioritizes MEMORY_DB_PATH env var, then SHARED_MEMORY_HOME.
-    """
-    db_path = os.environ.get("MEMORY_DB_PATH")
-    if db_path:
-        return os.path.abspath(db_path)
+    """Returns the absolute path to the knowledge database."""
+    from ripen.common.config import settings
 
-    home = os.environ.get("SHARED_MEMORY_HOME", "data")
-    return os.path.abspath(os.path.join(home, "knowledge.db"))
+    return str(settings.db_path)
 
 
 def get_thoughts_db_path() -> str:
     """Returns the absolute path to the thoughts database."""
-    db_path = os.environ.get("THOUGHTS_DB_PATH")
-    if db_path:
-        return os.path.abspath(db_path)
+    from ripen.common.config import settings
 
-    home = os.environ.get("SHARED_MEMORY_HOME", "data")
-    return os.path.abspath(os.path.join(home, "thoughts.db"))
+    return str(settings.thoughts_db_path)
 
 
 def get_bank_dir() -> str:
@@ -205,8 +197,9 @@ def normalize_text(text: str, truncate: int = 10000) -> str:
     if not text:
         return ""
     # Normalize whitespace: replace any whitespace sequence with a single space
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:truncate] if truncate > 0 else text
+    normalized = re.sub(r"\s+", " ", text).strip()
+    logger.debug(f"Normalized text: {len(text)} -> {len(normalized)} chars")
+    return normalized[:truncate] if truncate > 0 else normalized
 
 
 def clean_markdown(text: str) -> str:
@@ -216,9 +209,10 @@ def clean_markdown(text: str) -> str:
     if not text:
         return ""
     # Simple regex to strip code blocks backticks if they wrap the whole thing
-    text = re.sub(r"^```markdown\n", "", text)
-    text = re.sub(r"\n```$", "", text)
-    return text.strip()
+    cleaned = re.sub(r"^```markdown\n", "", text)
+    cleaned = re.sub(r"\n```$", "", cleaned)
+    logger.debug(f"Cleaned markdown: {len(text)} -> {len(cleaned)} chars")
+    return cleaned.strip()
 
 
 class PathResolver:
@@ -364,9 +358,13 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
         # Decay constant: half-life of 30 days
         decay = math.exp(-days_ago / 30.0)
 
-        return freq_score * decay
+        score = freq_score * decay
+        logger.debug(
+            f"Importance: {score:.4f} (freq={freq_score:.2f}, decay={decay:.2f}, days={days_ago:.1f})"
+        )
+        return score
     except Exception as e:
-        log_error(
-            f"Importance calculation failed for count={access_count}, last={last_accessed}", e
+        logger.error(
+            f"Importance calculation failed for count={access_count}, last={last_accessed}: {e}"
         )
         return 0.0

@@ -67,6 +67,7 @@ async def run_recover_thoughts(args):
 
 async def run_license(args):
     from ripen.api.licensing import LicenseManager
+
     manager = LicenseManager()
 
     if args.subcommand == "status":
@@ -78,7 +79,7 @@ async def run_license(args):
             print(f"User: {info.get('user')}")
         if info.get("expiry"):
             print(f"Expiry: {info.get('expiry')}")
-        
+
         print(f"Status: {'VALID' if is_valid else 'INVALID/EXPIRED'}")
         print(f"----------------------")
 
@@ -129,7 +130,7 @@ def main():
     lic_sub = lic_parser.add_subparsers(dest="subcommand")
 
     lic_sub.add_parser("status", help="Show license status")
-    
+
     activate_lic = lic_sub.add_parser("activate", help="Activate license from file")
     activate_lic.add_argument("path", help="Path to license.rpn file")
 

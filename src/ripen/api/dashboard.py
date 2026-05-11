@@ -53,15 +53,21 @@ async def api_resolve_conflict(request):
 async def api_health(request):
     llm = get_llm_provider()
     llm_ok = await llm.check_health()
-    
+
     from ripen.common.config import settings
+
     vector_ok = await check_embeddings_health()
-    
-    return JSONResponse({
-        "llm": {"status": "ok" if llm_ok else "failed", "provider": llm.__class__.__name__},
-        "vector": {"status": "ok" if vector_ok else "failed", "engine": settings.embedding_engine},
-        "system": "online"
-    })
+
+    return JSONResponse(
+        {
+            "llm": {"status": "ok" if llm_ok else "failed", "provider": llm.__class__.__name__},
+            "vector": {
+                "status": "ok" if vector_ok else "failed",
+                "engine": settings.embedding_engine,
+            },
+            "system": "online",
+        }
+    )
 
 
 router = Router(

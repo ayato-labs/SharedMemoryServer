@@ -72,10 +72,18 @@ package = true
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-exclude = ["scratch/"]
+src = ["src", "tests"]
+exclude = [
+    "scratch/",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "docs",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "N", "UP", "PL"]
+select = ["E", "F", "B", "I", "N", "UP", "PL", "RUF"]
 ignore = [
     "PLR0912", # Too many branches
     "PLR0913", # Too many arguments
@@ -84,6 +92,7 @@ ignore = [
     "PLR2004", # Magic values in comparisons
     "PLW0603", # Global statement
     "E402",    # Module level import not at top of file
+    "B008",    # Do not perform function call in argument defaults (FastAPI/FastMCP dependencies)
 ]
 
 [tool.ruff.lint.isort]
