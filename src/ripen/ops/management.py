@@ -99,7 +99,7 @@ async def get_memory_health_logic(uow):
 
         metadata = await uow.metadata.get_all_metadata()
         if metadata:
-            scores = [calculate_importance(m[1], m[2]) for m in metadata]
+            scores = [calculate_importance(m["access_count"], m["last_accessed"]) for m in metadata]
             health["importance_stats"] = {
                 "avg": round(sum(scores) / len(scores), 2),
                 "std_dev": round(float(np.std(scores)), 2),

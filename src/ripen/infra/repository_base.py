@@ -320,3 +320,35 @@ class IManagementRepository(ABC):
     @abstractmethod
     async def get_creation_timestamp(self, content_id: str) -> str | None:
         pass
+
+    @abstractmethod
+    async def get_database_stats(self) -> dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def get_embedding_model_distribution(self) -> dict[str, int]:
+        pass
+
+    @abstractmethod
+    async def get_isolated_entities(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    async def get_entity_type_distribution(self) -> dict[str, int]:
+        pass
+
+    @abstractmethod
+    async def get_agent_contribution_stats(self) -> dict[str, int]:
+        pass
+
+    @abstractmethod
+    async def get_snapshot_path(self, snapshot_id: int) -> dict[str, Any] | None:
+        pass
+
+    @abstractmethod
+    async def insert_snapshot(self, name: str, description: str, file_path: str) -> None:
+        pass
+
+    @abstractmethod
+    async def list_snapshots(self) -> list[dict[str, Any]]:
+        pass
