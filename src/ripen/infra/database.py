@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import random
 import sqlite3
@@ -129,7 +128,8 @@ class AsyncSQLiteConnection:
                     self.conn = _MAIN_CONNECTION
 
             logger.debug(
-                f"AsyncSQLiteConnection: Returning connection for {self.db_path} (is_thoughts={self.is_thoughts})"
+                f"AsyncSQLiteConnection: Returning connection for {self.db_path} "
+                f"(is_thoughts={self.is_thoughts})"
             )
             return self.conn
         except Exception as e:
@@ -184,7 +184,8 @@ async def async_get_connection():
 
 async def async_get_thoughts_connection():
     """
-    [DEPRECATED] Legacy thoughts connection helper. Use UnitOfWork or AsyncSQLiteConnection directly.
+    [DEPRECATED] Legacy thoughts connection helper. 
+    Use UnitOfWork or AsyncSQLiteConnection directly.
     """
     from ripen.common.utils import get_thoughts_db_path
     from ripen.core.thought_logic import init_thoughts_db
@@ -511,22 +512,33 @@ async def init_db(force: bool = False):
 
         # FTS Triggers: troubleshooting_knowledge
         await cursor.execute("""
-            CREATE TRIGGER IF NOT EXISTS troubleshooting_ai AFTER INSERT ON troubleshooting_knowledge BEGIN
-                INSERT INTO troubleshooting_knowledge_fts(rowid, title, solution, affected_functions) 
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_ai
+            AFTER INSERT ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts
+                    (rowid, title, solution, affected_functions)
                 VALUES (new.id, new.title, new.solution, new.affected_functions);
             END;
         """)
         await cursor.execute("""
-            CREATE TRIGGER IF NOT EXISTS troubleshooting_ad AFTER DELETE ON troubleshooting_knowledge BEGIN
-                INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts, rowid, title, solution, affected_functions) 
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_ad
+            AFTER DELETE ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts(
+                    troubleshooting_knowledge_fts, rowid, title, solution, affected_functions
+                )
                 VALUES('delete', old.id, old.title, old.solution, old.affected_functions);
             END;
         """)
         await cursor.execute("""
-            CREATE TRIGGER IF NOT EXISTS troubleshooting_au AFTER UPDATE ON troubleshooting_knowledge BEGIN
-                INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts, rowid, title, solution, affected_functions) 
-                VALUES('delete', old.id, old.title, old.solution, old.affected_functions);
-                INSERT INTO troubleshooting_knowledge_fts(rowid, title, solution, affected_functions) 
+            CREATE TRIGGER IF NOT EXISTS troubleshooting_au
+            AFTER UPDATE ON troubleshooting_knowledge BEGIN
+                INSERT INTO troubleshooting_knowledge_fts(
+                    troubleshooting_knowledge_fts, rowid, title, solution, affected_functions
+                )
+                VALUES(
+                    'delete', old.id, old.title, old.solution, old.affected_functions
+                );
+                INSERT INTO troubleshooting_knowledge_fts
+                    (rowid, title, solution, affected_functions)
                 VALUES (new.id, new.title, new.solution, new.affected_functions);
             END;
         """)
@@ -536,7 +548,8 @@ async def init_db(force: bool = False):
         await cursor.execute("INSERT INTO observations_fts(observations_fts) VALUES('rebuild')")
         await cursor.execute("INSERT INTO bank_files_fts(bank_files_fts) VALUES('rebuild')")
         await cursor.execute(
-            "INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts) VALUES('rebuild')"
+            "INSERT INTO troubleshooting_knowledge_fts(troubleshooting_knowledge_fts) "
+            "VALUES('rebuild')"
         )
 
         await conn.commit()

@@ -1,7 +1,9 @@
 import json
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import aiosqlite
+from loguru import logger
 
 from ripen.infra.repository_base import (
     IAuditRepository,
@@ -72,8 +74,9 @@ class BankRepository(BaseSQLiteRepository, IBankRepository):
             return 0
         placeholders = ",".join(["?"] * len(filenames))
         cursor = await self.conn.execute(
-            f"UPDATE bank_files SET status = ?, last_synced = CURRENT_TIMESTAMP WHERE filename IN ({placeholders})",
-            [status] + filenames,
+            "UPDATE bank_files SET status = ?, last_synced = CURRENT_TIMESTAMP "
+            f"WHERE filename IN ({placeholders})",
+            [status, *filenames],
         )
         return cursor.rowcount
 
@@ -95,12 +98,14 @@ class AuditRepository(BaseSQLiteRepository, IAuditRepository):
     ) -> None:
         if meta_data:
             await self.conn.execute(
-                "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO audit_logs (table_name, content_id, action, old_data, "
+                "new_data, agent_id, meta_data) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (table_name, content_id, action, old_data, new_data, agent_id, meta_data),
             )
         else:
             await self.conn.execute(
-                "INSERT INTO audit_logs (table_name, content_id, action, old_data, new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO audit_logs (table_name, content_id, action, old_data, "
+                "new_data, agent_id) VALUES (?, ?, ?, ?, ?, ?)",
                 (table_name, content_id, action, old_data, new_data, agent_id),
             )
 
@@ -142,7 +147,8 @@ class EntityRepository(BaseSQLiteRepository, IEntityRepository):
         agent_id: str,
     ) -> None:
         await self.conn.execute(
-            "INSERT OR REPLACE INTO entities (name, entity_type, description, importance, updated_by) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO entities (name, entity_type, description, "
+            "importance, updated_by) VALUES (?, ?, ?, ?, ?)",
             (name, entity_type, description, importance, agent_id),
         )
 
@@ -169,8 +175,9 @@ class EntityRepository(BaseSQLiteRepository, IEntityRepository):
             return 0
         placeholders = ",".join(["?"] * len(names))
         cursor = await self.conn.execute(
-            f"UPDATE entities SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE name IN ({placeholders})",
-            [status] + names,
+            "UPDATE entities SET status = ?, updated_at = CURRENT_TIMESTAMP "
+            f"WHERE name IN ({placeholders})",
+            [status, *names],
         )
         return cursor.rowcount
 
@@ -225,8 +232,9 @@ class RelationRepository(BaseSQLiteRepository, IRelationRepository):
             return 0
         placeholders = ",".join(["?"] * len(names))
         cursor = await self.conn.execute(
-            f"UPDATE relations SET status = ? WHERE subject IN ({placeholders}) OR object IN ({placeholders})",
-            [status] + names + names,
+            "UPDATE relations SET status = ? "
+            f"WHERE subject IN ({placeholders}) OR object IN ({placeholders})",
+            [status, *names, *names],
         )
         return cursor.rowcount
 
@@ -280,7 +288,7 @@ class ObservationRepository(BaseSQLiteRepository, IObservationRepository):
         placeholders = ",".join(["?"] * len(names))
         cursor = await self.conn.execute(
             f"UPDATE observations SET status = ? WHERE entity_name IN ({placeholders})",
-            [status] + names,
+            [status, *names],
         )
         return cursor.rowcount
 
@@ -360,7 +368,8 @@ class TroubleshootingRepository(BaseSQLiteRepository, ITroubleshootingRepository
     ) -> None:
         await self.conn.execute(
             """
-            INSERT INTO troubleshooting_knowledge (title, solution, affected_functions, env_metadata)
+            INSERT INTO troubleshooting_knowledge 
+            (title, solution, affected_functions, env_metadata)
             VALUES (?, ?, ?, ?)
             """,
             (title, solution, affected_functions, env_metadata),
@@ -483,7 +492,6 @@ class SearchRepository(BaseSQLiteRepository, ISearchRepository):
             (f"%{query}%", f"%{query}%"),
         )
         return [dict(r) for r in await cursor.fetchall()]
-
 
 
 class MetadataRepository(BaseSQLiteRepository, IMetadataRepository):
@@ -655,8 +663,8 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
                 c = await self.conn.execute(f"SELECT COUNT(*) FROM {table}")
                 count = (await c.fetchone())[0]
                 results.append({"name": table, "count": count})
-            except Exception:
-                # Some tables might be virtual or inaccessible
+            except Exception as e:
+                logger.warning(f"Failed to get count for table {table}: {e}")
                 continue
         return results
 
@@ -680,7 +688,8 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
             cursor = await self.conn.execute(f"SELECT COUNT(*) FROM {table_name}")
             row = await cursor.fetchone()
             return row[0] or 0
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get count for table {table_name}: {e}")
             return 0
 
     async def get_creation_timestamp(self, content_id: str) -> str | None:
@@ -731,7 +740,8 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
 
     async def get_entity_type_distribution(self) -> dict[str, int]:
         cursor = await self.conn.execute(
-            "SELECT entity_type, COUNT(*) FROM entities WHERE status = 'active' GROUP BY entity_type"
+            "SELECT entity_type, COUNT(*) FROM entities "
+            "WHERE status = 'active' GROUP BY entity_type"
         )
         rows = await cursor.fetchall()
         return {r[0]: r[1] for r in rows}
@@ -761,7 +771,9 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
         )
 
     async def list_snapshots(self) -> list[dict[str, Any]]:
-        cursor = await self.conn.execute("SELECT id, name, timestamp FROM snapshots ORDER BY timestamp DESC")
+        cursor = await self.conn.execute(
+            "SELECT id, name, timestamp FROM snapshots ORDER BY timestamp DESC"
+        )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
 

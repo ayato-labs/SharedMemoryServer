@@ -73,6 +73,7 @@ package = true
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
+# Exclude non-relevant files
 exclude = [
     "scratch/",
     ".venv",
@@ -80,10 +81,22 @@ exclude = [
     "build",
     "dist",
     "docs",
+    "**/__pycache__",
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "N", "UP", "PL", "RUF"]
+# Selection of rules for rigorous code quality
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "PL",  # pylint
+    "RUF", # ruff-specific
+    "C90", # mccabe
+]
 ignore = [
     "PLR0912", # Too many branches
     "PLR0913", # Too many arguments
@@ -92,7 +105,7 @@ ignore = [
     "PLR2004", # Magic values in comparisons
     "PLW0603", # Global statement
     "E402",    # Module level import not at top of file
-    "B008",    # Do not perform function call in argument defaults (FastAPI/FastMCP dependencies)
+    "B008",    # Do not perform function call in argument defaults
 ]
 
 [tool.ruff.lint.isort]

@@ -177,7 +177,7 @@ mcp = FastMCP(
 )
 
 
-from ripen.infra.uow import UnitOfWork, SecureWriteContext
+from ripen.infra.uow import SecureWriteContext, UnitOfWork
 
 
 @mcp.tool(
@@ -352,7 +352,7 @@ def _kill_port_process(port: int):
 
         # findstr returns exit code 1 if no match is found, which is normal
         cmd = f"netstat -ano | findstr :{port}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
 
         if result.returncode != 0:
             # No process found on this port, which is good!
@@ -394,7 +394,7 @@ def main():
         lm = LicenseManager()
         try:
             lm.activate(args.activate)
-            print(f"\n\033[1;32m🎉 Activation successful!\033[0m")
+            print("\n\033[1;32m🎉 Activation successful!\033[0m")
             print(f"   {lm.get_status_summary()}")
             sys.exit(0)
         except Exception as e:
@@ -405,7 +405,7 @@ def main():
         from ripen.api.licensing import LicenseManager
 
         lm = LicenseManager()
-        print(f"\n\033[1;34m--- Ripen License Status ---\033[0m")
+        print("\n\033[1;34m--- Ripen License Status ---\033[0m")
         print(f"   {lm.get_status_summary()}")
         sys.exit(0)
 
@@ -436,11 +436,10 @@ def main():
         print("\n\033[1;32m" + "═" * 60)
         print("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m")
         print("  \033[1;34m" + "─" * 56 + "\033[0m")
-        print(f"  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m")
+        print("  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m")
         print(f"  📡 Port:      \033[1;36m{port}\033[0m")
-        print(
-            f"  🤖 LLM:       \033[1;33m{settings.llm_provider} ({settings.generative_model})\033[0m"
-        )
+        llm_info = f"{settings.llm_provider} ({settings.generative_model})"
+        print(f"  🤖 LLM:       \033[1;33m{llm_info}\033[0m")
         print(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m")
         print(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m")
         if is_licensed:

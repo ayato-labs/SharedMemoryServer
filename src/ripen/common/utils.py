@@ -44,7 +44,6 @@ def configure_logging():
     logger.remove()
 
     # 1. Stderr (Development)
-    # Uses a clean, colored format for local debugging.
     stderr_format = (
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level:7}</level> | "
@@ -64,7 +63,7 @@ def configure_logging():
     log_dir.mkdir(exist_ok=True)
 
     # 2. Isolated Error Log (Quarantine)
-    # Captures ONLY Error/Critical. Uses non-JSON for direct readability.
+    # Saves errors separately to ensure visibility of crashes.
     logger.add(
         "logs/error.log",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:7} | {name}:{function}:{line} - {message}",
@@ -84,16 +83,19 @@ def configure_logging():
         return
 
     # 3. Main Structured JSON log (Traceability)
-    # Use size-based rotation to avoid PermissionError on Windows during startup.
-    # Retention=5 keeps enough history for debugging.
+    # Forced rotation on startup to satisfy "retains last 2 executions" requirement.
+    # We use a lambda for rotation that returns True the first time it's called.
+    # In Loguru, rotation="00:00" or similar doesn't help with "per execution".
+    # However, we can use a filename with a timestamp or just force rotate.
+    # Let's use rotation=lambda _, __: True to rotate every time the script starts.
     _startup_time = datetime.now().isoformat()
     logger.add(
         "logs/server.jsonl",
         format="{message}",
         level="DEBUG",
         serialize=True,
-        rotation="10 MB",
-        retention=5,
+        rotation=lambda _, __: True,  # Rotate every startup
+        retention=2,  # Keep only last 2 execution logs
         encoding="utf-8",
         enqueue=True,
     )

@@ -1,5 +1,4 @@
 import hashlib
-import json
 from typing import Any
 
 from ripen.common.config import settings
@@ -35,7 +34,8 @@ async def check_embeddings_health() -> bool:
             return True
         else:
             return settings.api_key is not None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Embeddings health check failed: {e}")
         return False
 
 
@@ -70,14 +70,9 @@ async def compute_embedding(
     items = [text_list] if is_single else text_list
 
     # 1. Normalize and filter
-    valid_entries = []
-    for i, raw_txt in enumerate(items):
-        clean_txt = normalize_text(raw_txt)
-        if clean_txt:
-            valid_entries.append((i, clean_txt))
+    valid_entries = [(i, clean) for i, raw in enumerate(items) if (clean := normalize_text(raw))]
 
     if not valid_entries:
-        # Return dummy vectors if no text
         dim = 384 if settings.embedding_engine == "fastembed" else 768
         fallback = [([0.0] * dim) for _ in items]
         return fallback[0] if is_single else fallback
@@ -86,73 +81,51 @@ async def compute_embedding(
     results = [None] * len(items)
     to_compute = []
     compute_map = []
-
-    # Cache key includes model name to prevent collisions between different engines
     model_name = settings.embedding_model
-    logger.debug(f"Checking cache for {len(valid_entries)} entries using model {model_name}")
 
-    async def _process_cache(uow_obj):
+    from ripen.infra.uow import UnitOfWork
+
+    async with UnitOfWork(conn=conn) as uow:
+        # Check Cache
         for original_idx, txt in valid_entries:
             content_hash = _get_text_hash(txt)
-            cached = await uow_obj.embeddings.get_cached_embedding(content_hash, model_name)
+            cached = await uow.embeddings.get_cached_embedding(content_hash, model_name)
             if cached:
                 results[original_idx] = cached
             else:
                 to_compute.append(txt)
                 compute_map.append((original_idx, content_hash))
 
-    from ripen.infra.uow import UnitOfWork
+        if to_compute:
+            logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
+            new_vectors = await _run_engine_computation(to_compute, model_name)
+            for (idx, content_hash), vector in zip(compute_map, new_vectors, strict=True):
+                results[idx] = vector
+                await uow.embeddings.insert_cache_entry(content_hash, vector, model_name)
 
-    if conn:
-        # If conn is already a UoW or compatible repo provider
-        await _process_cache(conn)
-    else:
-        async with UnitOfWork() as uow:
-            await _process_cache(uow)
-
-    if not to_compute:
-        logger.info(f"All {len(items)} embeddings retrieved from CACHE (SHA-256).")
-        dim = 384 if settings.embedding_engine == "fastembed" else 768
-        final_results = [r if r is not None else ([0.0] * dim) for r in results]
-        return final_results[0] if is_single else final_results
-
-    logger.info(f"Cache miss: computing {len(to_compute)} new embeddings...")
-
-    # 2. Compute via chosen engine
-    computed_vectors = []
-    if settings.embedding_engine == "fastembed":
-        model = get_fastembed_model()
-        computed_vectors = [v.tolist() for v in list(model.embed(to_compute))]
-    else:
-        client = get_gemini_client()
-        if not client:
-            raise ValueError("Gemini engine selected but API key is missing.")
-
-        await AIRateLimiter.throttle(task_type="embedding")
-        response = await client.aio.models.embed_content(
-            model=model_name,
-            contents=to_compute,
-            config={"task_type": "RETRIEVAL_DOCUMENT"},
-        )
-        computed_vectors = [emb.values for emb in response.embeddings]
-
-    # 3. Save results to cache
-    async def _save_cache(uow_obj):
-        for idx, (original_idx, content_hash) in enumerate(compute_map):
-            vector = computed_vectors[idx]
-            results[original_idx] = vector
-            await uow_obj.embeddings.insert_cache_entry(content_hash, vector, model_name)
-
-    if conn:
-        await _save_cache(conn)
-    else:
-        async with UnitOfWork() as uow:
-            await _save_cache(uow)
-
-    # Ensure all slots are filled
+    # Fill safety fallbacks
     dim = 384 if settings.embedding_engine == "fastembed" else 768
     final_results = [r if r is not None else ([0.0] * dim) for r in results]
     return final_results[0] if is_single else final_results
+
+
+async def _run_engine_computation(to_compute: list[str], model_name: str) -> list[list[float]]:
+    """Internal helper to run the actual embedding engine."""
+    if settings.embedding_engine == "fastembed":
+        model = get_fastembed_model()
+        return [v.tolist() for v in list(model.embed(to_compute))]
+
+    client = get_gemini_client()
+    if not client:
+        raise ValueError("Gemini engine selected but API key is missing.")
+
+    await AIRateLimiter.throttle(task_type="embedding")
+    response = await client.aio.models.embed_content(
+        model=model_name,
+        contents=to_compute,
+        config={"task_type": "RETRIEVAL_DOCUMENT"},
+    )
+    return [emb.values for emb in response.embeddings]
 
 
 def _get_text_hash(text: str) -> str:

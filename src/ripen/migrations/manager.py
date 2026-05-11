@@ -17,7 +17,7 @@ class MigrationManager:
     Tracks applied versions in the 'schema_migrations' table.
     """
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str | None = None):
         self.db_path = db_path or get_db_path()
         # Path resolution now local to the package
         self.migrations_dir = os.path.join(os.path.dirname(__file__), "versions")

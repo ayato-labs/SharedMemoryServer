@@ -11,7 +11,7 @@ class LlmProvider(abc.ABC):
     """Base class for LLM providers."""
 
     @abc.abstractmethod
-    async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+    async def generate_content(self, prompt: str, system_instruction: str | None = None) -> str:
         """Generates text content based on the prompt."""
         pass
 
@@ -124,7 +124,7 @@ class GeminiProvider(LlmProvider):
             return content
 
     @retry_on_ai_quota(max_retries=3, rotate_models=True, pool_name="generation")
-    async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+    async def generate_content(self, prompt: str, system_instruction: str | None = None) -> str:
         client = self._get_client()
         if not client:
             raise ValueError("Gemini API key not found.")
@@ -180,7 +180,8 @@ class GeminiProvider(LlmProvider):
         try:
             client = self._get_client()
             return client is not None
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Gemini health check failed: {e}")
             return False
 
 
@@ -192,7 +193,7 @@ class OllamaProvider(LlmProvider):
         self.model = settings.generative_model
         logger.debug(f"OllamaProvider initialized with model: {self.model}")
 
-    async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+    async def generate_content(self, prompt: str, system_instruction: str | None = None) -> str:
         url = f"{self.base_url}/api/generate"
 
         payload = {
@@ -235,7 +236,8 @@ class OllamaProvider(LlmProvider):
             try:
                 response = await client.get(url)
                 return response.status_code == 200
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Ollama health check failed: {e}")
                 return False
 
 

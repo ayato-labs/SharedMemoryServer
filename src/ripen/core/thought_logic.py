@@ -6,24 +6,16 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-import aiosqlite
-
-from ripen.cli.salvage import salvage_related_knowledge
-from ripen.common.exceptions import DatabaseError
 from ripen.common.utils import (
     get_logger,
     get_thoughts_db_path,
-    log_error,
-    log_info,
     mask_sensitive_data,
 )
 from ripen.infra.database import (
     AsyncSQLiteConnection,
-    get_write_semaphore,
-    init_db,
     retry_on_db_lock,
 )
-from ripen.infra.uow import UnitOfWork, SecureWriteContext
+from ripen.infra.uow import SecureWriteContext, UnitOfWork
 
 logger = get_logger("thought_logic")
 
@@ -33,8 +25,6 @@ RECOVERY_COOLDOWN = timedelta(minutes=10)
 _THOUGHTS_INITIALIZED = False
 
 # Session-level locks to serialize thought processing per session.
-# NOTE: In extremely long-running servers with millions of unique sessions,
-# a periodic pruning of unused locks may be required to reclaim memory.
 _SESSION_LOCKS: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
@@ -49,7 +39,7 @@ async def init_thoughts_db(force: bool = False):
 
     from ripen.infra.database import _add_column_if_missing
 
-    log_info(f"Initializing thoughts database at {db_path}...")
+    logger.info(f"Initializing thoughts database at {db_path}...")
     async with await AsyncSQLiteConnection(db_path, is_thoughts=True) as conn:
         from ripen.infra.repository import ThoughtRepository
 
@@ -57,7 +47,6 @@ async def init_thoughts_db(force: bool = False):
         await thoughts_repo.init_tables()
 
         # Migration for existing databases
-        # In SQLite, we can just execute on connection
         cursor = await conn.cursor()
         await _add_column_if_missing(cursor, "thought_history", "distilled BOOLEAN DEFAULT 0")
         await _add_column_if_missing(cursor, "thought_history", "meta_data TEXT")
@@ -65,7 +54,7 @@ async def init_thoughts_db(force: bool = False):
 
         await conn.commit()
         _THOUGHTS_INITIALIZED = True
-        log_info("Thoughts database initialization successful (FTS5 enabled).")
+        logger.info("Thoughts database initialization successful (FTS5 enabled).")
 
 
 @retry_on_db_lock()
@@ -93,7 +82,7 @@ async def process_thought_core(
 
             # 0. Infrastructure readiness
             await init_thoughts_db()
-            dur_init = time.perf_counter() - start_total  # Rough estimation
+            dur_init = time.perf_counter() - start_total
 
             logger.info(
                 f"Processing thought #{thought_number}/{total_thoughts} for session: {session_id}"
@@ -161,8 +150,8 @@ async def process_thought_core(
                 branches = []  # Placeholder
 
                 # 6. Salvage & Accretion
-                from ripen.core.distiller import incremental_distill_knowledge
                 from ripen.common.tasks import create_background_task
+                from ripen.core.distiller import incremental_distill_knowledge
 
                 create_background_task(
                     incremental_distill_knowledge(session_id, thought),
@@ -176,19 +165,6 @@ async def process_thought_core(
                 related_knowledge = await salvage_related_knowledge(thought, session_id, history)
                 dur_salvage = time.perf_counter() - t_salvage_start
 
-                # 6.3 Traceability: Record search results in metadata
-                # Since we already inserted the thought, we might need a separate update
-                # or we could have done salvage first. For simplicity, just update here.
-                search_meta = {
-                    "hits_count": len(related_knowledge),
-                    "hit_ids": [k.get("id") for k in related_knowledge],
-                    "env": "development",
-                    "timestamp": datetime.now().isoformat(),
-                }
-                # Update thought metadata if needed - for now just leave it in memory result
-                # ThoughtRepository.update_thought_metadata is not in interface yet, skipping for now
-                # and just returning it in the response.
-
                 # 7. Opportunistic Recovery
                 if "PYTEST_CURRENT_TEST" not in os.environ:
                     create_background_task(
@@ -199,10 +175,7 @@ async def process_thought_core(
                 if not next_thought_needed:
                     from ripen.core.distiller import auto_distill_knowledge
 
-                    await auto_distill_knowledge(
-                        session_id, history + [{"thought": masked_thought}]
-                    )
-                    # Mark distilled if needed - ThoughtRepository.mark_session_distilled not in interface yet
+                    await auto_distill_knowledge(session_id, [*history, {"thought": masked_thought}])
 
                 await uow.commit()
 
@@ -223,10 +196,8 @@ async def process_thought_core(
             }
 
         except Exception as e:
-            from ripen.common.utils import log_error
             from ripen.common.exceptions import DatabaseError
-
-            log_error(f"Critical failure in sequential thinking session {session_id}", e)
+            logger.error(f"Critical failure in sequential thinking session {session_id}: {e}")
             raise DatabaseError(f"Reasoning persistence failed: {e}") from e
 
 
@@ -237,9 +208,7 @@ async def get_thought_history(session_id: str | None = None) -> list[dict[str, A
         async with UnitOfWork(is_thoughts=True) as uow:
             return await uow.thoughts.get_session_history(session_id)
     except Exception as e:
-        from ripen.common.utils import log_error
-
-        log_error(f"Failed to retrieve history for session {session_id}", e)
+        logger.error(f"Failed to retrieve history for session {session_id}: {e}")
         return []
 
 
@@ -264,9 +233,7 @@ async def recover_undistilled_sessions():
             if not all_to_process:
                 return
 
-            from ripen.common.utils import log_info
-
-            log_info(f"Found {len(all_to_process)} undistilled sessions to recover.")
+            logger.info(f"Found {len(all_to_process)} undistilled sessions to recover.")
             from ripen.core.distiller import auto_distill_knowledge
 
             for sess_id in all_to_process:
@@ -277,6 +244,4 @@ async def recover_undistilled_sessions():
 
             await uow.commit()
     except Exception as e:
-        from ripen.common.utils import log_error
-
-        log_error("Failed during opportunistic thought recovery", e)
+        logger.error(f"Failed during opportunistic thought recovery: {e}")

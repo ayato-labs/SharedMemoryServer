@@ -38,50 +38,7 @@ class InsightEngine:
             reuse_multiplier = round(total_access / accessed_units, 2)
 
         # 3. 検索精度と「知の熟成度」 (Precision & Knowledge Age)
-        hit_rows = await uow.metadata.get_successful_search_stats()
-        total_searches = await uow.metadata.get_total_search_count()
-
-        precision_sum = 0.0
-        total_hits = len(hit_rows)
-        maturity = {
-            "intra_session": 0,
-            "short_term": 0,
-            "long_term": 0,
-        }
-
-        if total_hits > 0:
-            for row in hit_rows:
-                precision_sum += row["avg_similarity"] or 0.0
-                try:
-                    hit_ids = json.loads(row["hit_content_ids"] or "[]")
-                    if not hit_ids:
-                        continue
-
-                    target_id = hit_ids[0]
-                    created_at = await uow.management.get_creation_timestamp(target_id)
-                    if created_at:
-                        s_dt = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
-                        c_dt = datetime.fromisoformat(
-                            created_at.replace(" ", "T").replace("Z", "+00:00")
-                        )
-                        age_hours = (s_dt - c_dt).total_seconds() / 3600
-
-                        if age_hours < 1:
-                            maturity["intra_session"] += 1
-                        elif age_hours < 24:
-                            maturity["short_term"] += 1
-                        else:
-                            maturity["long_term"] += 1
-                except Exception as e:
-                    logger.warning(f"Failed to calculate maturity for hit record: {e}")
-
-        hit_rate = 0.0
-        if total_searches > 0:
-            hit_rate = round((total_hits / total_searches) * 100, 1)
-
-        avg_precision = 0.0
-        if total_hits > 0:
-            avg_precision = round(precision_sum / total_hits, 2)
+        search_metrics = await InsightEngine._calculate_search_metrics(uow)
 
         # 4. 推論ログの観測 (Reasoning Observation)
         from ripen.infra.uow import UnitOfWork
@@ -99,10 +56,10 @@ class InsightEngine:
                 "stored_bank_files": b_count,
                 "knowledge_graph_density_percent": density,
                 "total_read_operations": total_access,
-                "total_search_queries": total_searches,
-                "search_hit_rate_percent": hit_rate,
-                "avg_search_precision": avg_precision,
-                "knowledge_maturity": maturity,
+                "total_search_queries": search_metrics["total_searches"],
+                "search_hit_rate_percent": search_metrics["hit_rate"],
+                "avg_search_precision": search_metrics["avg_precision"],
+                "knowledge_maturity": search_metrics["maturity"],
                 "avg_thoughts_per_session": avg_steps,
             },
             "efficiency_indicators": {
@@ -112,6 +69,55 @@ class InsightEngine:
                 ),
             },
         }
+
+    @staticmethod
+    async def _calculate_search_metrics(uow) -> dict[str, Any]:
+        """Calculates search-related metrics including maturity and precision."""
+        hit_rows = await uow.metadata.get_successful_search_stats()
+        total_searches = await uow.metadata.get_total_search_count()
+
+        precision_sum = 0.0
+        total_hits = len(hit_rows)
+        maturity = {"intra_session": 0, "short_term": 0, "long_term": 0}
+
+        if total_hits > 0:
+            for row in hit_rows:
+                precision_sum += row["avg_similarity"] or 0.0
+                await InsightEngine._update_maturity_stats(uow, row, maturity)
+
+        hit_rate = round((total_hits / total_searches) * 100, 1) if total_searches > 0 else 0.0
+        avg_precision = round(precision_sum / total_hits, 2) if total_hits > 0 else 0.0
+
+        return {
+            "total_searches": total_searches,
+            "hit_rate": hit_rate,
+            "avg_precision": avg_precision,
+            "maturity": maturity,
+        }
+
+    @staticmethod
+    async def _update_maturity_stats(uow, row, maturity: dict):
+        """Update maturity statistics based on a search hit row."""
+        try:
+            hit_ids = json.loads(row["hit_content_ids"] or "[]")
+            if not hit_ids:
+                return
+
+            target_id = hit_ids[0]
+            created_at = await uow.management.get_creation_timestamp(target_id)
+            if created_at:
+                s_dt = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                c_dt = datetime.fromisoformat(created_at.replace(" ", "T").replace("Z", "+00:00"))
+                age_hours = (s_dt - c_dt).total_seconds() / 3600
+
+                if age_hours < 1:
+                    maturity["intra_session"] += 1
+                elif age_hours < 24:
+                    maturity["short_term"] += 1
+                else:
+                    maturity["long_term"] += 1
+        except Exception as e:
+            logger.warning(f"Failed to calculate maturity for hit record: {e}")
 
     @staticmethod
     def generate_report_markdown(metrics_data: dict[str, Any]) -> str:
