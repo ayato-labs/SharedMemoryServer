@@ -344,7 +344,13 @@ class EmbeddingRepository(BaseSQLiteRepository, IEmbeddingRepository):
         )
 
     async def get_all_embeddings(self) -> list[tuple[str, bytes]]:
-        cursor = await self.conn.execute("SELECT content_id, vector FROM embeddings")
+        cursor = await self.conn.execute("""
+            SELECT e.content_id, e.vector
+            FROM embeddings e
+            LEFT JOIN entities ent ON e.content_id = ent.name
+            LEFT JOIN bank_files bf ON e.content_id = bf.filename
+            WHERE (ent.status = 'active' OR bf.status = 'active')
+        """)
         return await cursor.fetchall()
 
 
@@ -478,15 +484,6 @@ class SearchRepository(BaseSQLiteRepository, ISearchRepository):
         )
         return [dict(r) for r in await cursor.fetchall()]
 
-    async def get_all_embeddings(self) -> list[tuple[str, bytes]]:
-        cursor = await self.conn.execute("""
-            SELECT e.content_id, e.vector
-            FROM embeddings e
-            LEFT JOIN entities ent ON e.content_id = ent.name
-            LEFT JOIN bank_files bf ON e.content_id = bf.filename
-            WHERE (ent.status = 'active' OR bf.status = 'active')
-        """)
-        return await cursor.fetchall()
 
 
 class MetadataRepository(BaseSQLiteRepository, IMetadataRepository):
@@ -776,7 +773,7 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
         # Consider knowledge stale if it hasn't been accessed for age_days
         # and has low importance.
         query = """
-            SELECT content_id FROM metadata
+            SELECT content_id FROM knowledge_metadata
             WHERE last_accessed < date('now', ?)
             AND access_count < 5
         """
