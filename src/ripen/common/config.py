@@ -29,13 +29,15 @@ FASTEMBED_DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
 
 
 class Settings:
-    \"\"\"Ripenの設定を管理するクラス。\"\"\"
+    """Ripenの設定を管理するクラス。"""
 
     _instance = None
     _base_dir: Path | None = None
     _api_key: str | None = None
     _config_data: dict = {}
     _plugins: list = []
+    # --- Licensing ---
+    license_public_key: str = os.getenv("RIPEN_LICENSE_PUBLIC_KEY", "vF9JtiTPlurcpy6F4UywkLdyisrHXEaU75CjeCVvZfg=")
 
     def __new__(cls):
         if cls._instance is None:
@@ -55,7 +57,7 @@ class Settings:
         self._load_config_json()
 
     def _load_config_json(self):
-        \"\"\"base_dirにあるconfig.jsonを読み込む。\"\"\"
+        """base_dirにあるconfig.jsonを読み込む。"""
         config_path = self.base_dir / "config.json"
         if config_path.exists():
             try:
@@ -66,7 +68,7 @@ class Settings:
                 logger.warning(f"Failed to load config.json: {e}")
 
     def get(self, key: str, default: Any = None) -> Any:
-        \"\"\"環境変数 > config.json > デフォルトの順で設定値を取得する。\"\"\"
+        """環境変数 > config.json > デフォルトの順で設定値を取得する。"""
         # 環境変数は大文字でチェック
         env_val = os.environ.get(key.upper())
         if env_val is not None:
@@ -77,7 +79,7 @@ class Settings:
 
     @property
     def base_dir(self) -> Path:
-        \"\"\"データ保存のベースディレクトリを返す。\"\"\"
+        """データ保存のベースディレクトリを返す。"""
         if self._base_dir:
             return self._base_dir
 
@@ -94,7 +96,7 @@ class Settings:
 
     @property
     def api_key(self) -> str | None:
-        \"\"\"Gemini/Google AI APIキーを返す。\"\"\"
+        """Gemini/Google AI APIキーを返す。"""
         if self._api_key:
             return self._api_key
 
@@ -131,65 +133,57 @@ class Settings:
         except Exception as e:
             logger.debug(f"Failed to read settings.json: {e}")
 
-        # 2. .env (via load_dotenv in __init__) - already handled by self.get()
         return None
 
     @property
     def embedding_engine(self) -> str:
-        \"\"\"使用するEmbeddingエンジンを返す (fastembed or gemini)。\"\"\"
+        """使用するEmbeddingエンジンを返す (fastembed or gemini)。"""
         engine = self.get("EMBEDDING_ENGINE", DEFAULT_EMBEDDING_ENGINE).lower()
-        # Force gemini if API key is present and engine is explicitly gemini,
-        # otherwise default to fastembed.
         if engine == "gemini" and self.api_key:
             return "gemini"
         return "fastembed"
 
     @property
     def llm_provider(self) -> str:
-        \"\"\"使用するLLMプロバイダーを返す (ollama or gemini or none)。\"\"\"
-        # 1. Explicit environment variable or config.json
+        """使用するLLMプロバイダーを返す (ollama or gemini or none)。"""
         provider = self.get("LLM_PROVIDER")
         if provider:
             return provider.lower()
-
-        # 2. Default to the configured default (ollama)
-        # We REMOVED the automatic switch to gemini based on API key to adhere to Local-first.
         return DEFAULT_LLM_PROVIDER
 
     @property
     def ollama_base_url(self) -> str:
-        \"\"\"OllamaのベースURLを返す。\"\"\"
+        """OllamaのベースURLを返す。"""
         return self.get("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
 
     @property
     def ollama_model(self) -> str:
-        \"\"\"Ollamaで使用するデフォルトモデルを返す。\"\"\"
+        """Ollamaで使用するデフォルトモデルを返す。"""
         return self.get("OLLAMA_MODEL", OLLAMA_DEFAULT_MODEL)
 
     @property
     def fastembed_model(self) -> str:
-        \"\"\"FastEmbedで使用するデフォルトモデルを返す。\"\"\"
+        """FastEmbedで使用するデフォルトモデルを返す。"""
         return self.get("FASTEMBED_MODEL", FASTEMBED_DEFAULT_MODEL)
 
     @property
     def google_ai_model(self) -> str:
-        \"\"\"Google AIで使用するモデルを返す。\"\"\"
-        # TODO: Load balancing or model selection logic if needed
+        """Google AIで使用するモデルを返す。"""
         return GOOGLE_AI_MODELS[0]
 
     @property
     def google_compression_model(self) -> str:
-        \"\"\"Google AIで使用する圧縮用モデルを返す。\"\"\"
+        """Google AIで使用する圧縮用モデルを返す。"""
         return GOOGLE_COMPRESSION_MODELS[0]
 
     @property
     def google_embedding_model(self) -> str:
-        \"\"\"Google AIで使用するEmbeddingモデルを返す。\"\"\"
+        """Google AIで使用するEmbeddingモデルを返す。"""
         return GOOGLE_EMBEDDING_MODEL
 
     @property
     def log_level(self) -> str:
-        \"\"\"ログレベルを返す。\"\"\"
+        """ログレベルを返す。"""
         return self.get("LOG_LEVEL", "INFO").upper()
 
     @property
@@ -211,6 +205,11 @@ class Settings:
     def sse_port(self) -> int:
         """SSEモードで使用するポート番号を返す。"""
         return int(self.get("SSE_PORT", "8377"))
+
+    @property
+    def license_key_path(self) -> Path:
+        """ライセンスファイルの保存パスを返す。"""
+        return self.base_dir / "license.rpn"
 
 
 # Global settings instance

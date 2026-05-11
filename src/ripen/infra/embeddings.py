@@ -27,6 +27,18 @@ def get_fastembed_model():
     return _fastembed_model
 
 
+async def check_embeddings_health() -> bool:
+    """Checks if the configured embedding engine is ready."""
+    try:
+        if settings.embedding_engine == "fastembed":
+            get_fastembed_model()
+            return True
+        else:
+            return settings.api_key is not None
+    except Exception:
+        return False
+
+
 def get_gemini_client():
     """
     Returns a Gemini API client using the key from config or environment.

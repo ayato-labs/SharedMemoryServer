@@ -145,6 +145,20 @@ SseServerTransport.handle_post_message = _patched_handle_post
 async def lifespan(app: FastMCP):
     """Ensure database is ready and start background maintenance."""
     await init_db()
+    
+    # Proactive LLM Health Check
+    from ripen.infra.llm import get_llm_provider
+    provider = get_llm_provider()
+    logger.info(f"LLM Provider detected: {provider.__class__.__name__}")
+    
+    llm_ok = await provider.check_health()
+    if llm_ok:
+        logger.info("\033[1;32m[BACKEND STATUS] AI Brain (LLM): OK\033[0m")
+    else:
+        logger.warning("\033[1;31m[BACKEND STATUS] AI Brain (LLM): OFFLINE\033[0m")
+        logger.warning(">>> Knowledge ripening and synthesis features will be disabled.")
+        logger.warning(">>> Please check Ollama connectivity or Google API key settings.")
+
     # Start periodic database maintenance (PRAGMA optimize)
     create_background_task(start_database_maintenance(), name="db_maintenance")
     yield
@@ -364,12 +378,37 @@ def main():
     parser.add_argument(
         "--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts"
     )
+    parser.add_argument("--activate", type=str, help="Activate Ripen with a license key")
+    parser.add_argument(
+        "--license-status", action="store_true", help="Show current license status"
+    )
     args = parser.parse_args()
 
     if args.uninstall:
         from ripen.cli.uninstall import perform_uninstall
 
         perform_uninstall()
+
+    if args.activate:
+        from ripen.api.licensing import LicenseManager
+
+        lm = LicenseManager()
+        try:
+            lm.activate(args.activate)
+            print(f"\n\033[1;32m🎉 Activation successful!\033[0m")
+            print(f"   {lm.get_status_summary()}")
+            sys.exit(0)
+        except Exception as e:
+            print(f"\n\033[1;31m! Activation failed: {e}\033[0m")
+            sys.exit(1)
+
+    if args.license_status:
+        from ripen.api.licensing import LicenseManager
+
+        lm = LicenseManager()
+        print(f"\n\033[1;34m--- Ripen License Status ---\033[0m")
+        print(f"   {lm.get_status_summary()}")
+        sys.exit(0)
 
     # --- Plugin Loading ---
     logger.info("Discovering plugins...")
@@ -387,6 +426,13 @@ def main():
     if use_sse:
         _kill_port_process(port)
 
+        # License Check
+        from ripen.api.licensing import LicenseManager
+
+        lm = LicenseManager()
+        is_licensed = lm.validate_locally()
+        license_text = lm.get_status_summary()
+
         # Premium Startup Banner
         print("\n\033[1;32m" + "═" * 60)
         print("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m")
@@ -398,6 +444,11 @@ def main():
         )
         print(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m")
         print(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m")
+        if is_licensed:
+            print(f"  📜 License:   \033[1;32m{license_text}\033[0m")
+        else:
+            print(f"  📜 License:   \033[1;31m{license_text}\033[0m")
+            print("                (Use 'ripen --activate <KEY>' to unlock full features)")
         print("\033[1;32m" + "═" * 60 + "\033[0m\n")
 
         mcp.run(transport="sse", port=port)
