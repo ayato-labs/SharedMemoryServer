@@ -256,13 +256,78 @@
                                 <span>Transport:</span>
                                 <span style="color: var(--accent-secondary);">SSE (Shared)</span>
                             </div>
+                            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">LICENSE</div>
+                                <div id="license-status" style="font-weight: 600; color: var(--warning); margin-bottom: 0.75rem;">Checking...</div>
+                                <div id="activation-form" style="display: none;">
+                                    <textarea id="license-key-input" placeholder="Paste license key content here..." 
+                                              style="width: 100%; height: 60px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-primary); font-size: 0.75rem; padding: 0.5rem; margin-bottom: 0.5rem; resize: none;"></textarea>
+                                    <button onclick="activateLicense()" 
+                                            style="width: 100%; padding: 0.5rem; background: var(--accent-primary); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 0.875rem;">
+                                        Activate License
+                                    </button>
+                                </div>
+                                <button id="show-activation-btn" onclick="toggleActivation()"
+                                        style="font-size: 0.75rem; color: var(--accent-secondary); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">
+                                    Enter license key
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </aside>
             </div>
         </div>
         <script>
+        function toggleActivation() {
+            const form = document.getElementById('activation-form');
+            const btn = document.getElementById('show-activation-btn');
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                btn.textContent = 'Cancel';
+            } else {
+                form.style.display = 'none';
+                btn.textContent = 'Enter license key';
+            }
+        }
+
+        function activateLicense() {
+            const key = document.getElementById('license-key-input').value;
+            if (!key) return alert('Please paste your license key.');
+
+            fetch('./api/license/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+
         function updateDashboard() {
+            // Fetch health including license
+            fetch('./api/health')
+                .then(res => res.json())
+                .then(data => {
+                    const licEl = document.getElementById('license-status');
+                    licEl.textContent = data.license.summary;
+                    
+                    const btn = document.getElementById('show-activation-btn');
+                    if (data.license.status === 'active') {
+                        licEl.style.color = 'var(--success)';
+                        btn.style.display = 'none'; // Hide if already active
+                    } else {
+                        licEl.style.color = 'var(--warning)';
+                        btn.style.display = 'block';
+                    }
+                });
+
             fetch('./api/history')
                 .then(res => res.json())
                 .then(data => {
