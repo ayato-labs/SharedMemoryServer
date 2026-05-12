@@ -11,8 +11,8 @@
 > **Official Distribution**: Always download `ripen.exe` from the [Official GitHub Releases](https://github.com/ayato-labs/ripen/releases). This ensures you have the latest signed binary with all security patches.
 
 > [!TIP]
-> **🚀 Special Campaign: 1-Year Free Professional License!**
-> To celebrate our launch, we are distributing **1-year Professional Licenses for FREE**!
+> **🚀 Special Campaign: 180-Day Free Professional License!**
+> To celebrate our launch, we are distributing **180-Day Professional Licenses for FREE**!
 > **Features**: Unlimited sync, commercial rights, and priority updates.
 > **How to Apply**: Open a [GitHub Issue](https://github.com/ayato-labs/ripen/issues/new?title=Request+Pro+License) or email [cwblog69@gmail.com](mailto:cwblog69@gmail.com).
 > **Activation**: `ripen-admin license activate ./license.rpn`
@@ -246,7 +246,7 @@ Your knowledge is your most valuable asset. Ripen is designed to give you full c
 - **Open Source**: [AGPL-3.0](LICENSE) — free for personal and open-source use.
 - **Commercial**: For proprietary team integrations, a [Commercial License](COMMERCIAL.md) is available. 
   - **180-day (6-month) free trial** is standard for all teams.
-  - **Special Campaign**: Currently, 1-year Professional Licenses are being distributed for **FREE**. 
+  - **Special Campaign**: Currently, 180-day Professional Licenses are being distributed for **FREE**. 
   - **Why Free?**: Ripen is open-sourced under AGPL-3.0. We have implemented a strict licensing model specifically to prevent unauthorized "copy-and-sell" practices by third parties while ensuring the community and developers can use it safely and freely.
 
 *Ripen: Making AI agents remember what your team already decided.*
