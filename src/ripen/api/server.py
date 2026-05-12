@@ -12,18 +12,22 @@ from typing import Any
 # Logging will be configured inside the guard
 
 # --- GLOBAL FAIL-SAFE GUARD ---
-def _global_crash_handler(e):
+def _global_crash_handler(exc_type, exc_value, exc_traceback):
     import traceback
     import sys
     import time
     
-    msg = f"\n\n{'!'*60}\n  RIPEN CRITICAL ERROR\n{'!'*60}\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}\n{'!'*60}\n"
+    # We delay importing logger to avoid circular issues during early boot crashes
+    from ripen.common.utils import get_logger
+    
+    msg = f"\n\n{'!'*60}\n  RIPEN CRITICAL ERROR\n{'!'*60}\n\nType: {exc_type.__name__}\nError: {exc_value}\n\nTraceback:\n{''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))}\n{'!'*60}\n"
     sys.stderr.write(msg)
     sys.stderr.flush()
     
     # Try to log it if logger is alive
     try:
-        logger.critical(f"Global catch-all triggered: {e}")
+        logger = get_logger("server")
+        logger.critical(f"Global catch-all triggered: {exc_value}")
     except:
         pass
 
@@ -39,22 +43,23 @@ def _global_crash_handler(e):
         time.sleep(5)
     sys.exit(1)
 
-try:
-    from fastmcp import FastMCP
-    from mcp.server.session import InitializationState, ServerSession
-    from mcp.server.sse import SseServerTransport
-    from starlette.applications import Starlette
+sys.excepthook = _global_crash_handler
 
-    from ripen.common.utils import configure_logging, get_logger
-    configure_logging()
-    logger = get_logger("server")
-    logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+from fastmcp import FastMCP
+from mcp.server.session import InitializationState, ServerSession
+from mcp.server.sse import SseServerTransport
+from starlette.applications import Starlette
 
-    from ripen.api.auth import AuthMiddleware, get_current_user
-    from ripen.common.config import settings
-    from ripen.common.plugins import PluginLoader
-    from ripen.common.tasks import create_background_task
-    from ripen.ops.lifecycle import start_database_maintenance
+from ripen.common.utils import configure_logging, get_logger
+configure_logging()
+logger = get_logger("server")
+logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+
+from ripen.api.auth import AuthMiddleware, get_current_user
+from ripen.common.config import settings
+from ripen.common.plugins import PluginLoader
+from ripen.common.tasks import create_background_task
+from ripen.ops.lifecycle import start_database_maintenance
 
 # Import core modules with verified paths
 from ripen.api.dashboard import router as dashboard_router
@@ -64,6 +69,8 @@ from ripen.core import (
     thought_logic as thought_module,
 )
 from ripen.infra.database import init_db
+from ripen.ops.hub_manager import ensure_hub_running
+from ripen.api.proxy import run_stdio_proxy
 
 logger.info("Core submodules and Dashboard router imported successfully")
 
@@ -480,10 +487,38 @@ def main():
                 sys.stderr.write("                (Use 'ripen --activate <KEY>' to unlock full features)\n")
             sys.stderr.write("\033[1;32m" + "═" * 60 + "\033[0m\n\n")
 
+            import time
+            start_time = time.time()
             mcp.run(transport="sse", port=port)
+            
+            # If Uvicorn exits almost immediately, it usually caught a port conflict internally
+            if time.time() - start_time < 5.0:
+                msg = "\n" + "!"*60 + "\n[CRITICAL] Server exited immediately!\nThis usually means Port 8377 is already in use by another Ripen Hub.\n" + "!"*60 + "\n"
+                sys.stderr.write(msg)
+                sys.stderr.flush()
+                logger.error("Server exited in less than 5 seconds. Likely a port conflict.")
+                if sys.stdin.isatty():
+                    try:
+                        sys.stderr.write("Press ENTER to close this window...")
+                        sys.stderr.flush()
+                        input()
+                    except EOFError:
+                        time.sleep(10)
+                else:
+                    time.sleep(10)
         else:
-            # Stdio mode (quiet, for IDE integration)
-            mcp.run(transport="stdio")
+            # --- AUTO-HUB PROXY MODE ---
+            # If we are in stdio mode, we prefer to connect to a central Hub
+            # so that multiple agents (Gemini, Cursor, etc.) share the same state.
+            
+            hub_url = f"http://127.0.0.1:{port}"
+            if ensure_hub_running(port):
+                logger.info(f"Hub detected or started. Entering PROXY MODE for Hub at {hub_url}")
+                asyncio.run(run_stdio_proxy(hub_url))
+            else:
+                # Fallback to standalone stdio mode if Hub cannot be started
+                logger.warning("Could not start or connect to Hub. Falling back to standalone stdio mode.")
+                mcp.run(transport="stdio")
     except Exception as e:
         import traceback
         logger.critical(f"FATAL SERVER ERROR: {e}")
