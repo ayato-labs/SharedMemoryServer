@@ -17,18 +17,42 @@ from ripen.common.tasks import create_background_task
 from ripen.common.utils import configure_logging, get_logger
 from ripen.ops.lifecycle import start_database_maintenance
 
-# --- EXTREME GUARD: STDOUT REDIRECTION ---
-# Force all OS-level stdout to stderr to prevent breaking the MCP pipe
-sys.stdout = sys.stderr
-
 configure_logging()
 logger = get_logger("server")
 
-logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+# --- GLOBAL FAIL-SAFE GUARD ---
+def _global_crash_handler(e):
+    import traceback
+    import sys
+    import time
+    
+    msg = f"\n\n{'!'*60}\n  RIPEN CRITICAL ERROR\n{'!'*60}\n\nError: {e}\n\nTraceback:\n{traceback.format_exc()}\n{'!'*60}\n"
+    sys.stderr.write(msg)
+    sys.stderr.flush()
+    
+    # Try to log it if logger is alive
+    try:
+        logger.critical(f"Global catch-all triggered: {e}")
+    except:
+        pass
 
-# Import core modules with verified paths
-logger.info("Importing core submodules...")
+    if sys.stdin.isatty():
+        try:
+            sys.stderr.write("\nPress ENTER to close this window...")
+            sys.stderr.flush()
+            input()
+        except EOFError:
+            time.sleep(10) # Fallback wait
+    else:
+        # Non-TTY (background process). Wait a bit so logs can be captured.
+        time.sleep(5)
+    sys.exit(1)
+
+# Apply global guard to the rest of the execution
 try:
+    logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+
+    # Import core modules with verified paths
     from ripen.api.dashboard import router as dashboard_router
     from ripen.core import (
         graph as graph_module,
@@ -38,9 +62,6 @@ try:
     from ripen.infra.database import init_db
 
     logger.info("Core submodules and Dashboard router imported successfully")
-except Exception:
-    logger.exception("Import failure")
-    sys.exit(1)
 
 # --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
 
@@ -422,37 +443,65 @@ def main():
 
     port = args.port or settings.sse_port or 8377
 
-    if use_sse:
-        _kill_port_process(port)
+    try:
+        if use_sse:
+            # Force all OS-level stdout to stderr to prevent breaking the console UI
+            # but ONLY in SSE mode.
+            sys.stdout = sys.stderr
 
-        # License Check
-        from ripen.api.licensing import LicenseManager
+            # _kill_port_process(port)  # REMOVED: potentially killing legitimate hubs
 
-        lm = LicenseManager()
-        is_licensed = lm.validate_locally()
-        license_text = lm.get_status_summary()
+            # License Check
+            from ripen.api.licensing import LicenseManager
 
-        # Premium Startup Banner
-        print("\n\033[1;32m" + "═" * 60)
-        print("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m")
-        print("  \033[1;34m" + "─" * 56 + "\033[0m")
-        print("  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m")
-        print(f"  📡 Port:      \033[1;36m{port}\033[0m")
-        llm_info = f"{settings.llm_provider} ({settings.generative_model})"
-        print(f"  🤖 LLM:       \033[1;33m{llm_info}\033[0m")
-        print(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m")
-        print(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m")
-        if is_licensed:
-            print(f"  📜 License:   \033[1;32m{license_text}\033[0m")
+            lm = LicenseManager()
+            is_licensed = lm.validate_locally()
+            license_text = lm.get_status_summary()
+
+            # Premium Startup Banner
+            # We use stderr directly here to ensure it shows up even with redirection
+            sys.stderr.write("\n\033[1;32m" + "═" * 60 + "\n")
+            sys.stderr.write("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m\n")
+            sys.stderr.write("  \033[1;34m" + "─" * 56 + "\033[0m\n")
+            sys.stderr.write("  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m\n")
+            sys.stderr.write(f"  📡 Port:      \033[1;36m{port}\033[0m\n")
+            llm_info = f"{settings.llm_provider} ({settings.generative_model})"
+            sys.stderr.write(f"  🤖 LLM:       \033[1;33m{llm_info}\033[0m\n")
+            sys.stderr.write(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m\n")
+            sys.stderr.write(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m\n")
+            if is_licensed:
+                sys.stderr.write(f"  📜 License:   \033[1;32m{license_text}\033[0m\n")
+            else:
+                sys.stderr.write(f"  📜 License:   \033[1;31m{license_text}\033[0m\n")
+                sys.stderr.write("                (Use 'ripen --activate <KEY>' to unlock full features)\n")
+            sys.stderr.write("\033[1;32m" + "═" * 60 + "\033[0m\n\n")
+
+            mcp.run(transport="sse", port=port)
         else:
-            print(f"  📜 License:   \033[1;31m{license_text}\033[0m")
-            print("                (Use 'ripen --activate <KEY>' to unlock full features)")
-        print("\033[1;32m" + "═" * 60 + "\033[0m\n")
-
-        mcp.run(transport="sse", port=port)
-    else:
-        # Stdio mode (quiet, for IDE integration)
-        mcp.run(transport="stdio")
+            # Stdio mode (quiet, for IDE integration)
+            mcp.run(transport="stdio")
+    except Exception as e:
+        import traceback
+        logger.critical(f"FATAL SERVER ERROR: {e}")
+        logger.critical(traceback.format_exc())
+        
+        sys.stderr.write("\n\n" + "!" * 60 + "\n")
+        sys.stderr.write("  RIPEN HUB HAS CRASHED!\n")
+        sys.stderr.write("!" * 60 + "\n")
+        sys.stderr.write(f"\nError: {e}\n")
+        sys.stderr.write("\nTraceback:\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.write("\n" + "!" * 60 + "\n")
+        
+        # EXTREME GUARD: Wait for user input to prevent terminal from closing silently
+        if sys.stdin.isatty():
+            try:
+                sys.stderr.write("\n[CRITICAL FAILURE] Press ENTER to acknowledge and close this window...")
+                sys.stderr.flush()
+                input()
+            except EOFError:
+                pass
+        sys.exit(1)
 
 
 async def ensure_initialized():
@@ -477,4 +526,10 @@ async def wait_for_background_tasks(timeout: float = 5.0):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        _global_crash_handler(e)
+except Exception as e:
+    # This catches errors in the module-level code itself
+    _global_crash_handler(e)

@@ -59,13 +59,20 @@ def configure_logging():
         diagnose=True,
     )
 
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
+    if hasattr(sys, "_MEIPASS"):
+        # Production/Binary mode: Use app data directory for logs
+        from ripen.common.config import settings
+        log_dir = settings.base_dir / "logs"
+    else:
+        # Development mode: Use project root (Ripen-free/logs)
+        # utils.py is in src/ripen/common/utils.py -> parents[3] is Ripen-free
+        log_dir = Path(__file__).parents[3] / "logs"
+
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Isolated Error Log (Quarantine)
-    # Saves errors separately to ensure visibility of crashes.
     logger.add(
-        "logs/error.log",
+        log_dir / "error.log",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:7} | {name}:{function}:{line} - {message}",
         level="ERROR",
         serialize=False,
@@ -83,10 +90,8 @@ def configure_logging():
         return
 
     # 3. Main Structured JSON log (Traceability)
-    # Uses timestamp in filename to ensure separate logs per execution.
-    # retention=2 ensures we keep only the last two executions.
     logger.add(
-        "logs/server_{time:YYYY-MM-DD_HH-mm-ss}.jsonl",
+        log_dir / "server_{time:YYYY-MM-DD_HH-mm-ss}.jsonl",
         format="{message}",
         level="DEBUG",
         serialize=True,
