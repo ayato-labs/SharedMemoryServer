@@ -61,8 +61,11 @@ def configure_logging():
 
     if hasattr(sys, "_MEIPASS"):
         # Production/Binary mode: Use app data directory for logs
-        from ripen.common.config import settings
-        log_dir = settings.base_dir / "logs"
+        shared_home = os.environ.get("RIPEN_HOME") or os.environ.get("SHARED_MEMORY_HOME")
+        if shared_home:
+            log_dir = Path(shared_home).absolute() / "logs"
+        else:
+            log_dir = Path(os.path.expanduser("~")) / ".ripen" / "logs"
     else:
         # Development mode: Use project root (Ripen-free/logs)
         # utils.py is in src/ripen/common/utils.py -> parents[3] is Ripen-free

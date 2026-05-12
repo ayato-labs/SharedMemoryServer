@@ -5,20 +5,11 @@ import sys
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastmcp import FastMCP
-from mcp.server.session import InitializationState, ServerSession
-from mcp.server.sse import SseServerTransport
-from starlette.applications import Starlette
+# Standard library imports only at top level
 
-from ripen.api.auth import AuthMiddleware, get_current_user
-from ripen.common.config import settings
-from ripen.common.plugins import PluginLoader
-from ripen.common.tasks import create_background_task
-from ripen.common.utils import configure_logging, get_logger
-from ripen.ops.lifecycle import start_database_maintenance
+# Standard library imports only at top level
 
-configure_logging()
-logger = get_logger("server")
+# Logging will be configured inside the guard
 
 # --- GLOBAL FAIL-SAFE GUARD ---
 def _global_crash_handler(e):
@@ -48,20 +39,33 @@ def _global_crash_handler(e):
         time.sleep(5)
     sys.exit(1)
 
-# Apply global guard to the rest of the execution
 try:
+    from fastmcp import FastMCP
+    from mcp.server.session import InitializationState, ServerSession
+    from mcp.server.sse import SseServerTransport
+    from starlette.applications import Starlette
+
+    from ripen.common.utils import configure_logging, get_logger
+    configure_logging()
+    logger = get_logger("server")
     logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 
-    # Import core modules with verified paths
-    from ripen.api.dashboard import router as dashboard_router
-    from ripen.core import (
-        graph as graph_module,
-        logic as logic_module,
-        thought_logic as thought_module,
-    )
-    from ripen.infra.database import init_db
+    from ripen.api.auth import AuthMiddleware, get_current_user
+    from ripen.common.config import settings
+    from ripen.common.plugins import PluginLoader
+    from ripen.common.tasks import create_background_task
+    from ripen.ops.lifecycle import start_database_maintenance
 
-    logger.info("Core submodules and Dashboard router imported successfully")
+# Import core modules with verified paths
+from ripen.api.dashboard import router as dashboard_router
+from ripen.core import (
+    graph as graph_module,
+    logic as logic_module,
+    thought_logic as thought_module,
+)
+from ripen.infra.database import init_db
+
+logger.info("Core submodules and Dashboard router imported successfully")
 
 # --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
 
@@ -526,10 +530,4 @@ async def wait_for_background_tasks(timeout: float = 5.0):
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        _global_crash_handler(e)
-except Exception as e:
-    # This catches errors in the module-level code itself
-    _global_crash_handler(e)
+    main()
