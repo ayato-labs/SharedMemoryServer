@@ -1,239 +1,70 @@
 import asyncio
 import json
-import re
+import os
 import sys
 from contextlib import asynccontextmanager
-from typing import Any
-
-# Standard library imports only at top level
-
-# Standard library imports only at top level
-
-# Logging will be configured inside the guard
-
-# --- GLOBAL FAIL-SAFE GUARD ---
-def _global_crash_handler(exc_type, exc_value, exc_traceback):
-    import traceback
-    import sys
-    import time
-    
-    # We delay importing logger to avoid circular issues during early boot crashes
-    from ripen.common.utils import get_logger
-    
-    msg = f"\n\n{'!'*60}\n  RIPEN CRITICAL ERROR\n{'!'*60}\n\nType: {exc_type.__name__}\nError: {exc_value}\n\nTraceback:\n{''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))}\n{'!'*60}\n"
-    sys.stderr.write(msg)
-    sys.stderr.flush()
-    
-    # Try to log it if logger is alive
-    try:
-        logger = get_logger("server")
-        logger.critical(f"Global catch-all triggered: {exc_value}")
-    except:
-        pass
-
-    if sys.stdin.isatty():
-        try:
-            sys.stderr.write("\nPress ENTER to close this window...")
-            sys.stderr.flush()
-            input()
-        except EOFError:
-            time.sleep(10) # Fallback wait
-    else:
-        # Non-TTY (background process). Wait a bit so logs can be captured.
-        time.sleep(5)
-    sys.exit(1)
-
-sys.excepthook = _global_crash_handler
+from typing import Any, AsyncGenerator
 
 from fastmcp import FastMCP
-from mcp.server.session import InitializationState, ServerSession
-from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
 
-from ripen.common.utils import configure_logging, get_logger
-configure_logging()
-logger = get_logger("server")
-logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
-
-from ripen.api.auth import AuthMiddleware, get_current_user
 from ripen.common.config import settings
-from ripen.common.plugins import PluginLoader
-from ripen.common.tasks import create_background_task
+from ripen.common.utils import get_logger
+from ripen.core import graph as graph_module
+from ripen.core import logic as logic_module
+from ripen.core import search as search_module
+from ripen.core import thought_logic as thought_module
 from ripen.ops.lifecycle import start_database_maintenance
-
-# Import core modules with verified paths
-from ripen.api.dashboard import router as dashboard_router
-from ripen.core import (
-    graph as graph_module,
-    logic as logic_module,
-    thought_logic as thought_module,
-)
 from ripen.infra.database import init_db
-from ripen.ops.hub_manager import ensure_hub_running
+from ripen.infra.llm import get_llm_provider
+from ripen.common.tasks import create_background_task
 from ripen.api.proxy import run_stdio_proxy
+from ripen.ops.hub_manager import ensure_hub_running
 
-logger.info("Core submodules and Dashboard router imported successfully")
+logger = get_logger("server")
 
-# --- CONNECTIVITY PROBE MIDDLEWARE ---
-class ConnectivityProbeMiddleware:
-    def __init__(self, app):
-        self.app = app
+def get_current_user() -> str:
+    return "ayato-labs"
 
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            path = scope.get("path", "")
-            method = scope.get("method", "")
-            logger.warning(f"[PROBE] Incoming {method} {path}")
-        return await self.app(scope, receive, send)
-
-
-# --- MCP PROTOCOL PATCH: PERMISSIVE HANDSHAKE ---
-
-_original_received_request = ServerSession._received_request
-
-
-async def _permissive_received_request(self, responder):
-    """Wait for initialization, or FORCE it if it takes too long."""
-    try:
-        request_type = type(responder.request.root.params).__name__
-    except Exception:
-        request_type = "UnknownRequest"
-
-    logger.info(f"[MCP SESSION][{id(self)}] Received {request_type}")
-
-    if "InitializeRequest" in request_type:
-        return await _original_received_request(self, responder)
-
-    # Wait for InitializeRequest to be processed
-    retries = 0
-    while self._initialization_state in (
-        InitializationState.NotInitialized,
-        InitializationState.Initializing,
-    ):
-        if retries >= 40:  # 2.0 seconds
-            logger.warning(
-                f"[MCP SESSION][{id(self)}] TIMEOUT waiting for initialization. "
-                "FORCING INITIALIZED state."
-            )
-            self._initialization_state = InitializationState.Initialized
-            break
-        await asyncio.sleep(0.05)
-        retries += 1
-
-    return await _original_received_request(self, responder)
-
-
-ServerSession._received_request = _permissive_received_request
-logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
-
-# --- MCP SDK DEEP PATCH: PERMISSIVE VALIDATION & LOGGING ---
-
-
-def _sanitize_mcp_dict(d: Any) -> Any:
-    """Recursively converts all string numbers to actual numbers for MCP validation."""
-    if isinstance(d, dict):
-        return {k: _sanitize_mcp_dict(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [_sanitize_mcp_dict(v) for v in d]
-    elif isinstance(d, str):
-        try:
-            if "." in d:
-                return float(d)
-            return int(d)
-        except (ValueError, TypeError):
-            return d
-    return d
-
-
-# Patch FastMCP session handling to be more resilient to string/number mismatches
-_original_http_app = FastMCP.http_app
-
-
-def _patched_http_app(self, *args, **kwargs) -> Starlette:
-    # Use the original http_app but we want to mount our Dashboard and Auth
-    app = _original_http_app(self, *args, **kwargs)
-    logger.info("Current middleware stack in Starlette app:")
-    for i, m in enumerate(app.user_middleware):
-        logger.info(f" Middleware {i}: {m.cls} (Bases: {getattr(m.cls, '__bases__', 'N/A')})")
-
-    app.add_middleware(ConnectivityProbeMiddleware)
-    app.add_middleware(AuthMiddleware)
-    # Mount Dashboard routes
-    app.mount("/dashboard", dashboard_router)
-    return app
-
-
-FastMCP.http_app = _patched_http_app
-
-_original_handle_post = SseServerTransport.handle_post_message
-
-
-async def _patched_handle_post(self, scope, receive, send):
-    # We can peek at the scope for query params without consuming the body
-    query_string = scope.get("query_string", b"").decode()
-    session_id = None
-    if "session_id=" in query_string:
-        match = re.search(r"session_id=([^&]+)", query_string)
-        if match:
-            session_id = match.group(1)
-
-    logger.warning(f"[SSE POST] Received request for session_id={session_id}")
-    if not session_id:
-        logger.warning("[SSE POST] REJECTED: Missing session_id")
-
-    return await _original_handle_post(self, scope, receive, send)
-
-
-SseServerTransport.handle_post_message = _patched_handle_post
-
+mcp = FastMCP(
+    "Ripen-v2",
+    version="3.2.4",
+)
 
 @asynccontextmanager
-async def lifespan(app: FastMCP):
-    """Ensure database is ready and start background maintenance."""
+async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
+    # Initialize infrastructure
     await init_db()
+    
+    # Verify LLM
+    try:
+        provider = get_llm_provider()
+        if await provider.check_health():
+            logger.info("[BACKEND STATUS] AI Brain (LLM): OK")
+        else:
+            logger.warning("[BACKEND STATUS] AI Brain (LLM): NOT CONFIGURED")
+    except Exception as e:
+        logger.error(f"[BACKEND STATUS] AI Brain (LLM): FAILED - {e}")
 
-    # Proactive LLM Health Check
-    from ripen.infra.llm import get_llm_provider
+    # Start background maintenance
+    maintenance_task = create_background_task(start_database_maintenance())
+    
+    try:
+        yield
+    finally:
+        maintenance_task.cancel()
+        try:
+            await maintenance_task
+        except asyncio.CancelledError:
+            pass
 
-    provider = get_llm_provider()
-    logger.info(f"LLM Provider detected: {provider.__class__.__name__}")
+mcp._lifespan = lifespan
 
-    llm_ok = await provider.check_health()
-    if llm_ok:
-        logger.info("\033[1;32m[BACKEND STATUS] AI Brain (LLM): OK\033[0m")
-    else:
-        logger.warning("\033[1;31m[BACKEND STATUS] AI Brain (LLM): OFFLINE\033[0m")
-        logger.warning(">>> Knowledge ripening and synthesis features will be disabled.")
-        logger.warning(">>> Please check Ollama connectivity or Google API key settings.")
+# --- Tools ---
 
-    # Start periodic database maintenance (PRAGMA optimize)
-    create_background_task(start_database_maintenance(), name="db_maintenance")
-    yield
-
-
-# --- Server Setup ---
-mcp = FastMCP(
-    "Ripen",
-    instructions=(
-        "A production-grade long-term memory server for AI agents. "
-        "Provides semantic search, graph-based knowledge retrieval, "
-        "and persistent reasoning provenance."
-    ),
-    lifespan=lifespan,
-)
-
-
-from ripen.infra.uow import SecureWriteContext, UnitOfWork
-
-
-@mcp.tool(
-    description=(
-        "The gateway to your long-term memory. Use this to persist high-signal information, "
-        "verified architectural decisions, and stable domain knowledge. "
-        "Focus on structured 'entities' and 'relations' to build a "
-        "permanent 'Single Source of Truth'."
-    )
-)
+@mcp.tool()
 async def save_memory(
     entities: list[dict] | None = None,
     relations: list[dict] | None = None,
@@ -241,80 +72,36 @@ async def save_memory(
     bank_files: dict | None = None,
     agent_id: str | None = None,
 ) -> str:
-    """The gateway to your long-term memory."""
     user = agent_id or get_current_user() or "default_agent"
-    # save_memory_core handles its own SecureWriteContext for the write phase
     return await logic_module.save_memory_core(entities, relations, observations, bank_files, user)
 
-
-@mcp.tool(
-    description=(
-        "A hybrid semantic/full-text search interface to your external hippocampus. "
-        "Use this at the beginning of any task to 'salvage' relevant past context "
-        "and avoid reinventing the wheel."
-    )
-)
+@mcp.tool()
 async def read_memory(query: str | None = None) -> str:
-    """A hybrid semantic/full-text search interface to your external hippocampus."""
-    async with UnitOfWork() as uow:
-        results = await logic_module.read_memory_core(uow, query)
+    results = await logic_module.read_memory_core(query)
     return json.dumps(results, indent=2, ensure_ascii=False)
 
-
-@mcp.tool(
-    description=(
-        "Synthesize all available knowledge about a specific entity into a comprehensive summary. "
-        "Use this when 'read_memory' provides an ID or name you need to investigate in depth."
-    )
-)
+@mcp.tool()
 async def synthesize_entity(entity_name: str) -> str:
-    """Synthesize all available knowledge about a specific entity."""
-    async with UnitOfWork() as uow:
-        summary = await logic_module.synthesize_entity(entity_name, uow)
+    summary = await logic_module.synthesize_entity(entity_name)
     return json.dumps(summary, indent=2, ensure_ascii=False)
 
-
-@mcp.tool(
-    description=(
-        "Explicitly save verified troubleshooting knowledge, bug fixes, or complex workarounds. "
-        "This is stored in a premium 'Stable' layer and is prioritized during retrieval."
-    )
-)
+@mcp.tool()
 async def save_troubleshooting_knowledge(
     title: str,
     solution: str,
     affected_functions: list[str] | None = None,
     env_metadata: dict | None = None,
 ) -> str:
-    """Explicitly save verified troubleshooting knowledge."""
-    async with SecureWriteContext() as uow:
-        res = await logic_module.save_troubleshooting_knowledge_core(
-            uow, title, solution, affected_functions, env_metadata
-        )
-        await uow.commit()
-    return res
-
-
-@mcp.tool(
-    description=(
-        "Retrieve the structural relationships (graph) of knowledge. "
-        "Use this to understand dependencies, hierarchical connections, "
-        "and how different entities relate to each other."
+    return await logic_module.save_troubleshooting_knowledge_core(
+        title, solution, affected_functions, env_metadata
     )
-)
+
+@mcp.tool()
 async def get_graph_data(query: str | None = None) -> str:
-    """Retrieve the structural relationships (graph) of knowledge."""
-    async with UnitOfWork() as uow:
-        data = await graph_module.get_graph_data(uow, query)
+    data = await graph_module.get_graph_data()
     return json.dumps(data, indent=2, ensure_ascii=False)
 
-
-@mcp.tool(
-    description=(
-        "An advanced reasoning tool to externalize and govern your inference process. "
-        "Use this as your primary cognitive workspace to break down complex problems."
-    )
-)
+@mcp.tool()
 async def sequential_thinking(
     thought: str,
     thought_number: int,
@@ -326,7 +113,6 @@ async def sequential_thinking(
     is_revision: bool | None = None,
     revises_thought: int | None = None,
 ) -> str:
-    """An advanced reasoning tool to externalize and govern your inference process."""
     user = get_current_user() or "default_agent"
     result = await thought_module.process_thought_core(
         thought=thought,
@@ -342,245 +128,65 @@ async def sequential_thinking(
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
-
-@mcp.tool(
-    description=(
-        "Govern the 'Maturity' and 'Activation' of knowledge. "
-        "Use this to manually activate important patterns or archive transient noise."
-    )
-)
-async def manage_knowledge_activation(ids: Any, status: str) -> str:
-    """Govern the 'Maturity' and 'Activation' of knowledge."""
-    async with SecureWriteContext() as uow:
-        await logic_module.manage_knowledge_activation_core(ids, status, uow)
-        await uow.commit()
+@mcp.tool()
+async def manage_knowledge_activation(ids: list[str] | str, status: str) -> str:
+    """Govern the 'Maturity' and 'Activation' of knowledge. Use this to manually activate important patterns or archive transient noise."""
+    await logic_module.manage_knowledge_activation_core(ids, status)
     return f"Status updated to {status}."
 
-
-@mcp.tool(
-    description=(
-        "List archived or low-maturity knowledge. Use this to review what has been "
-        "filtered out and identify if any critical information needs to be 're-activated'."
-    )
-)
+@mcp.tool()
 async def list_inactive_knowledge() -> str:
-    """List archived or low-maturity knowledge."""
-    async with UnitOfWork() as uow:
-        results = await logic_module.list_inactive_knowledge_core(uow)
+    """List archived or low-maturity knowledge. Use this to review what has been filtered out and identify if any critical information needs to be 're-activated'."""
+    results = await logic_module.list_inactive_knowledge_core()
     return json.dumps(results, indent=2, ensure_ascii=False)
 
-
-@mcp.tool(description="Generate a high-level value report and ROI of the memory system.")
+@mcp.tool()
 async def get_insights(format: str = "markdown") -> str:
     """Generate a high-level value report and ROI of the memory system."""
-    async with UnitOfWork() as uow:
-        res = await logic_module.get_value_report_core(uow, format)
-    return res
+    return await logic_module.get_value_report_core(format_type=format)
 
-
-@mcp.tool(
-    description=(
-        "System maintenance: Garbage collection. Trigger this to purge ancient, "
-        "unused knowledge and maintain system performance."
-    )
-)
+@mcp.tool()
 async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False) -> str:
-    """System maintenance: Garbage collection."""
-    async with SecureWriteContext() as uow:
-        res = await logic_module.admin_run_knowledge_gc_core(uow, age_days, dry_run)
-        await uow.commit()
-    return res
+    """System maintenance: Garbage collection. Trigger this to purge ancient, unused knowledge and maintain system performance."""
+    return await logic_module.admin_run_knowledge_gc_core(age_days, dry_run)
 
-
-def _kill_port_process(port: int):
-    try:
-        import subprocess
-
-        # findstr returns exit code 1 if no match is found, which is normal
-        cmd = f"netstat -ano | findstr :{port}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
-
-        if result.returncode != 0:
-            # No process found on this port, which is good!
-            return
-
-        output = result.stdout
-        for line in output.strip().split("\n"):
-            if "LISTENING" in line:
-                pid = line.strip().split()[-1]
-                logger.warning(f"Killing zombie process {pid} on port {port}")
-                subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
-    except Exception as e:
-        # Unexpected errors (like missing taskkill) are still logged
-        logger.error(f"Unexpected error during zombie cleanup on port {port}: {e}")
-
+# --- CLI Entry Point ---
 
 def main():
     import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--sse", action="store_true", help="Start in SSE mode (HTTP server)")
-    parser.add_argument("--stdio", action="store_true", help="Start in stdio mode (Standard I/O)")
-    parser.add_argument("--port", type=int, help="SSE port (overrides config)")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to listen on (for SSE mode)")
-    parser.add_argument("--hub-url", type=str, help="URL of a remote Ripen Hub (for stdio proxy mode)")
-    parser.add_argument("hub_url_pos", type=str, nargs="?", help="Positional URL of a remote Ripen Hub")
-    parser.add_argument("--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts")
-    parser.add_argument("--activate", type=str, help="Activate Ripen with a license key")
-    parser.add_argument("--license-status", action="store_true", help="Show current license status")
+    parser = argparse.ArgumentParser(description="Ripen MCP Server / Proxy")
+    parser.add_argument("--stdio", action="store_true", help="Run in STDIO proxy mode")
+    parser.add_argument("--sse", action="store_true", help="Run in SSE server mode")
+    parser.add_argument("--port", type=int, help="Port for SSE server")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for SSE server")
+    parser.add_argument("hub_url_pos", type=str, nargs="?", help="Hub URL")
     args = parser.parse_args()
 
-    if args.uninstall:
-        from ripen.cli.uninstall import perform_uninstall
-
-        perform_uninstall()
-
-    if args.activate:
-        from ripen.api.licensing import LicenseManager
-
-        lm = LicenseManager()
-        try:
-            lm.activate(args.activate)
-            print("\n\033[1;32m🎉 Activation successful!\033[0m")
-            print(f"   {lm.get_status_summary()}")
-            sys.exit(0)
-        except Exception as e:
-            print(f"\n\033[1;31m! Activation failed: {e}\033[0m")
-            sys.exit(1)
-
-    if args.license_status:
-        from ripen.api.licensing import LicenseManager
-
-        lm = LicenseManager()
-        print("\n\033[1;34m--- Ripen License Status ---\033[0m")
-        print(f"   {lm.get_status_summary()}")
-        sys.exit(0)
-
-    # --- Plugin Loading ---
-    logger.info("Discovering plugins...")
-    context = {"settings": settings}
-    settings._plugins = PluginLoader.load_all(context)
-
-    # Mode Detection
-    use_sse = args.sse
-    if not args.sse and not args.stdio:
-        # Default to config if no explicit flag
-        use_sse = settings.default_transport == "sse"
+    # Determine transport mode
+    if args.stdio:
+        use_sse = False
+    else:
+        use_sse = args.sse or settings.default_transport == "sse"
 
     port = args.port or settings.sse_port or 8377
 
     try:
         if use_sse:
-            # We don't need to manually mount the dashboard here because 
-            # it's already handled by the global FastMCP.http_app patch at line 152.
-            
-            # Start SSE server using FastMCP's built-in run method
-            # which correctly calls our patched http_app.
-            import time
-            start_time = time.time()
-            
             logger.info(f"Starting Ripen Hub on {args.host}:{port}")
             mcp.run(transport="sse", host=args.host, port=port)
-            
-            # If Uvicorn exits almost immediately, it usually caught a port conflict internally
-            if time.time() - start_time < 5.0:
-                msg = "\n" + "!"*60 + "\n[CRITICAL] Server exited immediately!\nThis usually means Port 8377 is already in use by another Ripen Hub.\n" + "!"*60 + "\n"
-                sys.stderr.write(msg)
-                sys.stderr.flush()
-                logger.error("Server exited in less than 5 seconds. Likely a port conflict.")
-                if sys.stdin.isatty():
-                    try:
-                        sys.stderr.write("Press ENTER to close this window...")
-                        sys.stderr.flush()
-                        input()
-                    except EOFError:
-                        time.sleep(10)
-                else:
-                    time.sleep(10)
         else:
-            # --- ROBUST ADAPTIVE DISCOVERY ---
-            # Priority: 1. Explicit Remote Hub -> 2. Local Hub (Auto-start) -> 3. Standalone stdio
+            # Proxy Mode
+            target_hub = args.hub_url_pos
+            if not target_hub or "<" in target_hub:
+                target_hub = f"http://127.0.0.1:{port}"
             
-            target_hub = args.hub_url_pos or args.hub_url
-            
-            # 1. Clean and validate target_hub
-            is_valid_remote = False
-            if target_hub:
-                target_hub = target_hub.rstrip("/")
-                # Detect placeholders like <TEAM-HUB-IP> or empty strings
-                if "<" in target_hub or "your-ip" in target_hub or not target_hub:
-                    logger.info(f"Placeholder or empty remote URL detected: '{target_hub}'. Skipping remote discovery.")
-                    target_hub = None
-                else:
-                    is_valid_remote = True
-
-            # 2. Try Remote Hub if provided
-            if is_valid_remote:
-                logger.info(f"Attempting to connect to REMOTE HUB: {target_hub}")
-                # We use a short timeout check here to avoid hanging the agent
-                from ripen.ops.hub_manager import is_hub_reachable
-                if is_hub_reachable(target_hub, timeout=2.0):
-                    logger.info(f"Remote Hub reached. Entering ADAPTIVE PROXY MODE.")
-                    asyncio.run(run_stdio_proxy(target_hub))
-                    return
-                else:
-                    logger.warning(f"Remote Hub at {target_hub} is UNREACHABLE. Falling back to local discovery.")
-
-            # 3. Local Discovery & Auto-start
-            hub_url = f"http://127.0.0.1:{port}"
-            logger.info("Probing for local Ripen Hub (127.0.0.1)...")
-            if ensure_hub_running(port):
-                logger.info(f"Local Hub is active. Connecting via PROXY MODE to {hub_url}")
-                asyncio.run(run_stdio_proxy(hub_url))
-            else:
-                # 4. Ultimate Fallback: Standalone stdio
-                logger.warning("No Hub (Remote or Local) available. Falling back to standalone stdio mode.")
-                logger.info("Hint: In standalone mode, memory is local to this process and not shared with a persistent Hub.")
-                mcp.run(transport="stdio")
+            logger.info(f"Starting STDIO Proxy -> {target_hub}")
+            asyncio.run(run_stdio_proxy(target_hub))
     except Exception as e:
         import traceback
-        logger.critical(f"FATAL SERVER ERROR: {e}")
+        logger.critical(f"FATAL ERROR: {e}")
         logger.critical(traceback.format_exc())
-        
-        sys.stderr.write("\n\n" + "!" * 60 + "\n")
-        sys.stderr.write("  RIPEN HUB HAS CRASHED!\n")
-        sys.stderr.write("!" * 60 + "\n")
-        sys.stderr.write(f"\nError: {e}\n")
-        sys.stderr.write("\nTraceback:\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.write("\n" + "!" * 60 + "\n")
-        
-        # EXTREME GUARD: Wait for user input to prevent terminal from closing silently
-        if sys.stdin.isatty():
-            try:
-                sys.stderr.write("\n[CRITICAL FAILURE] Press ENTER to acknowledge and close this window...")
-                sys.stderr.flush()
-                input()
-            except EOFError:
-                pass
         sys.exit(1)
-
-
-async def ensure_initialized():
-    """
-    Explicitly ensures the database and infrastructure are initialized.
-    """
-    logger.info("Server: Ensuring initialization...")
-    await init_db()
-    await thought_module.init_thoughts_db()
-    logger.info("Server: Initialization complete.")
-
-
-async def wait_for_background_tasks(timeout: float = 5.0):
-    """
-    Waits for all background tasks to complete or timeout.
-    """
-    from ripen.common.tasks import (
-        wait_for_background_tasks as wait_tasks,
-    )
-
-    await wait_tasks(timeout=timeout)
-
 
 if __name__ == "__main__":
     main()
