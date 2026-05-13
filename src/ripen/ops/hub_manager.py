@@ -34,19 +34,43 @@ def ensure_hub_running(port: int = 8377) -> bool:
         
         cmd = [sys.executable, "-m", "ripen.api.server", "--sse", "--port", str(port)]
         
-        # Windows specific detached process flags
-        creationflags = 0
+        # Set up diagnostic logging for startup
+        from ripen.common.config import settings
+        log_dir = Path(settings.base_dir) / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        startup_log_path = log_dir / "hub_startup.log"
+        
+        # Clear previous startup log
+        if startup_log_path.exists():
+            try:
+                startup_log_path.unlink()
+            except:
+                pass
+                
+        logger.info(f"Background Hub logs will be written to: {startup_log_path}")
+        
+        # Open the log file for both stdout and stderr
+        startup_log = open(startup_log_path, "a", encoding="utf-8")
+        
+        # Multi-platform background process configuration
+        popen_kwargs = {
+            "stdout": startup_log,
+            "stderr": startup_log,
+            "stdin": subprocess.DEVNULL,
+            "close_fds": True
+        }
+        
         if sys.platform == "win32":
-            creationflags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+            # Windows specific detached process flags
+            # Note: On Windows, DETACHED_PROCESS and handles redirection can be tricky.
+            # But CREATE_NO_WINDOW should be enough for "silent" startup.
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        else:
+            # POSIX (Linux/Mac) backgrounding
+            popen_kwargs["start_new_session"] = True
             
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            creationflags=creationflags,
-            close_fds=True
-        )
+        logger.debug(f"Running background command: {' '.join(cmd)}")
+        process = subprocess.Popen(cmd, **popen_kwargs)
         
         # Wait for Hub to be ready
         retries = 0

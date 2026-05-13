@@ -408,9 +408,9 @@ def main():
     parser.add_argument("--sse", action="store_true", help="Start in SSE mode (HTTP server)")
     parser.add_argument("--stdio", action="store_true", help="Start in stdio mode (Standard I/O)")
     parser.add_argument("--port", type=int, help="SSE port (overrides config)")
-    parser.add_argument(
-        "--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts"
-    )
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to listen on (for SSE mode)")
+    parser.add_argument("--hub-url", type=str, help="URL of a remote Ripen Hub (for stdio proxy mode)")
+    parser.add_argument("--uninstall", action="store_true", help="Completely erase Ripen data and shortcuts")
     parser.add_argument("--activate", type=str, help="Activate Ripen with a license key")
     parser.add_argument("--license-status", action="store_true", help="Show current license status")
     args = parser.parse_args()
@@ -456,40 +456,16 @@ def main():
 
     try:
         if use_sse:
-            # Force all OS-level stdout to stderr to prevent breaking the console UI
-            # but ONLY in SSE mode.
-            sys.stdout = sys.stderr
-
-            # _kill_port_process(port)  # REMOVED: potentially killing legitimate hubs
-
-            # License Check
-            from ripen.api.licensing import LicenseManager
-
-            lm = LicenseManager()
-            is_licensed = lm.validate_locally()
-            license_text = lm.get_status_summary()
-
-            # Premium Startup Banner
-            # We use stderr directly here to ensure it shows up even with redirection
-            sys.stderr.write("\n\033[1;32m" + "═" * 60 + "\n")
-            sys.stderr.write("  \033[1;37mRipen Knowledge Hub \033[1;32mv0.1.0\033[0m\n")
-            sys.stderr.write("  \033[1;34m" + "─" * 56 + "\033[0m\n")
-            sys.stderr.write("  🧠 Mode:      \033[1;36mSSE (Server-Sent Events)\033[0m\n")
-            sys.stderr.write(f"  📡 Port:      \033[1;36m{port}\033[0m\n")
-            llm_info = f"{settings.llm_provider} ({settings.generative_model})"
-            sys.stderr.write(f"  🤖 LLM:       \033[1;33m{llm_info}\033[0m\n")
-            sys.stderr.write(f"  📂 Data:      \033[1;34m{settings.base_dir}\033[0m\n")
-            sys.stderr.write(f"  📊 Dashboard: \033[1;35mhttp://localhost:{port}/dashboard\033[0m\n")
-            if is_licensed:
-                sys.stderr.write(f"  📜 License:   \033[1;32m{license_text}\033[0m\n")
-            else:
-                sys.stderr.write(f"  📜 License:   \033[1;31m{license_text}\033[0m\n")
-                sys.stderr.write("                (Use 'ripen --activate <KEY>' to unlock full features)\n")
-            sys.stderr.write("\033[1;32m" + "═" * 60 + "\033[0m\n\n")
-
+            # We don't need to manually mount the dashboard here because 
+            # it's already handled by the global FastMCP.http_app patch at line 152.
+            
+            # Start SSE server using FastMCP's built-in run method
+            # which correctly calls our patched http_app.
             import time
             start_time = time.time()
-            mcp.run(transport="sse", port=port)
+            
+            logger.info(f"Starting Ripen Hub on {args.host}:{port}")
+            mcp.run(transport="sse", host=args.host, port=port)
             
             # If Uvicorn exits almost immediately, it usually caught a port conflict internally
             if time.time() - start_time < 5.0:
@@ -507,18 +483,21 @@ def main():
                 else:
                     time.sleep(10)
         else:
-            # --- AUTO-HUB PROXY MODE ---
-            # If we are in stdio mode, we prefer to connect to a central Hub
-            # so that multiple agents (Gemini, Cursor, etc.) share the same state.
-            
-            hub_url = f"http://127.0.0.1:{port}"
-            if ensure_hub_running(port):
-                logger.info(f"Hub detected or started. Entering PROXY MODE for Hub at {hub_url}")
+            # If a remote Hub URL is explicitly provided, use it directly.
+            # Otherwise, use the local port and ensure a Hub is running locally.
+            if args.hub_url:
+                hub_url = args.hub_url.rstrip("/")
+                logger.info(f"Connecting to REMOTE Hub at {hub_url}")
                 asyncio.run(run_stdio_proxy(hub_url))
             else:
-                # Fallback to standalone stdio mode if Hub cannot be started
-                logger.warning("Could not start or connect to Hub. Falling back to standalone stdio mode.")
-                mcp.run(transport="stdio")
+                hub_url = f"http://127.0.0.1:{port}"
+                if ensure_hub_running(port):
+                    logger.info(f"Hub detected or started. Entering PROXY MODE for Hub at {hub_url}")
+                    asyncio.run(run_stdio_proxy(hub_url))
+                else:
+                    # Fallback to standalone stdio mode if Hub cannot be started
+                    logger.warning("Could not start or connect to Hub. Falling back to standalone stdio mode.")
+                    mcp.run(transport="stdio")
     except Exception as e:
         import traceback
         logger.critical(f"FATAL SERVER ERROR: {e}")

@@ -85,7 +85,7 @@ async def compute_embedding(
 
     from ripen.infra.uow import UnitOfWork
 
-    async with UnitOfWork(conn=conn) as uow:
+    async with UnitOfWork() as uow:
         # Check Cache
         for original_idx, txt in valid_entries:
             content_hash = _get_text_hash(txt)

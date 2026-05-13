@@ -60,11 +60,13 @@ async def run_stdio_proxy(hub_url: str):
                             msg_obj = JSONRPCMessage.model_validate(data)
                             session_msg = SessionMessage(message=msg_obj)
                             
-                            await write_stream.send(session_msg)
-                        except json.JSONDecodeError:
-                            logger.error(f"Invalid JSON received from stdio: {line.strip()}")
-                        except Exception as e:
-                            logger.error(f"Error forwarding to Hub: {e}")
+                            try:
+                                # Add a 30s timeout to prevent proxy from hanging if Hub is unresponsive
+                                await asyncio.wait_for(write_stream.send(session_msg), timeout=30.0)
+                            except asyncio.TimeoutError:
+                                logger.error("Forwarding to Hub timed out after 30s. Hub might be deadlocked.")
+                            except Exception as e:
+                                logger.error(f"Error forwarding to Hub: {e}")
                 except Exception as e:
                     logger.error(f"Stdio-to-Hub bridge failed: {e}")
 

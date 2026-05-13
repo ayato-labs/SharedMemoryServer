@@ -1,0 +1,55 @@
+name: Build Ripen Binaries
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      run: curl -LsSf https://astral.sh/uv/install.ps1 | iex
+
+    - name: Install dependencies
+      run: |
+        uv sync
+        uv run pip install pyinstaller pyinstaller-hooks-contrib
+
+    - name: Build Ripen Hub (ripen.exe)
+      run: |
+        uv run pyinstaller --onefile ^
+          --name ripen ^
+          --icon logo.ico ^
+          --add-data "src/ripen;ripen" ^
+          --collect-all ripen ^
+          --hidden-import google.generativeai ^
+          --hidden-import faiss ^
+          src/ripen/api/server.py
+
+    - name: Build Ripen Client (ripen-client.exe)
+      run: |
+        uv run pyinstaller --onefile ^
+          --name ripen-client ^
+          --icon logo.ico ^
+          scripts/ripen-client.py
+
+    - name: Upload Binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: ripen-binaries-windows
+        path: |
+          dist/ripen.exe
+          dist/ripen-client.exe
+        retention-days: 7

@@ -162,7 +162,19 @@ async def process_thought_core(
                 t_salvage_start = time.perf_counter()
                 from ripen.cli.salvage import salvage_related_knowledge
 
-                related_knowledge = await salvage_related_knowledge(thought, session_id, history)
+                try:
+                    # Give salvage 15 seconds max, it's not critical if it fails
+                    related_knowledge = await asyncio.wait_for(
+                        salvage_related_knowledge(thought, session_id, history),
+                        timeout=15.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"Salvage timed out for session {session_id}. Proceeding without it.")
+                    related_knowledge = []
+                except Exception as e:
+                    logger.error(f"Salvage failed for session {session_id}: {e}")
+                    related_knowledge = []
+                
                 dur_salvage = time.perf_counter() - t_salvage_start
 
                 # 7. Opportunistic Recovery
@@ -175,7 +187,17 @@ async def process_thought_core(
                 if not next_thought_needed:
                     from ripen.core.distiller import auto_distill_knowledge
 
-                    await auto_distill_knowledge(session_id, [*history, {"thought": masked_thought}])
+                    try:
+                        # Auto-distillation is heavier, give it 60 seconds
+                        logger.info(f"Triggering final distillation for session {session_id}...")
+                        await asyncio.wait_for(
+                            auto_distill_knowledge(session_id, [*history, {"thought": masked_thought}]),
+                            timeout=60.0
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(f"Final distillation timed out for session {session_id}.")
+                    except Exception as e:
+                        logger.error(f"Final distillation failed for session {session_id}: {e}")
 
                 await uow.commit()
 

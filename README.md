@@ -46,35 +46,28 @@ This is the **core innovation**: automated cross-agent, cross-user, cross-machin
 
 ---
 
-## Quick Start
+## Quick Start: Two Setup Patterns
 
-### Hub Setup (Run once per project/team)
+Ripen supports two primary workflows. Choose the one that fits your team structure:
 
-```bash
-# Start the shared knowledge hub
-uvx ripen --sse
+### 🏠 Pattern A: Personal Hub (Single User, Multiple Agents)
+Use this if you are a solo developer using multiple tools (Cursor + Gemini CLI + Claude) on one machine.
 
-# In a new terminal: interactive setup wizard
-uvx ripen-init
-# > Select mode: hub
-# Guides you through LLM config, data directory, and IDE registration
-# At the end, displays your Client Connection URL for teammates
-```
+1.  **Start Hub**: Run `bin/sse.bat` and select `[1] Local Only`.
+2.  **Connect Agents**:
+    *   **Cursor**: Add MCP server `http://localhost:8377/sse` (Type: SSE).
+    *   **CLI Tools**: Use the standard `ripen --stdio` proxy in your config.
 
-### Client Setup (Every teammate runs this)
+### 🌐 Pattern B: Team Hub (Shared Brain for the Team)
+Use this if you want to share knowledge across different people and different machines.
 
-```bash
-# No Python required. Just register your IDE to the hub.
-uvx ripen-init
-# > Select mode: client
-# > Hub URL: http://192.168.1.10:8377
-# Done. All your IDEs now share the team's memory.
-```
-
-Or with a single command:
-```bash
-uvx ripen-register --hub-url http://192.168.1.10:8377
-```
+1.  **Start Hub (Parent PC)**: Run `bin/sse.bat` and select `[2] Team/Public`.
+2.  **Distribute Client (To Teammates)**:
+    *   Run `scripts/build_client.bat` to generate `dist/client/ripen-client.exe`.
+    *   Send this EXE to your teammates.
+3.  **Connect (Child PCs)**:
+    *   Teammates run `bin/connect_to_hub.bat` and enter your Parent PC's IP address.
+    *   Their AI agents now read and write to your shared knowledge base.
 
 ---
 
@@ -91,9 +84,63 @@ The faster you ship, the faster your AI tools **diverge**. Ripen stops this drif
 
 ---
 
-## Architecture: Hub & Clients
+## Architecture: Hub & Spokes
 
 ```mermaid
+graph TD
+    subgraph "Parent PC (The Hub)"
+        H["🧠 Ripen SSE Server\n(port 8377)"]
+        H --> DB["SQLite + FAISS\n(local, private)"]
+        H --> DASH["Dashboard\nlocalhost:8377/dashboard"]
+    end
+
+    subgraph "Child PC (Team Member A)"
+        A1["Cursor (SSE Native)"] -- "Direct HTTP" --> H
+        A2["Gemini CLI (Stdio)"] -- "Stdio" --> P1["ripen-client.exe"]
+        P1 -- "Bridge" --> H
+    end
+
+    subgraph "Child PC (Team Member B)"
+        B1["Claude Code (Stdio)"] -- "Stdio" --> P2["ripen-client.exe"]
+        P2 -- "Bridge" --> H
+    end
+```
+
+### Which role should I take?
+
+| Role | Responsibility | Requirement |
+| :--- | :--- | :--- |
+| **Parent (Hub)** | Hosts the knowledge base and runs background distillation. | Full Python environment, LLM API Key, keeps `sse.bat` running. |
+| **Child (Spoke)** | Connects to the Hub to read/write knowledge. | **Zero Install.** Just needs `ripen-client.exe` and the Parent's IP. |
+
+---
+
+## Team Deployment Guide
+
+### 1. Preparing the Hub (Parent)
+On the computer that will host the memory (can be a server or a leader's workstation):
+1.  Ensure you have Python 3.10+ and `uv` installed.
+2.  Run `bin/sse.bat`.
+3.  Choose **Option [2] Team/Public**.
+4.  **Important**: Note your IP address (run `ipconfig` to find it). Ensure your Firewall allows inbound traffic on port `8377`.
+
+### 2. Distributing the Connector
+You don't need to share your whole source code or credentials.
+1.  Run `scripts/build_client.bat`.
+2.  This generates a single, lightweight binary: `dist/client/ripen-client.exe`.
+3.  Share this EXE with your teammates via Slack, Discord, or shared drive.
+
+### 3. Connecting Teammates (Child)
+On the teammate's machine:
+1.  Place `ripen-client.exe` in a stable folder.
+2.  Run `bin/connect_to_hub.bat`.
+3.  Enter the Parent's IP (e.g., `http://192.168.1.50:8377`).
+4.  **Done.** Their AI agents are now synchronized with yours.
+
+> [!WARNING]
+> **Data Privacy**: Teammates connecting to your Hub will be able to read all knowledge currently in the Hub. Use this for trusted team collaborations only. For isolation, use separate data directories via the `--data-dir` flag.
+
+---
 graph TD
     subgraph "Ripen Hub (runs once, on a team server or localhost)"
         H["🧠 Ripen SSE Server\n(port 8377)"]
@@ -198,6 +245,44 @@ docker run -d -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen
 ## 🇯🇵 日本語
 
 ### 他のMCPメモリサーバーとの根本的な違い
+Ripen は「1対1」ではなく「N対1」の接続を前提とした**ナレッジ・ハブ**です。
+*   **従来**: 1つのIDEごとに独立したメモリ（知識が分散する）。
+*   **Ripen**: 全員が1つの「共有ブレイン」に接続（知識がリアルタイムで同期する）。
+
+---
+
+### 🌐 チーム開発：子機（メンバー）の接続手順
+
+管理者が構築した共有ハブに接続するためのガイドです。
+
+#### 1. 準備
+管理者から以下の 2 つを受け取ってください。
+*   `ripen-client.exe` （軽量な接続用プログラム）
+*   親機の URL （例: `http://192.168.1.50:8377`）
+
+#### 2. 接続設定
+各 AI ツールに、以下の設定を入力します。
+
+**A. Cursor の場合（SSE接続）**
+一番高速な接続方法です。
+1.  Cursor の MCP 設定を開く。
+2.  `Type` を **SSE** に変更。
+3.  `URL` に `http://[親機のIP]:8377/sse` を入力。
+
+**B. その他のエージェント（Stdio接続）**
+`ripen-client.exe` を「翻訳機」として使います。
+`mcp_config.json` 等に以下のように記述してください：
+```json
+"ripen": {
+  "command": "C:/パス/to/ripen-client.exe",
+  "args": ["http://[親機のIP]:8377"]
+}
+```
+
+#### 3. 動作確認
+エージェントに「このプロジェクトの規約を教えて」と聞いてみてください。親機に蓄積された知識を答えられれば成功です！
+
+---
 
 一般的なMCPメモリサーバーは `stdio` モードで動作し、**1つのIDEと1つのサーバー**が1:1で接続されます。知識はそのIDEのプロセス内に閉じており、他のツールや他のユーザーからは参照できません。
 
