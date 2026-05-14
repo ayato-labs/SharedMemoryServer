@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 from loguru import logger as base_logger
 from starlette.applications import Starlette
+from starlette.routing import Mount
 
 from ripen.api.dashboard import router as dashboard_router
 from ripen.api.licensing import LicenseManager
@@ -51,7 +52,9 @@ mcp = FastMCP(
 )
 
 # Attach Dashboard
-mcp.mount("/dashboard", dashboard_router)
+# Note: FastMCP.mount() is for mounting other FastMCP servers.
+# To mount a Starlette Router, we add it to _additional_http_routes.
+mcp._additional_http_routes.append(Mount("/dashboard", app=dashboard_router))
 
 @asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
@@ -235,24 +238,34 @@ except Exception as e:
 
 # --- ENTRY POINT ---
 
+import sys
+
 def print_banner(mode: str, port: int):
     lm = LicenseManager()
     lm.validate_locally()
     license_text = lm.get_status_summary()
 
-    print("\033[1;32m" + "=" * 60 + "\033[0m")
-    print("  Ripen Knowledge Hub v3.2.4")
-    print("  \033[1;30m" + "" + "\033[0m")
-    print(f"  \033[1;34m\U0001f9e0 Mode:\033[0m      {mode}")
-    print(f"  \033[1;32m\U0001f4e1 Port:\033[0m      {port}")
-    print(
-        f"  \033[1;33m\U0001f916 LLM:\033[0m       {settings.llm_provider} ({settings.generative_model})"
-    )
-    print(f"  \033[1;36m\U0001f4c2 Data:\033[0m      {settings.base_dir}")
-    print(f"  \033[1;35m\U0001f4ca Dashboard:\033[0m http://localhost:{port}/dashboard")
-    print(f"  \033[1;37m\U0001f4dc License:\033[0m   {license_text}")
-    print("\033[1;32m" + "=" * 60 + "\033[0m")
-    print()
+    lines = [
+        "\033[1;32m" + "=" * 60 + "\033[0m",
+        "  Ripen Knowledge Hub v3.2.4",
+        "  \033[1;30m" + "" + "\033[0m",
+        f"  \033[1;34m[Mode]\033[0m      {mode}",
+        f"  \033[1;32m[Port]\033[0m      {port}",
+        f"  \033[1;33m[LLM]\033[0m       {settings.llm_provider} ({settings.generative_model})",
+        f"  \033[1;36m[Data]\033[0m      {settings.base_dir}",
+        f"  \033[1;35m[Dashboard]\033[0m http://localhost:{port}/dashboard",
+        f"  \033[1;37m[License]\033[0m   {license_text}",
+        "\033[1;32m" + "=" * 60 + "\033[0m",
+        ""
+    ]
+    
+    for line in lines:
+        try:
+            sys.stderr.write(line + "\n")
+        except UnicodeEncodeError:
+            # Fallback for strict terminals
+            sys.stderr.write(line.encode('ascii', 'ignore').decode('ascii') + "\n")
+    sys.stderr.flush()
 
 def main():
     parser = argparse.ArgumentParser(description="Ripen Hub Server")
@@ -291,7 +304,7 @@ def main():
         # Load plugins before starting
         PluginLoader.load_all(context={"settings": settings})
         print_banner("SSE (Server-Sent Events)", port)
-        mcp.run(transport="sse", host=args.host, port=port)
+        mcp.run(transport="sse", host=args.host, port=port, show_banner=False)
     else:
         # STDIO mode: Check if we should run as a proxy or native server
         target_hub = args.hub_url_pos
@@ -302,7 +315,7 @@ def main():
             # Native STDIO mode
             PluginLoader.load_all(context={"settings": settings})
             print_banner("STDIO (Standard I/O)", 0)
-            mcp.run(transport="stdio")
+            mcp.run(transport="stdio", show_banner=False)
 
 
 def _kill_port_process(port: int):

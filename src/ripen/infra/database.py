@@ -97,15 +97,22 @@ class AsyncSQLiteConnection:
                 if self.is_thoughts:
                     if _THOUGHTS_CONNECTION is None:
                         logger.info(f"Establishing NEW thoughts singleton: {self.db_path}")
-                        _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
-                        _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
-                        # --- MATURE TECH OPTIMIZATIONS ---
-                        await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
-                        await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
-                        await _THOUGHTS_CONNECTION.execute("PRAGMA mmap_size = 268435456")  # 256MB
-                        await _THOUGHTS_CONNECTION.execute("PRAGMA temp_store = MEMORY")
-                        await _THOUGHTS_CONNECTION.execute("PRAGMA busy_timeout = 5000")
-                        logger.info("Thoughts connection PRAGMAs configured (WAL/NORMAL/MMAP).")
+                        try:
+                            _THOUGHTS_CONNECTION = await aiosqlite.connect(self.db_path, timeout=30.0)
+                            _THOUGHTS_CONNECTION.row_factory = aiosqlite.Row
+                            # --- MATURE TECH OPTIMIZATIONS ---
+                            await _THOUGHTS_CONNECTION.execute("PRAGMA journal_mode = WAL")
+                            await _THOUGHTS_CONNECTION.execute("PRAGMA synchronous = NORMAL")
+                            await _THOUGHTS_CONNECTION.execute("PRAGMA mmap_size = 268435456")  # 256MB
+                            await _THOUGHTS_CONNECTION.execute("PRAGMA temp_store = MEMORY")
+                            await _THOUGHTS_CONNECTION.execute("PRAGMA busy_timeout = 5000")
+                            logger.info("Thoughts connection PRAGMAs configured (WAL/NORMAL/MMAP).")
+                        except Exception as e:
+                            logger.error(f"CRITICAL: Failed to establish thoughts DB connection: {e}")
+                            if _THOUGHTS_CONNECTION is not None:
+                                await _THOUGHTS_CONNECTION.close()
+                                _THOUGHTS_CONNECTION = None
+                            raise
                     self.conn = _THOUGHTS_CONNECTION
                 else:
                     if _MAIN_CONNECTION is None:
@@ -124,6 +131,9 @@ class AsyncSQLiteConnection:
                             logger.info("Main connection successfully established and configured.")
                         except Exception as e:
                             logger.error(f"CRITICAL: Failed to establish main DB connection: {e}")
+                            if _MAIN_CONNECTION is not None:
+                                await _MAIN_CONNECTION.close()
+                                _MAIN_CONNECTION = None
                             raise
                     self.conn = _MAIN_CONNECTION
 
@@ -135,8 +145,6 @@ class AsyncSQLiteConnection:
         except Exception as e:
             from ripen.common.exceptions import DatabaseError
 
-            logger.exception("Failed to connect to database at {db_path}", db_path=self.db_path)
-            log_error(f"Failed to connect to database at {self.db_path}", e)
             raise DatabaseError(f"Database connection failed: {e}") from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -569,17 +577,25 @@ async def init_db(force: bool = False):
         await _run_sequence(db_path)
         _DB_INITIALIZED = True
         logger.info("Main database initialization successful.")
-    except (aiosqlite.DatabaseError, sqlite3.DatabaseError) as e:
+    except (aiosqlite.DatabaseError, sqlite3.DatabaseError, DatabaseError) as e:
         logger.warning(f"Database initialization failed (likely corruption): {e}. Recreating...")
         _DB_INITIALIZED = False
         await close_all_connections()
         if os.path.exists(db_path):
+            import gc
+            gc.collect()
+            await asyncio.sleep(0.5)  # Give Windows time to release the file handle
             try:
                 os.remove(db_path)
                 # Also remove WAL files if they exist
                 for ext in ["-wal", "-shm"]:
                     if os.path.exists(db_path + ext):
                         os.remove(db_path + ext)
+            except PermissionError as pe:
+                logger.error(f"CRITICAL: Failed to remove corrupted DB due to file lock: {pe}")
+                logger.error("ACTION REQUIRED: Another python.exe process is running in the background and holding the knowledge.db file lock.")
+                logger.error("Please terminate all background Ripen/Python processes, or restart your terminal, and try again.")
+                raise DatabaseError("Database is corrupted AND locked by another process. Please kill all background python.exe processes.") from pe
             except Exception as re:
                 logger.error(f"Failed to remove corrupted DB: {re}")
                 raise
