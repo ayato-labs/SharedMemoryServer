@@ -73,6 +73,14 @@ mcp = FastMCP(
     version="3.2.4",
 )
 
+# --- DASHBOARD MOUNT ---
+try:
+    from ripen.api.dashboard import router as dashboard_router
+    mcp.app.mount("/dashboard", dashboard_router)
+    logger.info("Dashboard mounted at /dashboard")
+except Exception as e:
+    logger.warning(f"Failed to mount dashboard: {e}")
+
 # --- MCP TOOLS ---
 
 @mcp.tool()
