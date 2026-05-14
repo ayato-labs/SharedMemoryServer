@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from ripen.common.utils import get_logger, safe_main_executor
 
 
 def get_config_paths():
@@ -103,9 +104,13 @@ def unregister_mcp(dry_run=False, isolate=False):
             sys.stderr.write(f"  [ERROR] Failed {p.name}: {e}\n")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Unregister Ripen.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--isolate", action="store_true")
     args = parser.parse_args()
     unregister_mcp(dry_run=args.dry_run, isolate=args.isolate)
+
+
+if __name__ == "__main__":
+    safe_main_executor(main)()

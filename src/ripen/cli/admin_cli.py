@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 
+from ripen.common.utils import configure_logging, get_logger, safe_main_executor
 from ripen.core import logic, thought_logic
 from ripen.ops import management
 
@@ -155,4 +156,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    safe_main_executor(main)()

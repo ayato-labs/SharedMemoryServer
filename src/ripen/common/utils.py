@@ -373,3 +373,31 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
             f"Importance calculation failed for count={access_count}, last={last_accessed}: {e}"
         )
         return 0.0
+
+
+def safe_main_executor(main_func):
+    """
+    Executes a main function with error handling and a terminal pause.
+    Prevents the terminal window from closing immediately on error or exit.
+    """
+    def wrapper(*args, **kwargs):
+        try:
+            return main_func(*args, **kwargs)
+        except Exception as e:
+            logger.exception("FATAL ERROR: Application crashed.")
+            # Check if running in an interactive terminal
+            # sys.stdin.isatty() is True if it's a real terminal
+            if sys.stdin and sys.stdin.isatty() and sys.stdout and sys.stdout.isatty():
+                print("\n" + "!" * 60)
+                print("  FATAL ERROR OCCURRED")
+                print(f"  {e}")
+                print("!" * 60)
+                try:
+                    input("\nPress Enter to exit...")
+                except EOFError:
+                    pass
+            sys.exit(1)
+        except KeyboardInterrupt:
+            # Usually we don't want to pause on Ctrl+C, just exit quietly
+            sys.exit(0)
+    return wrapper

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 import sys
 
-from ripen.common.utils import get_logger
+from ripen.common.utils import get_logger, safe_main_executor
 
 logger = get_logger("init")
 
@@ -201,4 +201,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    safe_main_executor(main)()

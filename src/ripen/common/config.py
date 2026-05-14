@@ -198,6 +198,27 @@ class Settings:
         return GOOGLE_EMBEDDING_MODEL
 
     @property
+    def embedding_model(self) -> str:
+        """現在選択されているエンジンに応じたEmbeddingモデル名を返す。"""
+        if self.embedding_engine == "fastembed":
+            return self.fastembed_model
+        return self.google_embedding_model
+
+    @property
+    def generative_model(self) -> str:
+        """現在選択されているプロバイダーに応じた生成モデル名を返す。"""
+        if self.llm_provider == "ollama":
+            return self.ollama_model
+        
+        # Avoid circular import by importing inside the property
+        try:
+            from ripen.core.ai_control import model_manager
+            return model_manager.get_current_model("generation")
+        except (ImportError, Exception):
+            # Fallback to default if model_manager is not available
+            return GOOGLE_AI_MODELS[0]
+
+    @property
     def log_level(self) -> str:
         """ログレベルを返す。"""
         return self.get("LOG_LEVEL", "INFO").upper()
