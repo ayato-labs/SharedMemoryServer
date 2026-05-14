@@ -25,7 +25,8 @@ if errorlevel 2 (
 
 echo.
 echo Starting Ripen Hub on %HOST%:%PORT%...
-uv run ripen --sse --port %PORT% --host %HOST%
+:: Using python -m instead of uv run to avoid .exe locking issues on Windows
+.venv\Scripts\python.exe -m ripen.api.server --sse --port %PORT% --host %HOST%
 
 popd
 pause

@@ -16,7 +16,8 @@ echo.
 echo Connecting to %HUB_URL% via Stdio Proxy...
 echo.
 
-uv run ripen --stdio --hub-url %HUB_URL%
+:: Using python -m instead of uv run to avoid .exe locking issues on Windows
+.venv\Scripts\python.exe -m ripen.api.server --stdio --hub-url %HUB_URL%
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

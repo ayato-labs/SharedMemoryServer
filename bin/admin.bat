@@ -6,7 +6,8 @@ echo ----------------------------------------
 echo This server provides advanced maintenance and diagnostic tools.
 echo.
 
-uv run ripen-admin-server
+:: Using python -m instead of uv run to avoid .exe locking issues on Windows
+.venv\Scripts\python.exe -m ripen.api.admin_server
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

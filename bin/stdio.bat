@@ -7,7 +7,8 @@ echo Communication: Standard I/O (STDIO)
 echo Use this mode for direct MCP integration.
 echo.
 
-uv run ripen --stdio
+:: Using python -m instead of uv run to avoid .exe locking issues on Windows
+.venv\Scripts\python.exe -m ripen.api.server --stdio
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
