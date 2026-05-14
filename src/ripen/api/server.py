@@ -271,10 +271,11 @@ def main():
         PluginLoader.load_all(context={"settings": settings})
         
         # --- DASHBOARD MOUNT ---
+        app = None
         try:
             from ripen.api.dashboard import router as dashboard_router
-            # Access mcp.app to trigger its creation, then mount the router
-            app = mcp.app
+            # Use http_app() to get the Starlette app instance for SSE
+            app = mcp.http_app(transport="sse")
             app.mount("/dashboard", dashboard_router, name="dashboard")
             logger.info("Dashboard mounted at /dashboard")
         except Exception as e:
@@ -282,9 +283,13 @@ def main():
 
         print_banner("SSE (Server-Sent Events)", port)
         
-        # Direct uvicorn run to ensure our mounted routes are preserved
-        import uvicorn
-        uvicorn.run(mcp.app, host=args.host, port=port, log_level="info")
+        if app:
+            # Direct uvicorn run to ensure our mounted routes are preserved
+            import uvicorn
+            uvicorn.run(app, host=args.host, port=port, log_level="info")
+        else:
+            # Fallback to standard run if app creation failed
+            mcp.run(transport="sse", host=args.host, port=port)
     else:
         # STDIO mode: Check if we should run as a proxy or native server
         target_hub = args.hub_url or args.hub_url_pos
