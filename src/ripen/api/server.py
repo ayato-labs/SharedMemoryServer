@@ -273,14 +273,18 @@ def main():
         # --- DASHBOARD MOUNT ---
         try:
             from ripen.api.dashboard import router as dashboard_router
-            # Use name and ensure the router is mounted on the active app
-            mcp.app.mount("/dashboard", dashboard_router, name="dashboard")
+            # Access mcp.app to trigger its creation, then mount the router
+            app = mcp.app
+            app.mount("/dashboard", dashboard_router, name="dashboard")
             logger.info("Dashboard mounted at /dashboard")
         except Exception as e:
             logger.warning(f"Failed to mount dashboard: {e}")
 
         print_banner("SSE (Server-Sent Events)", port)
-        mcp.run(transport="sse", host=args.host, port=port)
+        
+        # Direct uvicorn run to ensure our mounted routes are preserved
+        import uvicorn
+        uvicorn.run(mcp.app, host=args.host, port=port, log_level="info")
     else:
         # STDIO mode: Check if we should run as a proxy or native server
         target_hub = args.hub_url or args.hub_url_pos
