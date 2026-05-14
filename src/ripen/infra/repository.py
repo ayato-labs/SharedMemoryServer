@@ -781,14 +781,14 @@ class ManagementRepository(BaseSQLiteRepository, IManagementRepository):
         await self.conn.execute("PRAGMA optimize")
         await self.conn.execute("ANALYZE")
 
-    async def get_stale_knowledge_ids(self, age_days: int) -> list[str]:
-        # Consider knowledge stale if it hasn't been accessed for age_days
-        # and has low importance.
+    async def get_low_activity_ids(self, before_date: str, max_access_count: int) -> list[str]:
+        # Consider knowledge low-activity if it hasn't been accessed before before_date
+        # and has access_count <= max_access_count.
         query = """
             SELECT content_id FROM knowledge_metadata
-            WHERE last_accessed < date('now', ?)
-            AND access_count < 5
+            WHERE last_accessed < ?
+            AND access_count <= ?
         """
-        cursor = await self.conn.execute(query, (f"-{age_days} days",))
+        cursor = await self.conn.execute(query, (before_date, max_access_count))
         rows = await cursor.fetchall()
         return [r[0] for r in rows]

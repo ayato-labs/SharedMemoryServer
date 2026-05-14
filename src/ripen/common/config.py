@@ -270,6 +270,21 @@ class Settings:
         """ライセンスファイルの保存パスを返す。"""
         return self.base_dir / "license.rpn"
 
+    @property
+    def hashtag_ai_threshold(self) -> int:
+        """AIによるハッシュタグ抽出を行う閾値（文字数）。"""
+        return int(self.get("HASHTAG_AI_THRESHOLD", "100"))
+
+    @property
+    def stale_access_threshold(self) -> int:
+        """GC対象とする低頻度アクセスの閾値。"""
+        return int(self.get("STALE_ACCESS_THRESHOLD", "5"))
+
+    @property
+    def default_gc_age_days(self) -> int:
+        """デフォルトのGC対象日数。"""
+        return int(self.get("DEFAULT_GC_AGE_DAYS", "180"))
+
 
 # Global settings instance
 settings = Settings()

@@ -392,6 +392,6 @@ class IManagementRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_stale_knowledge_ids(self, age_days: int) -> list[str]:
-        """Identify IDs of knowledge items that haven't been accessed recently."""
+    async def get_low_activity_ids(self, before_date: str, max_access_count: int) -> list[str]:
+        """Identify IDs of knowledge items that have low activity based on access count and date."""
         pass

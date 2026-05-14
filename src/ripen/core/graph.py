@@ -481,17 +481,17 @@ async def save_observations(
     return msg, conflicts_to_report
 
 
-async def get_graph_data(uow=None):
+async def get_graph_data(uow=None, limit: int = 20):
     if uow is None:
         from ripen.infra.uow import UnitOfWork
 
         async with UnitOfWork() as managed_uow:
-            return await _get_graph_data_internal(managed_uow)
-    return await _get_graph_data_internal(uow)
+            return await _get_graph_data_internal(managed_uow, limit)
+    return await _get_graph_data_internal(uow, limit)
 
 
-async def _get_graph_data_internal(uow):
-    entities, relations, observations = await uow.graph.get_full_graph()
+async def _get_graph_data_internal(uow, limit: int = 20):
+    entities, relations, observations = await uow.graph.get_full_graph(limit=limit)
     return {
         "entities": entities,
         "relations": relations,

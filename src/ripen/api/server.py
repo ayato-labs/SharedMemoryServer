@@ -18,13 +18,18 @@ from ripen.api.auth import dashboard_router
 from ripen.api.licensing import LicenseManager
 from ripen.common.config import settings
 from ripen.common.plugins import PluginLoader
-from ripen.common.tasks import create_background_task
+from ripen.common.tasks import create_background_task, wait_for_background_tasks
 from ripen.common.utils import configure_logging, get_logger, safe_main_executor
 from ripen.ops.lifecycle import start_database_maintenance
 from ripen.infra.database import init_db
 from ripen.infra.llm import get_llm_provider
 from ripen.api.proxy import run_stdio_proxy
 from ripen.ops.hub_manager import ensure_hub_running
+
+async def ensure_initialized():
+    """Legacy helper for tests and external scripts."""
+    await init_db()
+    await thought_module.init_thoughts_db()
 
 # Import core modules
 from ripen.core import (

@@ -130,7 +130,7 @@ async def save_bank_files(
     return f"Updated {len(items_to_process)} bank files"
 
 
-async def read_bank_data(uow=None, query: str | None = None):
+async def read_bank_data(uow=None, query: str | None = None, limit: int = 5):
     logger.info(f"read_bank_data START query={query}")
     async with GlobalLock(BANK_LOCK_NAME):
         bank_dir = get_bank_dir()
