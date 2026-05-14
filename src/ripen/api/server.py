@@ -289,7 +289,7 @@ def main():
         _kill_port_process(port)
 
         # Load plugins before starting
-        PluginLoader().load_all()
+        PluginLoader.load_all(context={"settings": settings})
         print_banner("SSE (Server-Sent Events)", port)
         mcp.run(transport="sse", host=args.host, port=port)
     else:
@@ -300,7 +300,7 @@ def main():
             asyncio.run(run_stdio_proxy(target_hub))
         else:
             # Native STDIO mode
-            PluginLoader().load_all()
+            PluginLoader.load_all(context={"settings": settings})
             print_banner("STDIO (Standard I/O)", 0)
             mcp.run(transport="stdio")
 
