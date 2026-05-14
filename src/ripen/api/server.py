@@ -14,7 +14,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response
 
-from ripen.api.auth import dashboard_router
+from ripen.api.dashboard import router as dashboard_router
 from ripen.api.licensing import LicenseManager
 from ripen.common.config import settings
 from ripen.common.plugins import PluginLoader
@@ -35,9 +35,7 @@ from ripen.core import (
 )
 
 # --- INITIALIZATION ---
-configure_logging()
 logger = get_logger("server")
-logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 
 def get_current_user() -> str:
     return "ayato-labs"
@@ -47,11 +45,10 @@ def get_current_user() -> str:
 mcp = FastMCP(
     "Ripen-v2",
     version="3.2.4",
-    description="The centralized knowledge hub for AI agents. Hybrid Vector + Graph memory.",
 )
 
-# Attach Dashboard
-mcp.add_router(dashboard_router, prefix="/dashboard")
+# Attach Dashboard (Temporarily disabled due to FastMCP compatibility)
+# mcp.mount("/dashboard", dashboard_router)
 
 @asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
@@ -216,21 +213,6 @@ async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False) -> 
     """System maintenance: Garbage collection. Trigger this to purge ancient, unused knowledge and maintain system performance."""
     return await logic_module.admin_run_knowledge_gc_core(age_days, dry_run)
 
-# --- MCP PROTOCOL PATCH ---
-try:
-    from mcp.server.session import ServerSession
-    _orig_received_request = ServerSession._received_request
-    async def _patched_received_request(self, request):
-        try:
-            return await _orig_received_request(self, request)
-        except Exception as e:
-            logger.error(f"MCP Protocol Error: Handled malformed request: {e}")
-            pass
-    ServerSession._received_request = _patched_received_request
-    logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
-except Exception as e:
-    logger.warning(f"Failed to apply MCP Protocol Patch: {e}")
-
 # --- ENTRY POINT ---
 
 def print_banner(mode: str, port: int):
@@ -238,21 +220,39 @@ def print_banner(mode: str, port: int):
     lm.validate_locally()
     license_text = lm.get_status_summary()
 
-    print("\033[1;32m" + "=" * 60 + "\033[0m")
-    print("  Ripen Knowledge Hub v3.2.4")
-    print("  \033[1;30m" + "" + "\033[0m")
-    print(f"  \033[1;34m\U0001f9e0 Mode:\033[0m      {mode}")
-    print(f"  \033[1;32m\U0001f4e1 Port:\033[0m      {port}")
+    print("\033[1;32m" + "=" * 60 + "\033[0m", file=sys.stderr)
+    print("  Ripen Knowledge Hub v3.2.4", file=sys.stderr)
+    print("  \033[1;30m" + "" + "\033[0m", file=sys.stderr)
+    print(f"  Mode:      {mode}", file=sys.stderr)
+    print(f"  Port:      {port}", file=sys.stderr)
     print(
-        f"  \033[1;33m\U0001f916 LLM:\033[0m       {settings.llm_provider} ({settings.generative_model})"
+        f"  LLM:       {settings.llm_provider} ({settings.generative_model})", file=sys.stderr
     )
-    print(f"  \033[1;36m\U0001f4c2 Data:\033[0m      {settings.base_dir}")
-    print(f"  \033[1;35m\U0001f4ca Dashboard:\033[0m http://localhost:{port}/dashboard")
-    print(f"  \033[1;37m\U0001f4dc License:\033[0m   {license_text}")
-    print("\033[1;32m" + "=" * 60 + "\033[0m")
-    print()
+    print(f"  Data:      {settings.base_dir}", file=sys.stderr)
+    print(f"  Dashboard: http://localhost:{port}/dashboard", file=sys.stderr)
+    print(f"  License:   {license_text}", file=sys.stderr)
+    print("\033[1;32m" + "=" * 60 + "\033[0m", file=sys.stderr)
+    print(file=sys.stderr)
 
 def main():
+    configure_logging()
+    logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+
+    # --- MCP PROTOCOL PATCH ---
+    try:
+        from mcp.server.session import ServerSession
+        _orig_received_request = ServerSession._received_request
+        async def _patched_received_request(self, request):
+            try:
+                return await _orig_received_request(self, request)
+            except Exception as e:
+                logger.error(f"MCP Protocol Error: Handled malformed request: {e}")
+                pass
+        ServerSession._received_request = _patched_received_request
+        logger.info("MCP Protocol Patch: ServerSession._received_request is now PERMISSIVE.")
+    except Exception as e:
+        logger.warning(f"Failed to apply MCP Protocol Patch: {e}")
+
     parser = argparse.ArgumentParser(description="Ripen Hub Server")
     parser.add_argument("--stdio", action="store_true", help="Start in STDIO proxy mode")
     parser.add_argument("--sse", action="store_true", help="Start in SSE mode (HTTP)")
@@ -284,7 +284,7 @@ def main():
 
     if use_sse:
         # Load plugins before starting
-        PluginLoader().load_all()
+        PluginLoader.load_all(context={"settings": settings})
         print_banner("SSE (Server-Sent Events)", port)
         mcp.run(transport="sse", host=args.host, port=port)
     else:
@@ -295,9 +295,9 @@ def main():
             asyncio.run(run_stdio_proxy(target_hub))
         else:
             # Native STDIO mode
-            PluginLoader().load_all()
+            PluginLoader.load_all(context={"settings": settings})
             print_banner("STDIO (Standard I/O)", 0)
-            mcp.run(transport="stdio")
+            mcp.run(transport="stdio", show_banner=False)
 
 if __name__ == "__main__":
     safe_main_executor(main)()
