@@ -131,3 +131,32 @@ class LicenseManager:
         if self._cached_license_info:
             return self._cached_license_info
         return {"type": "trial", "status": "active" if self._check_trial_status() else "expired"}
+
+    def get_status_summary(self) -> str:
+        """現在のライセンス状況を1行の文字列で返す。"""
+        info = self.info
+        l_type = info.get("type", "unknown")
+        status = info.get("status", "unknown")
+
+        if l_type == "trial":
+            if status == "active":
+                trial_marker = settings.base_dir / ".trial_start"
+                if trial_marker.exists():
+                    try:
+                        with open(trial_marker, "r") as f:
+                            start_str = f.read().strip()
+                        start_date = datetime.fromisoformat(start_str)
+                        trial_days = 180
+                        expiry_date = start_date + timedelta(days=trial_days)
+                        remaining = (expiry_date - datetime.now()).days
+                        return f"Trial Period (Active) - {remaining} days remaining"
+                    except Exception:
+                        pass
+                return "Trial Period (Active)"
+            else:
+                return "Trial Period (Expired)"
+        else:
+            # Commercial license
+            user = info.get("user", "Unknown")
+            expiry = info.get("expiry", "Unknown")
+            return f"Commercial License - Registered to: {user} (Expires: {expiry})"
