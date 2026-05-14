@@ -14,7 +14,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response
 
-from ripen.api.dashboard import router as dashboard_router
+# Import project modules
 from ripen.api.licensing import LicenseManager
 from ripen.common.config import settings
 from ripen.common.plugins import PluginLoader
@@ -40,71 +40,54 @@ logger = get_logger("server")
 def get_current_user() -> str:
     return "ayato-labs"
 
+@asynccontextmanager
+async def lifespan(mcp_instance: FastMCP) -> AsyncGenerator[None, None]:
+    """MCP Server lifespan handler for DB and system initialization."""
+    logger.info("Ripen Hub: Starting lifespan sequence...")
+    
+    # 1. Initialize Database
+    await init_db()
+    
+    # 2. Initialize Thoughts Logic
+    await thought_module.init_thoughts_db()
+    
+    # 3. Verify LLM Connectivity
+    try:
+        provider = get_llm_provider()
+        logger.debug(f"LLM Provider: {provider}")
+        logger.info("[BACKEND STATUS] AI Brain (LLM): OK")
+    except Exception as e:
+        logger.error(f"AI Brain connectivity failed: {e}")
+        # We don't crash here, as some tools might work without LLM
+        
+    # 4. Start Background Tasks
+    create_background_task(start_database_maintenance())
+    
+    logger.info("Ripen Hub: Startup complete.")
+    yield
+    logger.info("Ripen Hub: Shutting down...")
+
 # Create FastMCP server instance
-# Using Ripen-v2 and version from main branch as it seems to be the target release version
 mcp = FastMCP(
     "Ripen-v2",
     version="3.2.4",
 )
 
-# Attach Dashboard (Temporarily disabled due to FastMCP compatibility)
-# mcp.mount("/dashboard", dashboard_router)
-
-@asynccontextmanager
-async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
-    """Startup sequence for the hub."""
-    logger.info("Ripen Hub: Starting lifespan sequence...")
-
-    # 1. Init Database
-    await init_db()
-
-    # 2. Init Thoughts DB
-    await thought_module.init_thoughts_db()
-
-    # 3. Start Maintenance Tasks
-    maintenance_task = create_background_task(start_database_maintenance())
-
-    # 4. Check AI Provider
-    try:
-        provider = get_llm_provider()
-        if await provider.check_health():
-            logger.info("[BACKEND STATUS] AI Brain (LLM): OK")
-        else:
-            logger.warning("[BACKEND STATUS] AI Brain (LLM): NOT CONFIGURED")
-    except Exception as e:
-        logger.error(f"[BACKEND STATUS] AI Brain (LLM): FAILED - {e}")
-
-    logger.info("Ripen Hub: Startup complete.")
-    
-    try:
-        yield
-    finally:
-        maintenance_task.cancel()
-        try:
-            await maintenance_task
-        except asyncio.CancelledError:
-            pass
-
-mcp._lifespan = lifespan
-
-# --- TOOLS ---
+# --- MCP TOOLS ---
 
 @mcp.tool()
 async def save_memory(
-    entities: list[dict] | None = None,
-    relations: list[dict] | None = None,
-    observations: list[str] | None = None,
-    bank_files: list[dict] | None = None,
+    entities: list[dict],
+    relations: list[dict],
+    observations: list[dict],
+    bank_files: list[str] | None = None,
     agent_id: str | None = None,
 ) -> str:
     """
-    Persists new knowledge into the memory hub.
-    - entities: List of {name, type, description}
-    - relations: List of {source, target, relation_type}
-    - observations: List of factual strings
-    - bank_files: List of {path, content} for technical references
+    Persists knowledge to the long-term memory hub.
+    Input should follow the structured JSON format for entities and relations.
     """
-    logger.info(f"Tool called: save_memory by agent='{agent_id}'")
+    logger.info(f"Tool called: save_memory (Entities: {len(entities)}, Relations: {len(relations)})")
     user = agent_id or get_current_user() or "default_agent"
     try:
         await logic_module.save_memory_core(
