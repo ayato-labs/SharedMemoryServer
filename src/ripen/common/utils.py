@@ -385,16 +385,18 @@ def safe_main_executor(main_func):
             return main_func(*args, **kwargs)
         except Exception as e:
             logger.exception("FATAL ERROR: Application crashed.")
-            # Ensure the terminal doesn't close abruptly
-            print("\n" + "!" * 60)
-            print("  FATAL ERROR OCCURRED")
-            print(f"  {type(e).__name__}: {e}")
-            print("  Check logs/error.log for full traceback.")
-            print("!" * 60)
-            try:
-                input("\nPress [Enter] to close the terminal...")
-            except (EOFError, KeyboardInterrupt):
-                pass
+            # Ensure the terminal doesn't close abruptly ONLY if it's a TTY
+            # Background MCP services must exit to avoid deadlocks
+            if sys.stdin.isatty():
+                print("\n" + "!" * 60)
+                print("  FATAL ERROR OCCURRED")
+                print(f"  {type(e).__name__}: {e}")
+                print("  Check logs/error.log for full traceback.")
+                print("!" * 60)
+                try:
+                    input("\nPress [Enter] to close the terminal...")
+                except (EOFError, KeyboardInterrupt):
+                    pass
             sys.exit(1)
         except KeyboardInterrupt:
             # Usually we don't want to pause on Ctrl+C, just exit quietly

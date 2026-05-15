@@ -21,7 +21,6 @@ from starlette.routing import Mount
 
 from ripen.api.dashboard import router as dashboard_router
 from ripen.api.licensing import LicenseManager
-from ripen.api.proxy import run_stdio_proxy
 from ripen.common.config import settings
 from ripen.common.plugins import PluginLoader
 from ripen.common.tasks import create_background_task, wait_for_background_tasks as _wait_tasks
@@ -251,12 +250,14 @@ try:
         """
         try:
             # --- Permissive Handshake Logic ---
-            if self._initialization_state == InitializationState.NotInitialized:
+            # Handle states where the SDK would normally reject requests
+            if self._initialization_state in (InitializationState.NotInitialized, InitializationState.Initializing):
                 from mcp.types import InitializeRequest, PingRequest
                 req_root = responder.request.root
                 if not isinstance(req_root, (InitializeRequest, PingRequest)):
                     # Force transition to Initialized to prevent RuntimeError in underlying SDK
-                    logger.warning(f"Permissive Handshake: Auto-initializing session for {type(req_root).__name__}")
+                    state_name = self._initialization_state.name
+                    logger.warning(f"Permissive Handshake: Auto-initializing session from '{state_name}' for {type(req_root).__name__}")
                     self._initialization_state = InitializationState.Initialized
 
             # Trace request
@@ -338,71 +339,31 @@ def main():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    # Determine transport mode
-    if args.stdio:
-        use_sse = False
-    else:
-        use_sse = args.sse or settings.default_transport == "sse"
-
     port = args.port or settings.sse_port or 8377
-    logger.info(f"Transport check: use_sse={use_sse}, port={port}")
+    logger.info(f"Port check: port={port}")
 
-    if use_sse:
-        logger.info("Starting SSE cleanup and port check...")
-        # Kill any zombie process on the target port (Windows specific stability fix)
-        _kill_port_process(port)
-        logger.info("Cleanup completed. Checking port availability...")
+    logger.info("Starting cleanup and port check...")
+    _kill_port_process(port)
+    logger.info("Cleanup completed. Checking port availability...")
 
-        # Double check port availability
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(("127.0.0.1", port))
-        if result == 0:
-            logger.error(f"PORT CONFLICT: Port {port} is already in use by another process. Please stop all other Ripen Hub instances.")
-            sock.close()
-            sys.exit(1)
+    # Double check port availability
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    result = sock.connect_ex(("127.0.0.1", port))
+    if result == 0:
+        logger.error(f"PORT CONFLICT: Port {port} is already in use by another process. Please stop all other Ripen Hub instances.")
         sock.close()
-        logger.info("Port is available.")
+        sys.exit(1)
+    sock.close()
+    logger.info("Port is available.")
 
-        # Load plugins before starting
-        logger.info("Loading plugins...")
-        PluginLoader.load_all(context={"settings": settings})
-        logger.info("Plugins loaded. Printing banner...")
-        print_banner("SSE (Server-Sent Events)", port)
-        logger.info("Banner printed. Running FastMCP server...")
-        mcp.run(transport="sse", host=args.host, port=port, show_banner=False)
-    else:
-        # STDIO mode
-        target_hub = args.hub_url_pos
-        logger.info(f"Entering STDIO mode. target_hub={target_hub}")
-        
-        # If --stdio is explicitly used, we prioritize the PROXY/BRIDGE behavior
-        # This allows STDIO-only agents to talk to an SSE Hub (Local or Team)
-        if args.stdio:
-            if target_hub and "<" not in target_hub:
-                logger.info(f"Starting STDIO Proxy -> {target_hub}")
-                asyncio.run(run_stdio_proxy(target_hub))
-            else:
-                # If no URL is provided, try to find a running Hub (Adaptive Discovery)
-                # If it fails, we catch the exit and fallback to native
-                logger.info("Starting STDIO Adaptive Proxy (searching for local/team hub)...")
-                try:
-                    asyncio.run(run_stdio_proxy())
-                except SystemExit as e:
-                    if e.code != 0:
-                        logger.warning("No running Ripen Hub found. Falling back to NATIVE STDIO mode.")
-                        # Native STDIO mode fallback
-                        PluginLoader.load_all(context={"settings": settings})
-                        print_banner("STDIO (Standard I/O) - NATIVE", 0)
-                        mcp.run(transport="stdio", show_banner=False)
-                    else:
-                        raise
-        else:
-            # Not --stdio (default fallback if somehow use_sse was false)
-            logger.info("Defaulting to native STDIO mode.")
-            PluginLoader.load_all(context={"settings": settings})
-            print_banner("STDIO (Standard I/O) - NATIVE", 0)
-            mcp.run(transport="stdio", show_banner=False)
+    # Load plugins before starting
+    logger.info("Loading plugins...")
+    PluginLoader.load_all(context={"settings": settings})
+    logger.info("Plugins loaded. Printing banner...")
+    print_banner("Streamable HTTP", port)
+    logger.info("Banner printed. Running FastMCP server...")
+    mcp.run(transport="streamable-http", host=args.host, port=port, show_banner=False)
 
 
 def _kill_port_process(port: int):
