@@ -116,8 +116,8 @@ jobs:
           uv pip install pyinstaller
       - name: Build with PyInstaller
         run: |
-          uv run pyinstaller --onefile --name Ripen --clean src/ripen/server.py
-          uv run pyinstaller --onefile --name SharedMemoryRegister --clean src/ripen/register.py
+          uv run pyinstaller --onefile --name Ripen --clean src/ripen/api/server.py
+          uv run pyinstaller --onefile --name SharedMemoryRegister --clean src/ripen/cli/register.py
       - name: Upload Binaries to Release
         uses: softprops/action-gh-release@v2
         with:
