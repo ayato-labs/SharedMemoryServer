@@ -116,8 +116,8 @@ jobs:
           uv pip install pyinstaller
       - name: Build with PyInstaller
         run: |
-          uv run pyinstaller --onefile --name Ripen --clean src/ripen/api/server.py
-          uv run pyinstaller --onefile --name SharedMemoryRegister --clean src/ripen/cli/register.py
+          uv run pyinstaller --onefile --name Ripen --copy-metadata fastmcp --copy-metadata ripen --clean src/ripen/api/server.py
+          uv run pyinstaller --onefile --name RipenInstaller --copy-metadata fastmcp --copy-metadata ripen --clean src/ripen/cli/register.py
       - name: Get Latest Tag
         id: tag
         shell: bash
@@ -129,7 +129,7 @@ jobs:
         with:
           files: |
             dist/Ripen.exe
-            dist/SharedMemoryRegister.exe
+            dist/RipenInstaller.exe
           tag_name: ${{ steps.tag.outputs.tag }}
           fail_on_unmatched_files: false
           append_body: true
