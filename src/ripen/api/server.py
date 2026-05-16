@@ -41,9 +41,7 @@ from ripen.core import (
 )
 
 # --- INITIALIZATION ---
-configure_logging()
 logger = get_logger("server")
-logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
 
 def get_current_user() -> str:
     return "ayato-labs"
@@ -287,7 +285,6 @@ try:
     logger.info("MCP Protocol Patch: Deep Tracing & Permissive Handshake enabled.")
 except Exception as e:
     logger.warning(f"Failed to apply MCP Protocol Patch: {e}")
-
 # --- ENTRY POINT ---
 
 
@@ -319,7 +316,11 @@ def print_banner(mode: str, port: int):
     sys.stderr.flush()
 
 def main():
+    configure_logging()
+    logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
     logger.info(f"Main execution started (Args: {sys.argv})")
+
+
     parser = argparse.ArgumentParser(description="Ripen Hub Server")
     parser.add_argument("--port", type=int, help="Port for the server")
     parser.add_argument("--host", default="0.0.0.0", help="Host for the server")
