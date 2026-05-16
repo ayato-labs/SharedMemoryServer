@@ -166,8 +166,9 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 Use the provided `docker-compose.yml` to automatically handle volume mounting and environment variables.
 
 1. **Set your API Key**:
-   Create a `.env` file in the same directory as `docker-compose.yml` and add your Gemini API key:
+   Create a `.env` file in the same directory as `docker-compose.yml` and add your provider and API key:
    ```env
+   LLM_PROVIDER=gemini
    GEMINI_API_KEY=your_actual_api_key_here
    ```
 

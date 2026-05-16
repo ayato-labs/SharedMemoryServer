@@ -7,6 +7,7 @@ services:
       - ripen_data:/data
     environment:
       - RIPEN_HOME=/data
+      - LLM_PROVIDER=gemini
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - LOG_LEVEL=INFO
     restart: unless-stopped
