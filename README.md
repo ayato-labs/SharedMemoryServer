@@ -160,10 +160,11 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 ```
 
 #### 2. Start (起動)
-Run the container in the background. We recommend naming it `ripen-hub` for easy management.
+Run the container. We recommend naming it `ripen-hub` for easy management. By default, it runs in the foreground so you can see the logs immediately.
 ```bash
-docker run -d --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
 ```
+*Note: If you want to run it in the background, add the `-d` option.*
 
 #### 3. Update (更新)
 To update Ripen to the latest version while keeping your stored knowledge:
@@ -181,8 +182,9 @@ docker rename ripen-hub ripen-hub-old-$(date +%Y%m%d)
 # docker rename ripen-hub "ripen-hub-old-$(Get-Date -Format 'yyyyMMdd')"
 
 # 4. Start the new container with the same volume
-docker run -d --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
 ```
+*Note: If you want to run it in the background, add the `-d` option.*
 
 #### 4. Uninstall (削除)
 To completely remove the container, image, and persisted data:
