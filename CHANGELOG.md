@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.9.0 (2026-05-16)
+
+### Features
+
+- Add Docker build and push to GHCR in main.yml
+  ([`4c4701e`](https://github.com/ayato-labs/ripen/commit/4c4701e6ee3f156bd12b693596cc153651507eec))
+
+
 ## v1.8.4 (2026-05-16)
 
 ### Bug Fixes
