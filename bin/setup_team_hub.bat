@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [Ripen] Team Hub is now running!
-echo URL: http://localhost:8377/sse
+echo URL: http://localhost:8377/mcp
 echo.
 echo To stop the server, run: docker-compose down
 echo To view logs, run: docker-compose logs -f

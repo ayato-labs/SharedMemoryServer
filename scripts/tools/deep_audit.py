@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import json
 import sys
 from datetime import datetime
 
@@ -50,7 +49,7 @@ def audit_db(name, path):
                 last_act = cursor.fetchone()[0]
                 if last_act:
                     print(f"    Last activity: {last_act}")
-            except:
+            except Exception:
                 pass
 
         # 3. Data Quality Checks (Deep Analysis)

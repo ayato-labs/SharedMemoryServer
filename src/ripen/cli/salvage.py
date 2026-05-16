@@ -7,7 +7,7 @@ logger = get_logger("salvage")
 
 
 async def salvage_related_knowledge(
-    thought: str, session_id: str, history: list[dict[str, Any]] | None = None
+    thought: str, session_id: str
 ) -> list[dict[str, Any]]:
     """
     High-speed knowledge retrieval pipeline (Fast Path).
@@ -16,7 +16,8 @@ async def salvage_related_knowledge(
     """
     try:
         # Fetch Top Candidates (already ranked by Hybrid Search logic in core.search)
-        # We EXPLICITLY exclude TRANSIENT logs from automated salvage to prevent noise/hallucination loops.
+        # We EXPLICITLY exclude TRANSIENT logs from automated salvage to prevent
+        # noise/hallucination loops.
         graph_data, bank_data = await perform_search(
             thought, candidate_limit=7, include_transient=False
         )
@@ -46,7 +47,8 @@ async def salvage_related_knowledge(
         final_results = results[:7]
 
         logger.info(
-            f"Salvage (FastPath): Retrieved {len(final_results)} high-signal items for session {session_id}"
+            f"Salvage (FastPath): Retrieved {len(final_results)} high-signal items "
+            f"for session {session_id}"
         )
         return final_results
 

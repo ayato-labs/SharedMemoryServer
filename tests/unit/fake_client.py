@@ -40,7 +40,7 @@ class FakeModels:
             return FakeGeminiResponse(embeddings=[FakeEmbedding(_get_val(contents))])
         return FakeGeminiResponse(embeddings=[FakeEmbedding(_get_val(c)) for c in contents])
 
-    def generate_content(self, model, contents, config=None):
+    def generate_content(self, _model, _contents, _config=None):
         if "generate_content" in self._errors:
             raise self._errors["generate_content"]
         if "generate_content" in self._responses:
@@ -70,6 +70,6 @@ class FakeAsyncModels:
 
 
 class FakeGeminiClient:
-    def __init__(self, api_key="fake_key"):
+    def __init__(self, _api_key="fake_key"):
         self.models = FakeModels()
         self.aio = type("FakeAio", (), {"models": FakeAsyncModels(self.models)})

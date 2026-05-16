@@ -3,7 +3,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+
 from ripen.common.utils import get_logger, safe_main_executor
+
+logger = get_logger("unregister")
 
 
 def get_config_paths():
@@ -47,6 +50,33 @@ def get_prompt_files():
     ]
 
 
+def _unregister_from_file(path, server_name, name, dry_run):
+    """Removes the server from a specific config file."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            config = json.load(f)
+
+        updated = False
+        # Standard mcpServers
+        if "mcpServers" in config and server_name in config["mcpServers"]:
+            del config["mcpServers"][server_name]
+            updated = True
+
+        # Native Cursor
+        if "cursor.mcpServers" in config and server_name in config["cursor.mcpServers"]:
+            del config["cursor.mcpServers"][server_name]
+            updated = True
+
+        if updated:
+            if not dry_run:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+            logger.info(f"  [SUCCESS] Removed {server_name} from {name}")
+    except Exception as e:
+        import sys
+        sys.stderr.write(f"  [ERROR] Failed {name}: {e}\n")
+
+
 def unregister_mcp(dry_run=False, isolate=False):
     config_paths = get_config_paths()
     cwd = os.getcwd()
@@ -55,36 +85,13 @@ def unregister_mcp(dry_run=False, isolate=False):
         path_hash = hashlib.md5(cwd.encode("utf-8")).hexdigest()[:8]
         server_name = f"Ripen_{path_hash}"
 
-    print(f"--- MCP Unregistration (Dry Run: {dry_run}) ---")
+    logger.info(f"--- MCP Unregistration (Dry Run: {dry_run}) ---")
     for name, path in config_paths.items():
         if not path.exists():
             continue
-        try:
-            with open(path, encoding="utf-8") as f:
-                config = json.load(f)
+        _unregister_from_file(path, server_name, name, dry_run)
 
-            updated = False
-            # Standard mcpServers
-            if "mcpServers" in config and server_name in config["mcpServers"]:
-                del config["mcpServers"][server_name]
-                updated = True
-
-            # Native Cursor
-            if "cursor.mcpServers" in config and server_name in config["cursor.mcpServers"]:
-                del config["cursor.mcpServers"][server_name]
-                updated = True
-
-            if updated:
-                if not dry_run:
-                    with open(path, "w", encoding="utf-8") as f:
-                        json.dump(config, f, indent=2)
-                print(f"  [SUCCESS] Removed {server_name} from {name}")
-        except Exception as e:
-            import sys
-
-            sys.stderr.write(f"  [ERROR] Failed {name}: {e}\n")
-
-    print("\n--- Prompt Instruction Cleanup ---")
+    logger.info("\n--- Prompt Instruction Cleanup ---")
     for p in get_prompt_files():
         if not p.exists():
             continue
@@ -97,7 +104,7 @@ def unregister_mcp(dry_run=False, isolate=False):
 
                 if not dry_run:
                     p.write_text(new_content, encoding="utf-8")
-                print(f"  [SUCCESS] Cleaned {p.name}")
+                logger.info(f"  [SUCCESS] Cleaned {p.name}")
         except Exception as e:
             import sys
 

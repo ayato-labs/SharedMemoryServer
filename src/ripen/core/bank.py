@@ -12,15 +12,7 @@ from ripen.common.utils import (
     mask_sensitive_data,
     safe_path_join,
 )
-
 from ripen.infra.embeddings import compute_embeddings_bulk
-from ripen.infra.repository import (
-    AuditRepository,
-    BankRepository,
-    EmbeddingRepository,
-    EntityRepository,
-    RelationRepository,
-)
 
 logger = get_logger("bank")
 

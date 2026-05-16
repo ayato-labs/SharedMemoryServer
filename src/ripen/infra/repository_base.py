@@ -250,7 +250,7 @@ class ITagRepository(ABC):
 
 class IGraphRepository(ABC):
     @abstractmethod
-    async def get_full_graph(self) -> tuple[list[dict], list[dict], list[dict]]:
+    async def get_full_graph(self, limit: int = 100) -> tuple[list[dict], list[dict], list[dict]]:
         pass
 
     @abstractmethod
@@ -332,6 +332,12 @@ class IThoughtRepository(ABC):
     async def get_total_session_count(self) -> int:
         pass
 
+    @abstractmethod
+    async def search_thoughts(
+        self, fts_query: str, exclude_session_id: str
+    ) -> list[dict[str, Any]]:
+        pass
+
 
 class IManagementRepository(ABC):
     @abstractmethod
@@ -392,6 +398,6 @@ class IManagementRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_stale_knowledge_ids(self, age_days: int) -> list[str]:
-        """Identify IDs of knowledge items that haven't been accessed recently."""
+    async def get_low_activity_ids(self, before_date: str, max_access_count: int) -> list[str]:
+        """Identify IDs of knowledge items that have low activity based on access count and date."""
         pass

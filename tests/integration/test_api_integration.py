@@ -7,7 +7,7 @@ from ripen.ops import management
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_save_and_hybrid_search_flow(mock_llm):
+async def test_save_and_hybrid_search_flow(uow):
     """
     Integration Test: 保存からハイブリッド検索、知識合成までの一連のフローを検証。
     """
@@ -21,8 +21,7 @@ async def test_save_and_hybrid_search_flow(mock_llm):
     )
 
     # 2. 検索 (キーワード + セマンティック)
-    # perform_search を呼び出し、期待したエンティティやファイルが返るか確認
-    graph_data, bank_data = await search.perform_search("Integration")
+    graph_data, bank_data = await search.perform_search("Integration", uow)
 
     # エンティティが見つかっているか
     entity_names = [e["name"] for e in graph_data["entities"]]
@@ -36,16 +35,13 @@ async def test_save_and_hybrid_search_flow(mock_llm):
     assert "integration.md" in bank_data
 
     # 3. 知識合成
-    mock_llm.models.set_response(
-        "generate_content", "This is a synthesized summary of IntegrationNode."
-    )
-
-    summary = await search.synthesize_knowledge("IntegrationNode")
-    assert "synthesized summary" in summary.lower()
+    # リアルAPIを使用するため、結果が空でないことを確認
+    summary = await search.synthesize_knowledge("IntegrationNode", uow)
+    assert len(summary) > 0
 
     # 4. 監査ログの検証 (裏取り)
     # entities と bank_files の保存が監査ログに記録されているか
-    audit_logs = await management.get_audit_history_logic(limit=10)
+    audit_logs = await management.get_audit_history_logic(10, None, uow)
     tables_in_audit = [log["table"] for log in audit_logs]
     assert "entities" in tables_in_audit
     assert "bank_files" in tables_in_audit
@@ -53,43 +49,39 @@ async def test_save_and_hybrid_search_flow(mock_llm):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_conflict_and_recovery_flow(mock_llm):
+async def test_conflict_and_recovery_flow(uow):
     """
     Integration Test: 衝突検知と解決フローを検証。
     """
     # 1. 初期データ保存 (観察事項を1つ入れておく)
+    # 明確な事実を登録
     await logic.save_memory_core(
-        entities=[{"name": "StableNode", "description": "Immutable fact"}],
-        observations=[{"entity_name": "StableNode", "content": "Original state"}],
+        entities=[{"name": "SkyNode", "description": "The sky above us"}],
+        observations=[{"entity_name": "SkyNode", "content": "The sky is always blue."}],
     )
 
     # 2. 衝突するデータの保存試行
-    # JSONリスト形式のレスポンスをシミュレート
-    mock_llm.models.set_response(
-        "generate_content", '[{"conflict": true, "reason": "Direct contradiction"}]'
-    )
-
+    # リアルAPIが衝突を検知することを期待（明らかに矛盾する内容）
     result = await logic.save_memory_core(
-        observations=[{"entity_name": "StableNode", "content": "Contradicting info"}]
+        observations=[{"entity_name": "SkyNode", "content": "The sky is always green."}]
     )
     assert "CONFLICTS DETECTED" in result
 
     # 3. 未解決の衝突リスト取得
-    conflicts = await management.get_unresolved_conflicts_logic()
+    conflicts = await management.get_unresolved_conflicts_logic(uow)
     assert len(conflicts) > 0
-    target_conflict = next(c for c in conflicts if c["entity"] == "StableNode")
-    assert "contradiction" in target_conflict["reason"].lower()
-
+    target_conflict = next(c for c in conflicts if c["entity"] == "SkyNode")
+    
     # 4. 衝突の解決 (Approve)
     # これにより observations に追加されるはず
-    await management.resolve_conflict_logic(target_conflict["id"], action="approve")
+    await management.resolve_conflict_logic(target_conflict["id"], "approve", uow)
 
     # 5. 解決後の確認 (裏取り)
     async with await async_get_connection() as conn:
         # observations に追加されているか
         async with conn.execute(
-            "SELECT content FROM observations WHERE entity_name='StableNode' "
-            "AND content='Contradicting info'"
+            "SELECT content FROM observations WHERE entity_name='SkyNode' "
+            "AND content='The sky is always green.'"
         ) as cursor:
             row = await cursor.fetchone()
             assert row is not None

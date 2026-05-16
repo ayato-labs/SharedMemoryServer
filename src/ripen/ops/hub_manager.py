@@ -1,8 +1,9 @@
+import socket
 import subprocess
 import sys
 import time
-import socket
 from pathlib import Path
+
 from ripen.common.utils import get_logger
 
 logger = get_logger("hub_manager")
@@ -24,7 +25,8 @@ def is_hub_reachable(url: str, timeout: float = 2.0) -> bool:
         test_url = f"{url.rstrip('/')}/dashboard/"
         with urllib.request.urlopen(test_url, timeout=timeout) as response:
             return response.getcode() == 200
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Hub reachability check failed for {url}: {e}")
         return False
 
 def ensure_hub_running(port: int = 8377) -> bool:
@@ -57,9 +59,9 @@ def ensure_hub_running(port: int = 8377) -> bool:
         # Clear previous startup log
         if startup_log_path.exists():
             try:
-                startup_log_path.unlink()
-            except:
-                pass
+                startup_log_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning(f"Could not clear previous startup log: {e}")
                 
         logger.info(f"Background Hub logs will be written to: {startup_log_path}")
         
@@ -84,7 +86,7 @@ def ensure_hub_running(port: int = 8377) -> bool:
             popen_kwargs["start_new_session"] = True
             
         logger.debug(f"Running background command: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, **popen_kwargs)
+        subprocess.Popen(cmd, **popen_kwargs)
         
         # Wait for Hub to be ready
         retries = 0
@@ -99,5 +101,5 @@ def ensure_hub_running(port: int = 8377) -> bool:
         return False
         
     except Exception as e:
-        logger.error(f"Failed to start Ripen Hub in background: {e}")
+        logger.error(f"Failed to start Ripen Hub in background: {e}", exc_info=True)
         return False

@@ -3,7 +3,7 @@ from typing import Any
 import aiosqlite
 
 from ripen.infra.database import AsyncSQLiteConnection, get_write_semaphore, init_db
-from ripen.infra.repository import (
+from ripen.infra.repos import (
     AuditRepository,
     BankRepository,
     ConflictRepository,
@@ -30,10 +30,14 @@ class UnitOfWork:
     def __init__(self, is_thoughts: bool = False):
         self.is_thoughts = is_thoughts
         self._conn: aiosqlite.Connection | None = None
-        self._semaphore = get_write_semaphore()
+        self._semaphore = get_write_semaphore(is_thoughts)
         self._management: ManagementRepository | None = None
 
     async def __aenter__(self):
+        from ripen.common.utils import get_logger
+        log = get_logger("uow")
+        log.debug(f"UOW_START: is_thoughts={self.is_thoughts}")
+        
         if self.is_thoughts:
             from ripen.common.utils import get_thoughts_db_path
             from ripen.core.thought_logic import init_thoughts_db
@@ -48,6 +52,7 @@ class UnitOfWork:
             await init_db()
             self._conn = await AsyncSQLiteConnection(get_db_path()).__aenter__()
 
+        log.debug("UOW_READY: Connection acquired and repositories bound")
         # Initialize repositories with this connection
         self.bank = BankRepository(self._conn)
         self.audit = AuditRepository(self._conn)
@@ -71,9 +76,13 @@ class UnitOfWork:
         return self._management
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        from ripen.common.utils import get_logger
+        log = get_logger("uow")
         if exc_type:
+            log.warning(f"UOW_EXIT: Exception detected ({exc_type.__name__}). Rolling back.")
             await self.rollback()
         else:
+            log.debug("UOW_EXIT: Normal exit. Committing.")
             await self.commit()
         # The connection itself is a singleton managed by database.py
         # and doesn't need to be closed here, but we should clear our reference.
@@ -99,7 +108,7 @@ class SecureWriteContext:
     def __init__(self, is_thoughts: bool = False):
         self.is_thoughts = is_thoughts
         self.uow = UnitOfWork(is_thoughts)
-        self._semaphore = get_write_semaphore()
+        self._semaphore = get_write_semaphore(is_thoughts)
 
     async def __aenter__(self):
         await self._semaphore.acquire()

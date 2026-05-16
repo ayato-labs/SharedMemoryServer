@@ -25,7 +25,8 @@ if "%choice%"=="2" (
 
 echo.
 echo Starting Ripen Hub on %HOST%:%PORT%...
-uv run ripen --sse --port %PORT% --host %HOST%
+set PYTHONPATH=%CD%\src
+.\.venv\Scripts\python.exe -m ripen.api.server --port %PORT% --host %HOST%
 
 popd
 pause

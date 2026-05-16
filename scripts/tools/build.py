@@ -19,27 +19,15 @@ def build():
     if os.path.exists("build"):
         shutil.rmtree("build")
 
-    print("--- Building Ripen ---")
+    print("--- Building Ripen Hub ---")
     run_command(
         [
             "pyinstaller",
             "--onefile",
             "--name",
-            "Ripen",
+            "Ripen-Hub",
             "--clean",
-            "src/ripen/server.py",
-        ]
-    )
-
-    print("\n--- Building SharedMemoryRegister ---")
-    run_command(
-        [
-            "pyinstaller",
-            "--onefile",
-            "--name",
-            "SharedMemoryRegister",
-            "--clean",
-            "src/ripen/register.py",
+            "src/ripen/api/server.py",
         ]
     )
 

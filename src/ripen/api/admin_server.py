@@ -2,6 +2,7 @@ from fastmcp import FastMCP
 
 from ripen.core import logic, thought_logic
 from ripen.infra.database import init_db
+from ripen.infra.uow import SecureWriteContext, UnitOfWork
 
 # Create MCP server instance (Control Plane / Admin)
 mcp = FastMCP("SharedMemoryAdminServer")
@@ -13,7 +14,7 @@ mcp = FastMCP("SharedMemoryAdminServer")
 
 
 @mcp.lifespan()
-async def lifespan(mcp_instance: FastMCP):
+async def lifespan(_mcp_instance: FastMCP):
     """
     Handles server startup and shutdown.
     Ensures databases are initialized before tools are called.
@@ -23,13 +24,6 @@ async def lifespan(mcp_instance: FastMCP):
 
     yield
 
-
-# ==========================================
-# ADMIN & MAINTENANCE TOOLS
-# ==========================================
-
-
-from ripen.infra.uow import UnitOfWork, SecureWriteContext
 
 # ==========================================
 # ADMIN & MAINTENANCE TOOLS

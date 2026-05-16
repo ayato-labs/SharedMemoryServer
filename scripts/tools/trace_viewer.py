@@ -5,9 +5,9 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-import aiosqlite  # noqa: E402
+import aiosqlite
 
-from ripen.utils import get_db_path, get_thoughts_db_path  # noqa: E402
+from ripen.utils import get_db_path, get_thoughts_db_path
 
 
 async def view_trace():

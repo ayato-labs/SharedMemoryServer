@@ -1,6 +1,8 @@
 import asyncio
+import datetime
 
 from ripen.common.utils import get_logger
+from ripen.domain.models import STALE_ACCESS_THRESHOLD
 
 logger = get_logger("lifecycle")
 
@@ -90,7 +92,14 @@ async def run_knowledge_gc_logic(uow, age_days: int = 180, dry_run: bool = False
     Automated Garbage Collection: Move stale active knowledge to inactive.
     """
     try:
-        stale_ids = await uow.management.get_stale_knowledge_ids(age_days)
+        # Business Rule: Define what 'stale' means in terms of date and access count
+        before_date = (
+            datetime.datetime.now() - datetime.timedelta(days=age_days)
+        ).isoformat()
+
+        stale_ids = await uow.management.get_low_activity_ids(
+            before_date=before_date, max_access_count=STALE_ACCESS_THRESHOLD
+        )
 
         if not stale_ids:
             return "No stale knowledge found for GC."

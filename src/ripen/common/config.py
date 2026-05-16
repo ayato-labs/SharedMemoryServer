@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from ripen.common.utils import get_logger
 
@@ -34,8 +34,8 @@ class Settings:
     _instance = None
     _base_dir: Path | None = None
     _api_key: str | None = None
-    _config_data: dict = {}
-    _plugins: list = []
+    _config_data: ClassVar[dict] = {}
+    _plugins: ClassVar[list] = []
     # --- Licensing ---
     license_public_key: str = os.getenv(
         "RIPEN_LICENSE_PUBLIC_KEY", "vF9JtiTPlurcpy6F4UywkLdyisrHXEaU75CjeCVvZfg="
@@ -108,33 +108,6 @@ class Settings:
             self._api_key = api_key.strip()
             return self._api_key
 
-        # 2. Claude Desktop config (settings.json) search
-        try:
-            config_paths = [
-                Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json",
-                Path.home()
-                / "Library"
-                / "Application Support"
-                / "Claude"
-                / "claude_desktop_config.json",
-            ]
-            for path in config_paths:
-                if path.exists():
-                    with open(path, encoding="utf-8") as f:
-                        settings_json = json.load(f)
-
-                    # Search in mcpServers -> Ripen -> env
-                    # Also check for "SharedMemoryServer" for backward compatibility
-                    server_names = ["Ripen", "SharedMemoryServer"]
-                    for name in server_names:
-                        mcp_env = settings_json.get("mcpServers", {}).get(name, {}).get("env", {})
-                        api_key = mcp_env.get("GOOGLE_API_KEY") or mcp_env.get("GEMINI_API_KEY")
-                        if api_key:
-                            self._api_key = api_key.strip()
-                            return self._api_key
-        except Exception as e:
-            logger.debug(f"Failed to read settings.json: {e}")
-
         return None
 
     @property
@@ -153,19 +126,6 @@ class Settings:
             return provider.lower()
         return DEFAULT_LLM_PROVIDER
 
-    @property
-    def generative_model(self) -> str:
-        """現在のプロバイダーに応じた生成モデル名を返す。"""
-        if self.llm_provider == "gemini":
-            return self.google_ai_model
-        return self.ollama_model
-
-    @property
-    def embedding_model(self) -> str:
-        """現在のエンジンに応じたEmbeddingモデル名を返す。"""
-        if self.embedding_engine == "gemini":
-            return self.google_embedding_model
-        return self.fastembed_model
 
     @property
     def ollama_base_url(self) -> str:
@@ -269,6 +229,21 @@ class Settings:
     def license_key_path(self) -> Path:
         """ライセンスファイルの保存パスを返す。"""
         return self.base_dir / "license.rpn"
+
+    @property
+    def hashtag_ai_threshold(self) -> int:
+        """AIによるハッシュタグ抽出を行う閾値(文字数)。"""
+        return int(self.get("HASHTAG_AI_THRESHOLD", "100"))
+
+    @property
+    def stale_access_threshold(self) -> int:
+        """GC対象とする低頻度アクセスの閾値。"""
+        return int(self.get("STALE_ACCESS_THRESHOLD", "5"))
+
+    @property
+    def default_gc_age_days(self) -> int:
+        """デフォルトのGC対象日数。"""
+        return int(self.get("DEFAULT_GC_AGE_DAYS", "180"))
 
 
 # Global settings instance

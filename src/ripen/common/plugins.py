@@ -1,6 +1,6 @@
-import logging
 import importlib.metadata
-from typing import Any, Dict, List, Type
+import logging
+from typing import Any
 
 logger = logging.getLogger("ripen.common.plugins")
 
@@ -14,7 +14,7 @@ class PluginLoader:
     GROUP_NAME = "ripen.plugins"
 
     @classmethod
-    def load_all(cls, context: Dict[str, Any]) -> List[Any]:
+    def load_all(cls, context: dict[str, Any]) -> list[Any]:
         """
         Scans for and initializes all registered plugins.
         Args:
@@ -37,7 +37,7 @@ class PluginLoader:
                     logger.info(f"Loading plugin: {entry_point.name}...")
 
                     # Load the plugin class
-                    plugin_class: Type = entry_point.load()
+                    plugin_class: type = entry_point.load()
 
                     # Instantiate the plugin
                     plugin_instance = plugin_class()

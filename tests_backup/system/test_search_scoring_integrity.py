@@ -9,7 +9,7 @@ from ripen.infra.database import get_db_path
 
 
 @pytest.mark.asyncio
-async def test_hybrid_search_scoring_and_audit(fake_llm):
+async def test_hybrid_search_scoring_and_audit(_fake_llm):
     """
     総合テスト: ハイブリッド検索のスコアリング整合性と、検索統計の裏取り調査。
     """

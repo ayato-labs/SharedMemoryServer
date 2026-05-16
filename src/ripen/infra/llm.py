@@ -1,4 +1,5 @@
 import abc
+import asyncio
 
 import httpx
 from loguru import logger
@@ -168,18 +169,42 @@ class GeminiProvider(LlmProvider):
         await AIRateLimiter.throttle(task_type="generation")
 
         try:
-            response = await client.aio.models.generate_content(model=model, contents=full_prompt)
+            # Add explicit timeout to prevent indefinite hangs on network/API issues
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(model=model, contents=full_prompt),
+                timeout=30.0
+            )
             logger.info(f"Gemini response received. Model: {model}")
             return response.text
+        except TimeoutError as e:
+            logger.error(f"Gemini API call TIMEOUT (30s) - Model: {model}")
+            raise Exception("AI Brain response timed out. Please try again.") from e
         except Exception as e:
             logger.error(f"Gemini API call failed: {e}")
             raise
 
     async def check_health(self) -> bool:
-        """Checks if Gemini is configured."""
+        """Checks if Gemini is configured and model exists."""
         try:
             client = self._get_client()
-            return client is not None
+            if not client:
+                return False
+            
+            # Check if model exists
+            model_name = settings.generative_model
+            try:
+                # client.models.list is synchronous in google-genai
+                models = client.models.list()
+                model_names = [m.name for m in models]
+                if model_name not in model_names and f"models/{model_name}" not in model_names:
+                    logger.warning(
+                        f"Configured Gemini model '{model_name}' might not be available. "
+                        f"Available models: {model_names}"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not verify Gemini model existence: {e}")
+                
+            return True
         except Exception as e:
             logger.debug(f"Gemini health check failed: {e}")
             return False
@@ -230,12 +255,31 @@ class OllamaProvider(LlmProvider):
                 raise RuntimeError(f"Ollama provider error: {e}") from e
 
     async def check_health(self) -> bool:
-        """Checks if Ollama is reachable."""
+        """Checks if Ollama is reachable and model exists."""
         url = f"{self.base_url}/api/tags"
         async with httpx.AsyncClient(timeout=2.0) as client:
             try:
                 response = await client.get(url)
-                return response.status_code == 200
+                if response.status_code == 200:
+                    data = response.json()
+                    models = data.get("models", [])
+                    model_names = [m.get("name") for m in models]
+                    
+                    if self.model not in model_names:
+                        has_match = False
+                        for name in model_names:
+                            if name.startswith(self.model) or self.model.startswith(name):
+                                has_match = True
+                                break
+                        
+                        if not has_match:
+                            logger.warning(
+                                f"Configured Ollama model '{self.model}' "
+                                f"not found in installed models: {model_names}"
+                            )
+                    
+                    return True
+                return False
             except Exception as e:
                 logger.debug(f"Ollama health check failed: {e}")
                 return False

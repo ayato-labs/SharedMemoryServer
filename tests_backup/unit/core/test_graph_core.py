@@ -40,7 +40,7 @@ async def test_save_relations_low_level(db_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_save_observations_low_level(db_conn, fake_llm):
+async def test_save_observations_low_level(db_conn, _fake_llm):
     """
     Unit Test: graph.save_observations の単体検証。
     """

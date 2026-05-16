@@ -7,7 +7,8 @@ echo This process will bridge stdio to the central Ripen Hub.
 echo It will auto-start a local Hub if one isn't running.
 echo.
 
-uv run ripen --stdio
+set PYTHONPATH=%CD%\src
+.\.venv\Scripts\python.exe -m ripen.api.server --stdio
 
 popd
 pause

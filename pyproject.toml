@@ -73,10 +73,11 @@ package = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests"]
 # Exclude non-relevant files
 exclude = [
+    "tests_backup/",
     "scratch/",
     ".venv",
     "venv",
@@ -84,6 +85,7 @@ exclude = [
     "dist",
     "docs",
     "**/__pycache__",
+    "*.egg-info",
 ]
 
 [tool.ruff.lint]
@@ -98,6 +100,9 @@ select = [
     "PL",  # pylint
     "RUF", # ruff-specific
     "C90", # mccabe
+    "T20", # flake8-print
+    "SLF", # flake8-self
+    "ARG", # flake8-unused-arguments
 ]
 ignore = [
     "PLR0912", # Too many branches
@@ -108,11 +113,18 @@ ignore = [
     "PLW0603", # Global statement
     "E402",    # Module level import not at top of file
     "B008",    # Do not perform function call in argument defaults
+    "SLF001",  # Private member access (often needed in repo patterns)
 ]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
 known-first-party = ["ripen"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["ARG001", "ARG002", "S101", "RUF001", "RUF002", "RUF003", "T201"]
+"src/ripen/api/licensing.py" = ["PLR0911"]
+"scripts/**/*" = ["T201", "E501", "C901"]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

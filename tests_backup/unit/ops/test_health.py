@@ -16,7 +16,7 @@ async def test_check_db_health():
 
 
 @pytest.mark.asyncio
-async def test_check_diagnostics(fake_llm):
+async def test_check_diagnostics(_fake_llm):
     """Verify diagnostics passes for clean system."""
     await init_db(force=True)
 

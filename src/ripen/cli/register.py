@@ -3,7 +3,10 @@ import json
 import os
 import sys
 from pathlib import Path
+
 from ripen.common.utils import get_logger, safe_main_executor
+
+logger = get_logger("register")
 
 
 def get_config_paths():
@@ -76,7 +79,7 @@ def register_mcp(transport="stdio", port=8377, hub_url=None):
     # Special handling for Antigravity (shared memory context)
     server_config["env"]["SHARED_MEMORY_HOME"] = os.path.join(Path.home(), ".ripen")
 
-    print(f"--- MCP Registration ---")
+    logger.info("--- MCP Registration ---")
     for name, path in config_paths.items():
         if not path.exists():
             continue
@@ -106,9 +109,9 @@ def register_mcp(transport="stdio", port=8377, hub_url=None):
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
-            print(f"  [SUCCESS] Registered '{server_name}' in {name}")
+            logger.info(f"  [SUCCESS] Registered '{server_name}' in {name}")
         except Exception as e:
-            print(f"  [ERROR] Failed to update {name}: {e}")
+            logger.error(f"  [ERROR] Failed to update {name}: {e}")
 
 
 def main():

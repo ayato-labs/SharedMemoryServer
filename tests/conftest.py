@@ -1,10 +1,9 @@
-import json
 import os
 import shutil
 import tempfile
 import time
 from contextlib import contextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -26,17 +25,21 @@ async def setup_teardown_db(request):
     os.environ["THOUGHTS_DB_PATH"] = os.path.join(home_dir, "thoughts.db")
     os.environ["MEMORY_BANK_DIR"] = os.path.join(home_dir, "bank")
 
-    # Initialize databases for each test
-    await init_db(force=True)
-    await init_thoughts_db(force=True)
+    # Initialize databases for each test (Skip for system tests to avoid locking)
+    if "system" not in str(request.node.fspath):
+        await init_db(force=True)
+        await init_thoughts_db(force=True)
 
-    # Reset server initialization state
-    from ripen.api import server
+        # Reset server initialization state
+        from ripen.api import server
 
-    server._INITIALIZED_EVENT = None
-    server._INIT_ERROR = None
-    server._INIT_STARTED = False
-    server._INIT_LOCK = None
+        server._INITIALIZED_EVENT = None
+        server._INIT_ERROR = None
+        server._INIT_STARTED = False
+        server._INIT_LOCK = None
+    else:
+        # Still need to create the directory so env vars point to a valid place
+        os.makedirs(os.environ["MEMORY_BANK_DIR"], exist_ok=True)
 
     # Reset database singletons and locks
     from ripen.infra import database
@@ -56,7 +59,6 @@ async def setup_teardown_db(request):
     yield
 
     # Teardown: Close singleton connections before rmtree (Windows requirement)
-    # We must ensure all connections are closed and references cleared
     try:
         from ripen.api.server import wait_for_background_tasks
 
@@ -85,9 +87,12 @@ def fake_llm_client():
 
     # Wrap client to behave like LlmProvider if needed
     class FakeProvider(LlmProvider):
-        async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+        async def generate_content(self, prompt: str, system_instruction: str | None = None) -> str:
             resp = client.models.generate_content(model="fake", contents=prompt)
             return resp.text
+
+        async def check_health(self) -> bool:
+            return True
 
     provider = FakeProvider()
 
@@ -104,89 +109,6 @@ def fake_llm_client():
     finally:
         for p in patches:
             p.stop()
-
-
-@pytest.fixture
-def mock_llm(request):
-    """
-    Universal LLM mock (MagicMock) for Integration/System tests.
-    Disabled automatically if 'unit' marker is used.
-    """
-    if "unit" in request.node.keywords:
-        pytest.fail("MagicMock is prohibited in unit tests. Use 'fake_llm' fixture instead.")
-        yield None
-        return
-
-    client = MagicMock()
-    # Mock for LlmProvider interface
-    client.generate_content = AsyncMock()
-    client.generate_content.return_value = json.dumps(
-        {"conflict": False, "reason": "No conflict detected in mock."}
-    )
-
-    # Backward compatibility for tests that still expect .models structure
-    client.models.generate_content.return_value.text = json.dumps(
-        {"conflict": False, "reason": "No conflict detected in mock."}
-    )
-
-    def set_response(method, text):
-        if method == "generate_content":
-            client.generate_content.return_value = text
-            client.models.generate_content.return_value.text = text
-            client.aio.models.generate_content.return_value.text = text
-
-    client.models.set_response = set_response
-
-    client.aio.models.generate_content = AsyncMock()
-    client.aio.models.generate_content.return_value.text = json.dumps(
-        {"conflict": False, "reason": "No conflict detected in mock."}
-    )
-
-    client.aio.models.embed_content = AsyncMock()
-    mock_embedding = MagicMock()
-    mock_embedding.values = [0.1] * 768
-
-    class FakeEmbeddingResponse:
-        def __init__(self, embeddings):
-            self.embeddings = embeddings
-
-    client.aio.models.embed_content.return_value = FakeEmbeddingResponse([mock_embedding] * 100)
-
-    model_obj = MagicMock()
-    model_obj.name = "models/gemini-2.0-flash-exp"
-
-    client.models.list = MagicMock()
-    client.models.list.return_value = [model_obj]
-
-    client.aio.models.list = AsyncMock()
-    client.aio.models.list.return_value = [model_obj]
-
-    patches = [
-        patch("ripen.infra.llm.GeminiProvider", return_value=client),
-        patch("ripen.infra.llm.OllamaProvider", return_value=client),
-        patch("ripen.infra.llm.get_llm_provider", return_value=client),
-        patch("ripen.infra.embeddings.get_gemini_client", return_value=client),
-    ]
-
-    for p in patches:
-        p.start()
-
-    try:
-        yield client
-    finally:
-        for p in patches:
-            p.stop()
-
-
-@pytest.fixture(autouse=True)
-def auto_mock_llm(request):
-    """
-    Automatically provide mock_llm to non-unit tests.
-    Unit tests must explicitly use 'fake_llm'.
-    """
-    if "unit" in request.node.keywords:
-        return None
-    return request.getfixturevalue("mock_llm")
 
 
 @pytest.fixture

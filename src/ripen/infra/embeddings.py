@@ -61,7 +61,7 @@ async def compute_embeddings_bulk(texts: list[str]) -> list[list[float]]:
 @retry_on_ai_quota(max_retries=3, rotate_models=False)
 @retry_on_db_lock()
 async def compute_embedding(
-    text_list: str | list[str], conn: Any = None
+    text_list: str | list[str], _conn: Any = None
 ) -> list[float] | list[list[float]]:
     """
     Computes text embeddings using the configured engine (FastEmbed or Gemini).

@@ -2,8 +2,9 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - develop
 
 jobs:
   quality-gate:
@@ -31,26 +32,30 @@ jobs:
       - name: Run Tests
         run: uv run pytest tests/
 
-  pypi-publish:
-    name: Publish to PyPI
+  semantic-release:
+    name: Semantic Release
     needs: [quality-gate]
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Required for trusted publishing
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-      - name: Build package
-        run: uv build
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          skip-existing: true
+
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   github-release:
-    name: Build EXE & Create GitHub Release
-    needs: [quality-gate]
+    name: Build EXE & Upload to Release
+    needs: [semantic-release]
+    if: needs.semantic-release.outputs.new_release_published == 'true'
     runs-on: windows-latest
     permissions:
       contents: write
@@ -76,10 +81,12 @@ jobs:
       - name: Build Standalone EXE
         run: uv run scripts/build_exe.py
 
-      - name: Create Release and Upload EXE
+      - name: Upload EXE to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/ripen.exe
-          generate_release_notes: true
+          tag_name: v${{ needs.semantic-release.outputs.new_release_version }}
+          files: |
+            dist/ripen-hub.exe
+            dist/ripen-admin.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

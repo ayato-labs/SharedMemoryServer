@@ -3,16 +3,16 @@ from ripen.common.utils import calculate_importance, mask_sensitive_data, saniti
 
 def test_calculate_importance_basic():
     # Frequency should increase importance
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(datetime.UTC).isoformat()
 
     freq_1 = calculate_importance(1, now)
     freq_10 = calculate_importance(10, now)
     assert freq_10 > freq_1
 
     # Recency should increase importance (older is less important)
-    old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    old = (datetime.now(datetime.UTC) - timedelta(days=60)).isoformat()
     freq_1_recent = calculate_importance(1, now)
     freq_1_old = calculate_importance(1, old)
     assert freq_1_recent > freq_1_old
