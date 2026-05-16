@@ -176,10 +176,8 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 docker stop ripen-hub
 
 # 3. Rename the old container to preserve logs (Recommended)
-# For Linux/Mac:
-docker rename ripen-hub ripen-hub-old-$(date +%Y%m%d)
-# For Windows PowerShell:
-# docker rename ripen-hub "ripen-hub-old-$(Get-Date -Format 'yyyyMMdd')"
+# (Replace 20260516 with today's date / 本日の日付に置き換えてください)
+docker rename ripen-hub ripen-hub-old-20260516
 
 # 4. Start the new container with the same volume
 docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
