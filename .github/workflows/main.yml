@@ -36,13 +36,11 @@ jobs:
           python-version: '3.11'
           enable-cache: true
       - name: Install dependencies
-        run: |
-          if [ ! -d ".venv" ]; then uv venv; fi
-          uv pip install -e "./[test]"
-          uv pip install ruff pytest-timeout
+        run: uv sync --all-extras
       - name: Lint
         run: |
           uv run ruff check src tests
+          uv run djlint src/ --check
       - name: Run Tests
         run: |
           # Tiered Testing: PRs only run fast unit tests. Full tests run on main.
