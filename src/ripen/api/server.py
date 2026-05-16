@@ -106,23 +106,23 @@ mcp._lifespan = lifespan
 async def dashboard_root(request):
     return await dashboard.get_dashboard_html(request)
 
-@mcp.custom_route("/dashboard/api/history", methods=["GET"])
+@mcp.custom_route("/api/history", methods=["GET"])
 async def dashboard_api_history(request):
     return await dashboard.api_history(request)
 
-@mcp.custom_route("/dashboard/api/conflicts", methods=["GET"])
+@mcp.custom_route("/api/conflicts", methods=["GET"])
 async def dashboard_api_conflicts(request):
     return await dashboard.api_conflicts(request)
 
-@mcp.custom_route("/dashboard/api/resolve/{id}", methods=["POST"])
+@mcp.custom_route("/api/resolve/{id}", methods=["POST"])
 async def dashboard_api_resolve(request):
     return await dashboard.api_resolve_conflict(request)
 
-@mcp.custom_route("/dashboard/api/health", methods=["GET"])
+@mcp.custom_route("/api/health", methods=["GET"])
 async def dashboard_api_health(request):
     return await dashboard.api_health(request)
 
-@mcp.custom_route("/dashboard/api/license/activate", methods=["POST"])
+@mcp.custom_route("/api/license/activate", methods=["POST"])
 async def dashboard_api_license_activate(request):
     return await dashboard.api_activate_license(request)
 
