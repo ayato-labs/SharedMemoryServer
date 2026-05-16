@@ -37,6 +37,7 @@ from ripen.core import (
     logic as logic_module,
     thought_logic as thought_module,
 )
+from ripen.api import dashboard
 
 # --- INITIALIZATION ---
 logger = get_logger("server")
@@ -98,6 +99,32 @@ async def lifespan(_mcp_instance: FastMCP) -> AsyncGenerator[None, None]:
             pass
 
 mcp._lifespan = lifespan
+
+# --- DASHBOARD ROUTES ---
+
+@mcp.custom_route("/dashboard", methods=["GET"])
+async def dashboard_root(request):
+    return await dashboard.get_dashboard_html(request)
+
+@mcp.custom_route("/dashboard/api/history", methods=["GET"])
+async def dashboard_api_history(request):
+    return await dashboard.api_history(request)
+
+@mcp.custom_route("/dashboard/api/conflicts", methods=["GET"])
+async def dashboard_api_conflicts(request):
+    return await dashboard.api_conflicts(request)
+
+@mcp.custom_route("/dashboard/api/resolve/{id}", methods=["POST"])
+async def dashboard_api_resolve(request):
+    return await dashboard.api_resolve_conflict(request)
+
+@mcp.custom_route("/dashboard/api/health", methods=["GET"])
+async def dashboard_api_health(request):
+    return await dashboard.api_health(request)
+
+@mcp.custom_route("/dashboard/api/license/activate", methods=["POST"])
+async def dashboard_api_license_activate(request):
+    return await dashboard.api_activate_license(request)
 
 # --- TOOLS ---
 
