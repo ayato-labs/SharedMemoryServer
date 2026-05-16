@@ -74,7 +74,7 @@ jobs:
       - name: Install and Run Semantic Release
         id: semantic
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           if [ ! -d ".venv" ]; then uv venv; fi
           uv pip install python-semantic-release

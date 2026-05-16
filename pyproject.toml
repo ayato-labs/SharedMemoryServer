@@ -143,3 +143,5 @@ version_toml = ["pyproject.toml:project.version"]
 branch = "main"
 upload_to_PyPI = false
 upload_to_release = true
+
+# Trigger release with clean state
