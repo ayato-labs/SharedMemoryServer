@@ -79,15 +79,9 @@ jobs:
           if [ ! -d ".venv" ]; then uv venv; fi
           uv pip install python-semantic-release
           
-          PREV_VER=$(uv run semantic-release version --print)
-          echo "Previous version: $PREV_VER"
-          
           uv run semantic-release version
           
-          NEW_VER=$(uv run semantic-release version --print)
-          echo "New version: $NEW_VER"
-          
-          if [ "$PREV_VER" != "$NEW_VER" ]; then
+          if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
             echo "new_release_published=true" >> $GITHUB_OUTPUT
             uv run semantic-release publish
           else
