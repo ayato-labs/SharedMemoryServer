@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.9.1 (2026-05-16)
+
+### Bug Fixes
+
+- Use PAT_TOKEN for Docker login to fix GHCR permission error
+  ([`ae47063`](https://github.com/ayato-labs/ripen/commit/ae4706369c50ce376c435ee2fca2461ee97852e7))
+
+
 ## v1.9.0 (2026-05-16)
 
 ### Features
