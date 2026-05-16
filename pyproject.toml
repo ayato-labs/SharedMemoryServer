@@ -137,3 +137,9 @@ markers = [
     "chaos: Chaos/Failure tests",
 ]
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_PyPI = false
+upload_to_release = true
