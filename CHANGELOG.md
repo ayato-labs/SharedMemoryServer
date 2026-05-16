@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v1.11.0 (2026-05-16)
+
+### Bug Fixes
+
+- Remove blank lines in dashboard.html to satisfy linter
+  ([`e17f7fd`](https://github.com/ayato-labs/ripen/commit/e17f7fda4eb5d562ab400b8370214d1bdf4b7cbd))
+
+### Documentation
+
+- Add AGPL clarification and formalize trial in COMMERCIAL.md
+  ([`5e22311`](https://github.com/ayato-labs/ripen/commit/5e22311627ed72b21ca51699a48a2579e520ea66))
+
+- Add Keygen.sh 100 license limit warning to COMMERCIAL.md
+  ([`0fdc3fd`](https://github.com/ayato-labs/ripen/commit/0fdc3fdf9b4ff623c2f9cd838ca5f41ed3518e50))
+
+- Add update instructions for Docker in README
+  ([`b54ec5e`](https://github.com/ayato-labs/ripen/commit/b54ec5e026b12de24d0146bb71c7f315dc859216))
+
+- Clarify manual license fallback and mention Keygen.sh in COMMERCIAL.md
+  ([`293d572`](https://github.com/ayato-labs/ripen/commit/293d57272c7b787b06c136f006c4eae9c7ca29a9))
+
+- Use foreground execution as default in README Docker commands
+  ([`41863bf`](https://github.com/ayato-labs/ripen/commit/41863bfc57176ee69bb400495a2b52ee65efd384))
+
+- Use self-declaration flow and remove Keygen.sh in COMMERCIAL.md
+  ([`6f6d3a3`](https://github.com/ayato-labs/ripen/commit/6f6d3a3fb5d9905d13e1c8ef350de43bf92f22f7))
+
+### Features
+
+- Implement MCP server with knowledge management tools and permissive handshake protocol patching
+  ([`2b52df8`](https://github.com/ayato-labs/ripen/commit/2b52df8a30f11aefbebde157adecd7ae900cb65a))
+
+- Remove license activation UI and JS from dashboard
+  ([`29b6b2e`](https://github.com/ayato-labs/ripen/commit/29b6b2eb79fd6bb6f951a06ca6008b5705496e4f))
+
+
 ## v1.10.1 (2026-05-16)
 
 ### Bug Fixes
