@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.8.2 (2026-05-16)
+
+### Bug Fixes
+
+- Correct PyInstaller script paths in main.yml
+  ([`69548aa`](https://github.com/ayato-labs/ripen/commit/69548aaa9751fee77199c00f411cbdc8641ba712))
+
+
 ## v1.8.1 (2026-05-16)
 
 ### Bug Fixes
