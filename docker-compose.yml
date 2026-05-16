@@ -1,19 +1,12 @@
 services:
-  shared-memory-hub:
-    build: .
-    container_name: shared-memory-hub
+  ripen:
+    image: ghcr.io/ayato-labs/ripen:latest
+    container_name: ripen-hub
     ports:
       - "8377:8377"
     volumes:
-      # Persist the knowledge database and memory bank
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - ${RIPEN_HOST_DATA_DIR:-C:/Users/saiha/.ripen}:/data
     environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - MCP_TRANSPORT=sse
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LOG_LEVEL=INFO
     restart: unless-stopped
-    command: ["--sse", "--port", "8377", "--timeout", "1800"]
-
-volumes:
-  data:
-  logs:

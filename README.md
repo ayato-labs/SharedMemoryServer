@@ -160,7 +160,15 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 ```
 
 #### 2. Start (起動)
-Run the container. We recommend naming it `ripen-hub` for easy management. By default, it runs in the foreground so you can see the logs immediately.
+
+**Method A: Docker Compose (Recommended)**
+Use the provided `docker-compose.yml` to automatically handle volume mounting and environment variables.
+```bash
+docker compose up -d
+```
+
+**Method B: Docker Run**
+Run the container manually. By default, it runs in the foreground so you can see the logs immediately.
 ```bash
 docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
 ```
