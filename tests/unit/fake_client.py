@@ -23,7 +23,7 @@ class FakeModels:
     def clear_errors(self):
         self._errors = {}
 
-    def embed_content(self, _model, contents, _config=None):
+    def embed_content(self, model, contents, config=None):
         if "embed_content" in self._errors:
             raise self._errors["embed_content"]
 
