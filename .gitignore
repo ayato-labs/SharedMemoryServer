@@ -12,6 +12,8 @@ wheels/
 # Data files (Strict privacy)
 *.db
 audit_test.db
+*.db-shm
+*.db-wal
 # Local scratch and logs
 scratch/*.jsonl
 .env
