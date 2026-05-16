@@ -35,4 +35,4 @@ ENV LOG_LEVEL=INFO
 
 # Start the Ripen server in SSE mode by default
 # This allows it to act as a centralized knowledge hub out of the box
-ENTRYPOINT ["ripen", "--sse", "--port", "8377"]
+ENTRYPOINT ["ripen", "--port", "8377"]
