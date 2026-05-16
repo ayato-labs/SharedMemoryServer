@@ -144,4 +144,4 @@ branch = "main"
 upload_to_PyPI = false
 upload_to_release = true
 
-# Trigger release with clean state
+# Trigger release v1.8.1
