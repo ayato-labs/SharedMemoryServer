@@ -1,12 +1,13 @@
+import argparse
 import asyncio
 import json
-import sys
-import argparse
 import os
-from typing import Optional
+import sys
+
 from mcp.client.sse import sse_client
 from mcp.shared.session import SessionMessage
 from mcp.types import JSONRPCMessage
+
 
 async def run_bridge(candidates: list[str]):
     """
@@ -14,16 +15,17 @@ async def run_bridge(candidates: list[str]):
     Tries each candidate URL until a connection is established.
     """
     for hub_url in candidates:
+        target_url = hub_url
         if not hub_url.endswith("/sse"):
-            hub_url = hub_url.rstrip("/") + "/sse"
+            target_url = hub_url.rstrip("/") + "/sse"
             
-        sys.stderr.write(f"[Ripen Client] Attempting to connect to {hub_url}...\n")
+        sys.stderr.write(f"[Ripen Client] Attempting to connect to {target_url}...\n")
         
         try:
             # Use a short timeout for the connection phase
             async with asyncio.timeout(5.0):
-                async with sse_client(hub_url) as (read_stream, write_stream):
-                    sys.stderr.write(f"[Ripen Client] Connected to Hub at {hub_url}!\n")
+                async with sse_client(target_url) as (read_stream, write_stream):
+                    sys.stderr.write(f"[Ripen Client] Connected to Hub at {target_url}!\n")
                     
                     async def forward_from_hub_to_stdio():
                         try:
@@ -57,7 +59,7 @@ async def run_bridge(candidates: list[str]):
                     )
                     return # Exit after successful bridge session
                     
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             sys.stderr.write(f"[Ripen Client] Connection to {hub_url} failed: {e}. Trying next...\n")
             continue
 

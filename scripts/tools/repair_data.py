@@ -1,8 +1,6 @@
 import os
 import sqlite3
-import json
 import sys
-from datetime import datetime
 
 # Setup paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

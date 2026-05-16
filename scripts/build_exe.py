@@ -1,8 +1,8 @@
 import os
-import sys
-import shutil
 import subprocess
+import sys
 from pathlib import Path
+
 
 def kill_existing_process(target_name):
     """Kills any running process with the target name to release file locks."""
@@ -88,7 +88,7 @@ def build_target(target: str, base_dir: Path):
         "--clean",
         "--copy-metadata=fastmcp",
         "--copy-metadata=ripen",
-        f"--add-data=src/ripen;ripen",
+        "--add-data=src/ripen;ripen",
     ]
     
     # Target specific hidden imports

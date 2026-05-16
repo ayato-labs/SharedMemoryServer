@@ -6,8 +6,8 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from ripen.database import get_db_path  # noqa: E402
-from ripen.utils import get_thoughts_db_path  # noqa: E402
+from ripen.database import get_db_path
+from ripen.utils import get_thoughts_db_path
 
 
 def run_diagnostics():

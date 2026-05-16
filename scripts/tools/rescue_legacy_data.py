@@ -9,7 +9,7 @@ import sys
 project_root = os.getcwd()
 sys.path.insert(0, os.path.join(project_root, "src"))
 
-from ripen.database import async_get_connection, init_db  # noqa: E402
+from ripen.database import async_get_connection, init_db
 
 
 async def rescue_data():

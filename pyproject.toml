@@ -123,6 +123,7 @@ known-first-party = ["ripen"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = ["ARG001", "ARG002", "S101", "RUF001", "RUF002", "RUF003", "T201"]
 "src/ripen/api/licensing.py" = ["PLR0911"]
+"scripts/**/*" = ["T201", "E501", "C901"]
 
 
 [tool.pytest.ini_options]
