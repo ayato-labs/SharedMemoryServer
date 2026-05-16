@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v1.9.2 (2026-05-16)
+
+### Bug Fixes
+
+- Remove unsupported --sse flag from Dockerfile entrypoint
+  ([`d857a3f`](https://github.com/ayato-labs/ripen/commit/d857a3f10299afba7fa1bfe1a26cdbf4b34eec5d))
+
+### Documentation
+
+- Remove Stdio connection instructions from README
+  ([`16db705`](https://github.com/ayato-labs/ripen/commit/16db70587484e265ec15acd2596491ca71c92ad2))
+
+- Update README to prioritize Docker installation
+  ([`25d0ca2`](https://github.com/ayato-labs/ripen/commit/25d0ca2026b39fc68cf4d045374c81a1da8c6038))
+
+
 ## v1.9.1 (2026-05-16)
 
 ### Bug Fixes
