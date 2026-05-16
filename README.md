@@ -153,8 +153,29 @@ Ripen prioritizes **system stability** over massive internal dependencies.
 
 ### Option A: Docker (Recommended for Engineers) 🐳
 The most stable and easiest way to run the Ripen Hub. No Python required. Works on Windows, Mac, and Linux.
+
+#### 1. Install (取得)
 ```bash
-docker run -d -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+docker pull ghcr.io/ayato-labs/ripen:latest
+```
+
+#### 2. Start (起動)
+Run the container in the background. We recommend naming it `ripen-hub` for easy management.
+```bash
+docker run -d --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+```
+
+#### 3. Uninstall (削除)
+To completely remove the container, image, and persisted data:
+```bash
+# Stop and remove the container
+docker stop ripen-hub && docker rm ripen-hub
+
+# Remove the image
+docker rmi ghcr.io/ayato-labs/ripen:latest
+
+# Remove the volume (WARNING: This will delete all your stored knowledge!)
+docker volume rm ripen_data
 ```
 
 ### Option B: Native Binary (Windows Only) 🚀

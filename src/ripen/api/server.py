@@ -310,7 +310,12 @@ def print_banner(mode: str, port: int):
 
 def main():
     configure_logging()
-    logger.info("--- SERVER SCRIPT STARTING (Extreme Guard Mode) ---")
+    import importlib.metadata
+    try:
+        version = importlib.metadata.version("ripen")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    logger.info(f"--- SERVER SCRIPT STARTING (Version: {version}) ---")
     logger.info(f"Main execution started (Args: {sys.argv})")
 
 
