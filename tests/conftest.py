@@ -1,10 +1,9 @@
-import json
 import os
 import shutil
 import tempfile
 import time
 from contextlib import contextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -88,7 +87,7 @@ def fake_llm_client():
 
     # Wrap client to behave like LlmProvider if needed
     class FakeProvider(LlmProvider):
-        async def generate_content(self, prompt: str, system_instruction: str = None) -> str:
+        async def generate_content(self, prompt: str, system_instruction: str | None = None) -> str:
             resp = client.models.generate_content(model="fake", contents=prompt)
             return resp.text
 

@@ -3,6 +3,7 @@ import signal
 import subprocess
 import sys
 import time
+
 import httpx
 import pytest
 
@@ -65,7 +66,7 @@ def server_process():
     # Read logs for debugging output in test
     print("\n--- Server Logs ---")
     if os.path.exists(log_file_path):
-        with open(log_file_path, "r", encoding="utf-8") as f:
+        with open(log_file_path, encoding="utf-8") as f:
             print(f.read())
     print("-------------------")
     
@@ -117,7 +118,6 @@ async def test_server_http_connectivity(server_process):
                 timeout=5.0
             )
             assert response.status_code in [200, 406]
-            print(f"DEBUG: MCP response status: {response.status_code}")
         except httpx.ConnectError:
             pytest.fail("Failed to connect to the server on port 8377 for MCP request")
         except Exception as e:

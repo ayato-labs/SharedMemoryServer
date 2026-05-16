@@ -1,19 +1,17 @@
 import argparse
+import asyncio
+import json
 import os
+import signal
 import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 # Force prioritize local src to ensure Hub and Proxy use the same latest code
 CURRENT_SRC = str(Path(__file__).parent.parent.parent.absolute())
 if CURRENT_SRC not in sys.path:
     sys.path.insert(0, CURRENT_SRC)
-
-import asyncio
-import json
-import signal
-
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
 from starlette.applications import Starlette
@@ -28,6 +26,7 @@ from ripen.common.utils import configure_logging, get_logger, safe_main_executor
 from ripen.infra.database import init_db
 from ripen.infra.llm import get_llm_provider
 from ripen.ops.lifecycle import start_database_maintenance
+
 
 async def ensure_initialized():
     """Legacy helper for tests and external scripts."""

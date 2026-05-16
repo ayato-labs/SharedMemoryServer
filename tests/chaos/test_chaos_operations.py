@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from unittest.mock import patch
+
 import httpx
 import pytest
 from tests.unit.fake_client import FakeGeminiClient
@@ -47,7 +48,10 @@ async def test_ai_error_resilience():
     Expectation: APIエラーが発生しても、システムはクラッシュせず、
     適切に例外をスローするか、あるいはフォールバックする。
     """
-    with patch("ripen.infra.embeddings._run_engine_computation", side_effect=Exception("Rate Limit Exceeded")):
+    with patch(
+        "ripen.infra.embeddings._run_engine_computation",
+        side_effect=Exception("Rate Limit Exceeded")
+    ):
         import uuid
         res = await logic.save_memory_core(
             entities=[{"name": "FailNode", "description": f"Unique fail {uuid.uuid4()}"}]
@@ -132,7 +136,7 @@ def server_process():
     try:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
-    except:
+    except Exception:
         pass
 
 
