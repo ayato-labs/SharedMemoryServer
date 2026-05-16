@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import pytest
+from tests.unit.fake_client import FakeGeminiClient
 
 from ripen.core import logic
-from tests.unit.fake_client import FakeGeminiClient
 
 
 @pytest.mark.asyncio

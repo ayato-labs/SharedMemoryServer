@@ -3,7 +3,7 @@ from ripen.common.utils import calculate_importance, mask_sensitive_data, saniti
 
 def test_calculate_importance_basic():
     # Frequency should increase importance
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     now = datetime.now(datetime.UTC).isoformat()
 

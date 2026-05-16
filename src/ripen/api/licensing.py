@@ -1,11 +1,11 @@
 import base64
 import json
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
 from ripen.common.config import settings
 from ripen.common.utils import get_logger
 
@@ -111,7 +111,7 @@ class LicenseManager:
             return True
 
         try:
-            with open(trial_marker, "r") as f:
+            with open(trial_marker) as f:
                 start_str = f.read().strip()
             start_date = datetime.fromisoformat(start_str)
 
@@ -130,24 +130,7 @@ class LicenseManager:
             logger.debug(f"Trial validation failed (likely marker missing): {e}")
             return False
 
-    def get_status_summary(self) -> str:
-        """人間が読みやすい形式のライセンスステータスを返す。"""
-        info = self.info
-        if info.get("type") == "trial":
-            status = info.get("status", "unknown")
-            if status == "active":
-                # Calculate remaining days
-                trial_marker = settings.base_dir / ".trial_start"
-                if trial_marker.exists():
-                    with open(trial_marker, "r") as f:
-                        start_date = datetime.fromisoformat(f.read().strip())
-                    remaining = (start_date + timedelta(days=180)) - datetime.now()
-                    return f"FREE TRIAL ({remaining.days} days remaining)"
-            return f"FREE TRIAL ({status.upper()})"
 
-        user = info.get("user", "Registered User")
-        expiry = info.get("expiry", "Never")
-        return f"PREMIUM (Registered to: {user}, Expiry: {expiry})"
 
     @property
     def info(self) -> dict:
@@ -167,7 +150,7 @@ class LicenseManager:
                 trial_marker = settings.base_dir / ".trial_start"
                 if trial_marker.exists():
                     try:
-                        with open(trial_marker, "r") as f:
+                        with open(trial_marker) as f:
                             start_str = f.read().strip()
                         start_date = datetime.fromisoformat(start_str)
                         trial_days = 180

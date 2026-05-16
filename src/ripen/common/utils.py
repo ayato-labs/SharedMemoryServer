@@ -20,7 +20,7 @@ def get_resource_path(relative_path: str) -> Path:
     """
     if hasattr(sys, "_MEIPASS"):
         # PyInstaller mode: resources are bundled under _MEIPASS/ripen
-        base_path = Path(getattr(sys, "_MEIPASS")) / "ripen"
+        base_path = Path(sys._MEIPASS) / "ripen"
     else:
         # Dev mode: resolve relative to src/ripen
         # utils.py is in src/ripen/common/utils.py
@@ -364,7 +364,8 @@ def calculate_importance(access_count: int, last_accessed: str) -> float:
 
         score = freq_score * decay
         logger.debug(
-            f"Importance: {score:.4f} (freq={freq_score:.2f}, decay={decay:.2f}, days={days_ago:.1f})"
+            f"Importance: {score:.4f} (freq={freq_score:.2f}, "
+            f"decay={decay:.2f}, days={days_ago:.1f})"
         )
         return score
     except Exception as e:
@@ -388,11 +389,11 @@ def safe_main_executor(main_func):
             # Ensure the terminal doesn't close abruptly ONLY if it's a TTY
             # Background MCP services must exit to avoid deadlocks
             if sys.stdin.isatty():
-                print("\n" + "!" * 60)
-                print("  FATAL ERROR OCCURRED")
-                print(f"  {type(e).__name__}: {e}")
-                print("  Check logs/error.log for full traceback.")
-                print("!" * 60)
+                logger.critical("!" * 60)
+                logger.critical("  FATAL ERROR OCCURRED")
+                logger.critical(f"  {type(e).__name__}: {e}")
+                logger.critical("  Check logs/error.log for full traceback.")
+                logger.critical("!" * 60)
                 try:
                     input("\nPress [Enter] to close the terminal...")
                 except (EOFError, KeyboardInterrupt):

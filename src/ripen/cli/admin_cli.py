@@ -1,69 +1,71 @@
 import argparse
 import asyncio
 
-from ripen.common.utils import configure_logging, get_logger, safe_main_executor
+from ripen.common.utils import get_logger, safe_main_executor
 from ripen.core import logic, thought_logic
 from ripen.ops import management
+
+logger = get_logger("admin_cli")
 
 
 async def run_history(args):
     history = await logic.get_audit_history_core(limit=args.limit)
     if not history:
-        print("No audit history found.")
+        logger.info("No audit history found.")
         return
-    print(f"{'ID':<5} | {'Timestamp':<20} | {'Action':<10} | {'Table':<15} | {'Agent':<15}")
-    print("-" * 75)
+    logger.info(f"{'ID':<5} | {'Timestamp':<20} | {'Action':<10} | {'Table':<15} | {'Agent':<15}")
+    logger.info("-" * 75)
     for entry in history:
-        print(
+        logger.info(
             f"{entry['id']:<5} | {entry['timestamp']:<20} | "
             f"{entry['action']:<10} | {entry['table']:<15} | "
             f"{entry['agent']:<15}"
         )
 
 
-async def run_repair(args):
-    print("Repairing memory bank files from database...")
+async def run_repair(_args):
+    logger.info("Repairing memory bank files from database...")
     result = await logic.repair_memory_core()
-    print(result)
+    logger.info(result)
 
 
 async def run_rollback(args):
-    print(f"Rolling back to audit ID {args.id}...")
+    logger.info(f"Rolling back to audit ID {args.id}...")
     result = await logic.rollback_memory_core(args.id)
-    print(result)
+    logger.info(result)
 
 
 async def run_snapshot(args):
     if args.subcommand == "create":
         res = await logic.create_snapshot_core(args.name, args.description or "")
-        print(res)
+        logger.info(res)
     elif args.subcommand == "restore":
         res = await logic.restore_snapshot_core(args.id)
-        print(res)
+        logger.info(res)
     elif args.subcommand == "list":
         # We need a list_snapshots function in management or logic
         snapshots = await management.list_snapshots_logic()
         if not snapshots:
-            print("No snapshots found.")
+            logger.info("No snapshots found.")
             return
-        print(f"{'ID':<5} | {'Timestamp':<20} | {'Name':<20}")
-        print("-" * 50)
+        logger.info(f"{'ID':<5} | {'Timestamp':<20} | {'Name':<20}")
+        logger.info("-" * 50)
         for s in snapshots:
-            print(f"{s['id']:<5} | {s['timestamp']:<20} | {s['name']:<20}")
+            logger.info(f"{s['id']:<5} | {s['timestamp']:<20} | {s['name']:<20}")
 
 
-async def run_health(args):
-    print("Running system diagnostics...")
+async def run_health(_args):
+    logger.info("Running system diagnostics...")
     health = await logic.get_memory_health_core()
     import json
 
-    print(json.dumps(health, indent=2, ensure_ascii=False))
+    logger.info(json.dumps(health, indent=2, ensure_ascii=False))
 
 
-async def run_recover_thoughts(args):
-    print("Recovering undistilled thoughts...")
+async def run_recover_thoughts(_args):
+    logger.info("Recovering undistilled thoughts...")
     await thought_logic.recover_undistilled_sessions()
-    print("Recovery scan complete.")
+    logger.info("Recovery scan complete.")
 
 
 async def run_license(args):
@@ -74,22 +76,22 @@ async def run_license(args):
     if args.subcommand == "status":
         is_valid = manager.validate_locally()
         info = manager.info
-        print(f"--- License Status ---")
-        print(f"Type: {info.get('type')}")
+        logger.info("--- License Status ---")
+        logger.info(f"Type: {info.get('type')}")
         if info.get("user"):
-            print(f"User: {info.get('user')}")
+            logger.info(f"User: {info.get('user')}")
         if info.get("expiry"):
-            print(f"Expiry: {info.get('expiry')}")
+            logger.info(f"Expiry: {info.get('expiry')}")
 
-        print(f"Status: {'VALID' if is_valid else 'INVALID/EXPIRED'}")
-        print(f"----------------------")
+        logger.info(f"Status: {'VALID' if is_valid else 'INVALID/EXPIRED'}")
+        logger.info("----------------------")
 
     elif args.subcommand == "activate":
         success = manager.activate(args.path)
         if success:
-            print("License activated successfully!")
+            logger.info("License activated successfully!")
         else:
-            print("Failed to activate license. Please check the file and try again.")
+            logger.info("Failed to activate license. Please check the file and try again.")
 
 
 def main():

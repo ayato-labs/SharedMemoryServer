@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import pytest
+from tests.unit.fake_client import FakeGeminiClient
 
 from ripen.core.graph import extract_hashtags, save_tags
-from tests.unit.fake_client import FakeGeminiClient
 
 pytestmark = pytest.mark.unit
 

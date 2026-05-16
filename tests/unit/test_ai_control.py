@@ -52,7 +52,7 @@ class TestAIControl:
         assert parse_retry_delay(Exception("Generic error")) is None
 
     @pytest.mark.asyncio
-    async def test_retry_on_ai_quota_logic(self, fake_llm):
+    async def test_retry_on_ai_quota_logic(self, _fake_llm):
         """
         Tests the retry decorator using the Fake LLM.
         We simulate a 429 error and verify it rotates and eventually succeeds or fails.
@@ -75,7 +75,7 @@ class TestAIControl:
         assert call_count == 2
 
     @pytest.mark.asyncio
-    async def test_retry_on_500_internal_error(self, fake_llm):
+    async def test_retry_on_500_internal_error(self, _fake_llm):
         """
         Tests the retry decorator handles 500 Internal Server Error.
         """
@@ -95,7 +95,7 @@ class TestAIControl:
         assert call_count == 2
 
     @pytest.mark.asyncio
-    async def test_retry_exhaustion(self, fake_llm):
+    async def test_retry_exhaustion(self, _fake_llm):
         """Tests that it eventually raises the error after exhausting all retries."""
         call_count = 0
 

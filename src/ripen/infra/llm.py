@@ -197,7 +197,10 @@ class GeminiProvider(LlmProvider):
                 models = client.models.list()
                 model_names = [m.name for m in models]
                 if model_name not in model_names and f"models/{model_name}" not in model_names:
-                    logger.warning(f"Configured Gemini model '{model_name}' might not be available. Available models: {model_names}")
+                    logger.warning(
+                        f"Configured Gemini model '{model_name}' might not be available. "
+                        f"Available models: {model_names}"
+                    )
             except Exception as e:
                 logger.warning(f"Could not verify Gemini model existence: {e}")
                 
@@ -270,7 +273,10 @@ class OllamaProvider(LlmProvider):
                                 break
                         
                         if not has_match:
-                            logger.warning(f"Configured Ollama model '{self.model}' not found in installed models: {model_names}")
+                            logger.warning(
+                                f"Configured Ollama model '{self.model}' "
+                                f"not found in installed models: {model_names}"
+                            )
                     
                     return True
                 return False

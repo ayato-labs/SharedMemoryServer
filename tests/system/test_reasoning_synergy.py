@@ -10,6 +10,9 @@ from ripen.api.server import (
     sequential_thinking,
     wait_for_background_tasks,
 )
+from ripen.common.utils import get_logger
+
+logger = get_logger("test_reasoning_synergy")
 
 
 @pytest.mark.asyncio
@@ -69,9 +72,9 @@ async def test_reasoning_and_distillation_system_flow(mock_llm):
             # Maybe it was saved with a different name or didn't save?
             cursor = await conn.execute("SELECT name FROM entities")
             all_names = [r[0] for r in await cursor.fetchall()]
-            print(f"DEBUG: All entities in DB: {all_names}")
+            logger.debug(f"DEBUG: All entities in DB: {all_names}")
         else:
-            print("DEBUG: 'Project X' found in direct DB query.")
+            logger.debug("DEBUG: 'Project X' found in direct DB query.")
 
     # Perform several attempts to wait for DB sync if needed
     for _ in range(3):

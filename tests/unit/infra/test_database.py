@@ -4,14 +4,12 @@ import aiosqlite
 import pytest
 
 from ripen.common.exceptions import DatabaseLockedError
-from ripen.common.utils import get_logger
 from ripen.infra.database import (
     AsyncSQLiteConnection,
     get_db_path,
     init_db,
     retry_on_db_lock,
 )
-from ripen.infra.uow import UnitOfWork
 
 
 @pytest.mark.asyncio
@@ -34,7 +32,8 @@ async def test_init_db_creates_file():
 
 @pytest.mark.asyncio
 async def test_async_sqlite_connection_singleton():
-    """Verify that AsyncSQLiteConnection returns a valid connection wrapper and maintains singleton."""
+    """Verify that AsyncSQLiteConnection returns a valid connection wrapper
+    and maintains singleton."""
     db_path = get_db_path()
     conn_wrapper = await AsyncSQLiteConnection(db_path)
     async with conn_wrapper as conn1:

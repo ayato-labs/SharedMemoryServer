@@ -2,19 +2,17 @@ import asyncio
 import os
 import sys
 import time
+
 import pytest
-import sqlite3
-from pathlib import Path
 from loguru import logger
 
 # Add src to sys.path
 sys.path.append(os.path.abspath("src"))
 
 from ripen.common.config import settings
-from ripen.infra.database import init_db
-from ripen.api.licensing import LicenseManager
+from ripen.infra.database import close_all_connections, init_db
 from ripen.infra.embeddings import get_fastembed_model
-from ripen.infra.database import close_all_connections
+
 
 @pytest.fixture(autouse=True)
 async def cleanup_db_connections():
@@ -69,8 +67,7 @@ async def test_unit_fastembed_loading():
 @pytest.mark.asyncio
 async def test_integration_memory_flow():
     """[Integration] データの保存から検索までの結合フローを検証。"""
-    from ripen.core.logic import save_memory_core, read_memory_core
-    from ripen.infra.uow import UnitOfWork
+    from ripen.core.logic import read_memory_core, save_memory_core
 
     logger.info("Starting Integration Test: Memory Flow")
     test_entity = [

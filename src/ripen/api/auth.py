@@ -2,21 +2,20 @@ import json
 import os
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
-from typing import Optional
 
 from ripen.common.utils import get_logger
 
 logger = get_logger("auth")
 
 # Context variable to hold the authenticated account name for the current request/task
-current_user: ContextVar[Optional[str]] = ContextVar("current_user", default=None)
+current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
 class IAuthProvider(ABC):
     """Interface for authentication providers."""
 
     @abstractmethod
-    async def authenticate(self, api_key: str) -> Optional[str]:
+    async def authenticate(self, api_key: str) -> str | None:
         """
         Authenticates a request using an API key.
         Returns the account name if successful, else None.
@@ -43,7 +42,7 @@ class LocalFileAuthProvider(IAuthProvider):
         except Exception as e:
             logger.error(f"Failed to load auth file: {e}")
 
-    async def authenticate(self, api_key: str) -> Optional[str]:
+    async def authenticate(self, api_key: str) -> str | None:
         for acc, key in self.auth_data.items():
             if key == api_key:
                 return acc
@@ -53,7 +52,7 @@ class LocalFileAuthProvider(IAuthProvider):
 class EnvAuthProvider(IAuthProvider):
     """Auth provider that uses environment variables."""
 
-    async def authenticate(self, api_key: str) -> Optional[str]:
+    async def authenticate(self, api_key: str) -> str | None:
         env_key = os.environ.get("RIPEN_API_KEY") or os.environ.get("SHARED_MEMORY_API_KEY")
         env_acc = os.environ.get("RIPEN_ACCOUNT") or os.environ.get(
             "SHARED_MEMORY_ACCOUNT", "default_env_user"
@@ -66,7 +65,7 @@ class EnvAuthProvider(IAuthProvider):
 class AuthMiddleware:
     """ASGI middleware for authentication using pluggable providers."""
 
-    def __init__(self, app, providers: list[IAuthProvider] = None):
+    def __init__(self, app, providers: list[IAuthProvider] | None = None):
         self.app = app
         self.providers = providers or [LocalFileAuthProvider(), EnvAuthProvider()]
 
@@ -107,6 +106,6 @@ class AuthMiddleware:
             current_user.reset(token)
 
 
-def get_current_user() -> Optional[str]:
+def get_current_user() -> str | None:
     """Returns the authenticated account name for the current context."""
     return current_user.get()

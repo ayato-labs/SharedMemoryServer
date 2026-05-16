@@ -46,7 +46,7 @@ async def wait_for_background_tasks(timeout: float = 5.0):
     if _BACKGROUND_TASKS:
         count = len(_BACKGROUND_TASKS)
         logger.info(f"Waiting for {count} background tasks to finish...")
-        done, pending = await asyncio.wait(list(_BACKGROUND_TASKS), timeout=timeout)
+        _done, pending = await asyncio.wait(list(_BACKGROUND_TASKS), timeout=timeout)
         if pending:
             logger.warning(f"Timed out waiting for {len(pending)} background tasks.")
         else:

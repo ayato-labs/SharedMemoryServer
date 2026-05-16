@@ -11,11 +11,11 @@ if CURRENT_SRC not in sys.path:
 import asyncio
 import json
 import signal
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
-from loguru import logger as base_logger
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
@@ -36,7 +36,6 @@ async def ensure_initialized():
 
 # Import core modules
 from ripen.core import (
-    bank as bank_module,
     graph as graph_module,
     logic as logic_module,
     thought_logic as thought_module,
@@ -62,7 +61,7 @@ mcp = FastMCP(
 # To mount a Starlette Router, we add it to _additional_http_routes.
 mcp._additional_http_routes.append(Mount("/dashboard", app=dashboard_router))
 
-def handle_exception(loop, context):
+def handle_exception(_loop, context):
     msg = context.get("exception", context["message"])
     logger.error(f"ASYNC_LOOP_CRITICAL: {msg}")
     import traceback
@@ -70,7 +69,7 @@ def handle_exception(loop, context):
         logger.error("".join(traceback.format_exception(context["exception"])))
 
 @asynccontextmanager
-async def lifespan(app: Starlette) -> AsyncGenerator[None, None]:
+async def lifespan(_app: Starlette) -> AsyncGenerator[None, None]:
     """Startup sequence for the hub."""
     loop = asyncio.get_running_loop()
     loop.set_exception_handler(handle_exception)
@@ -208,14 +207,15 @@ async def save_troubleshooting_knowledge(
     )
 
 @mcp.tool()
-async def get_graph_data(query: str | None = None) -> str:
+async def get_graph_data(_query: str | None = None) -> str:
     """Retrieve raw graph data (nodes and edges) for visualization or deep analysis."""
     data = await graph_module.get_graph_data()
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 @mcp.tool()
 async def manage_knowledge_activation(ids: list[str] | str, status: str) -> str:
-    """Govern the 'Maturity' and 'Activation' of knowledge. Use this to manually activate important patterns or archive transient noise."""
+    """Govern the 'Maturity' and 'Activation' of knowledge.
+    Use this to manually activate important patterns or archive transient noise."""
     await logic_module.manage_knowledge_activation_core(ids, status)
     return f"Status updated to {status}."
 
@@ -239,8 +239,7 @@ async def admin_run_knowledge_gc(age_days: int = 180, dry_run: bool = False) -> 
 
 # --- MCP PROTOCOL PATCH (DEEP TRACING) ---
 try:
-    from mcp.server.session import ServerSession, InitializationState
-    import mcp.types as types
+    from mcp.server.session import InitializationState, ServerSession
     _orig_received_request = ServerSession._received_request
 
     async def _patched_received_request(self, responder):
@@ -251,13 +250,19 @@ try:
         try:
             # --- Permissive Handshake Logic ---
             # Handle states where the SDK would normally reject requests
-            if self._initialization_state in (InitializationState.NotInitialized, InitializationState.Initializing):
+            if self._initialization_state in (
+                InitializationState.NotInitialized,
+                InitializationState.Initializing,
+            ):
                 from mcp.types import InitializeRequest, PingRequest
                 req_root = responder.request.root
                 if not isinstance(req_root, (InitializeRequest, PingRequest)):
                     # Force transition to Initialized to prevent RuntimeError in underlying SDK
                     state_name = self._initialization_state.name
-                    logger.warning(f"Permissive Handshake: Auto-initializing session from '{state_name}' for {type(req_root).__name__}")
+                    logger.warning(
+                        f"Permissive Handshake: Auto-initializing session from "
+                        f"'{state_name}' for {type(req_root).__name__}"
+                    )
                     self._initialization_state = InitializationState.Initialized
 
             # Trace request
@@ -286,7 +291,6 @@ except Exception as e:
 
 # --- ENTRY POINT ---
 
-import sys
 
 def print_banner(mode: str, port: int):
     lm = LicenseManager()
@@ -316,7 +320,7 @@ def print_banner(mode: str, port: int):
     sys.stderr.flush()
 
 def main():
-    logger.info("Main execution started (Args: {})", sys.argv)
+    logger.info(f"Main execution started (Args: {sys.argv})")
     parser = argparse.ArgumentParser(description="Ripen Hub Server")
     parser.add_argument("--port", type=int, help="Port for the server")
     parser.add_argument("--host", default="0.0.0.0", help="Host for the server")
@@ -329,7 +333,7 @@ def main():
         os.environ["LOG_LEVEL"] = "DEBUG"
 
     # Handle termination signals
-    def handle_signal(sig, frame):
+    def handle_signal(sig, _frame):
         logger.info(f"Signal {sig} received. Shutting down...")
         sys.exit(0)
 
@@ -348,7 +352,10 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     result = sock.connect_ex(("127.0.0.1", port))
     if result == 0:
-        logger.error(f"PORT CONFLICT: Port {port} is already in use by another process. Please stop all other Ripen Hub instances.")
+        logger.error(
+            f"PORT CONFLICT: Port {port} is already in use by another process. "
+            f"Please stop all other Ripen Hub instances."
+        )
         sock.close()
         sys.exit(1)
     sock.close()
@@ -388,9 +395,13 @@ def _kill_port_process(port: int):
                         pid = parts[-1]
                         try:
                             pid_int = int(pid)
-                            if pid_int != 0 and pid_int != current_pid:
+                            if pid_int not in (0, current_pid):
                                 logger.warning(f"Killing zombie process {pid_int} on port {port}")
-                                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid_int)], check=False, capture_output=True)
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(pid_int)],
+                                    check=False,
+                                    capture_output=True,
+                                )
                         except ValueError:
                             logger.warning(f"Could not parse PID from line: {line}")
         except subprocess.CalledProcessError:
@@ -400,9 +411,15 @@ def _kill_port_process(port: int):
         # This ensures no duplicate proxies or hubs are hanging around
         # We MUST exclude our own PID to avoid self-termination
         logger.debug("Performing aggressive cleanup...")
-        # Note: taskkill /IM kills by process name. If the current process is ripen.exe, this would kill it.
+        # Note: taskkill /IM kills by process name. If the current process is
+        # ripen.exe, this would kill it.
         # We use /FI to exclude the current PID.
-        subprocess.run(f'taskkill /F /IM ripen.exe /FI "PID ne {current_pid}"', shell=True, check=False, capture_output=True)
+        subprocess.run(
+            f'taskkill /F /IM ripen.exe /FI "PID ne {current_pid}"',
+            shell=True,
+            check=False,
+            capture_output=True,
+        )
         
         # We removed the WMIC-based cleanup because its command line often matched 
         # the filter pattern, causing the shell to terminate prematurely.

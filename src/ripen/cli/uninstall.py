@@ -3,6 +3,10 @@ import shutil
 import sys
 from pathlib import Path
 
+from ripen.common.utils import get_logger
+
+logger = get_logger("uninstall")
+
 
 def ask_confirmation(prompt: str) -> bool:
     """Helper to ask for Y/N confirmation."""
@@ -12,24 +16,26 @@ def ask_confirmation(prompt: str) -> bool:
             return True
         if choice in ("n", "no"):
             return False
-        print("Please enter 'y' or 'n'.")
+        logger.info("Please enter 'y' or 'n'.")
 
 
 def perform_uninstall():
     """
     Performs a clean uninstall of Ripen data and shortcuts.
     """
-    print("\n" + "!" * 60)
-    print("  RIPEN UNINSTALLER - COMPLETE DATA ERASURE")
-    print("!" * 60 + "\n")
+    logger.info("\n" + "!" * 60)
+    logger.info("  RIPEN UNINSTALLER - COMPLETE DATA ERASURE")
+    logger.info("!" * 60 + "\n")
 
     # 1. Warning
-    print("\033[1;31mWARNING: This action will permanently delete all your knowledge data,\033[0m")
-    print("\033[1;31mconfig files, logs, and desktop shortcuts.\033[0m")
-    print("This cannot be undone.\n")
+    logger.info(
+        "\033[1;31mWARNING: This action will permanently delete all your knowledge data,\033[0m"
+    )
+    logger.info("\033[1;31mconfig files, logs, and desktop shortcuts.\033[0m")
+    logger.info("This cannot be undone.\n")
 
     if not ask_confirmation("Are you absolutely sure you want to proceed?"):
-        print("\nUninstall cancelled.")
+        logger.info("\nUninstall cancelled.")
         return
 
     # 2. Identify data directory
@@ -37,13 +43,13 @@ def perform_uninstall():
 
     base_dir = Path(settings.base_dir).resolve()
 
-    print(f"\nTarget Data Directory: {base_dir}")
+    logger.info(f"\nTarget Data Directory: {base_dir}")
     if not ask_confirmation(f"Delete ALL data in '{base_dir}'?"):
-        print("\nUninstall cancelled.")
+        logger.info("\nUninstall cancelled.")
         return
 
     # 3. Perform Cleanup
-    print("\nStarting cleanup...")
+    logger.info("\nStarting cleanup...")
 
     # A. Delete Shortcuts (Windows)
     if sys.platform == "win32":
@@ -52,34 +58,36 @@ def perform_uninstall():
             shortcut = desktop / "Ripen Hub.lnk"
             if shortcut.exists():
                 shortcut.unlink()
-                print("  [OK] Removed Desktop shortcut.")
+                logger.info("  [OK] Removed Desktop shortcut.")
         except Exception as e:
-            print(f"  [ERROR] Failed to remove shortcut: {e}")
+            logger.info(f"  [ERROR] Failed to remove shortcut: {e}")
 
     # B. Delete Data Directory
     try:
         if base_dir.exists():
             shutil.rmtree(base_dir)
-            print(f"  [OK] Removed data directory: {base_dir}")
+            logger.info(f"  [OK] Removed data directory: {base_dir}")
     except Exception as e:
-        print(f"  [ERROR] Failed to remove data directory: {e}")
-        print("  Please ensure no other processes are using the database.")
+        logger.info(f"  [ERROR] Failed to remove data directory: {e}")
+        logger.info("  Please ensure no other processes are using the database.")
 
-    print("\n" + "=" * 60)
-    print("\033[1;32mSUCCESS: Ripen data has been completely erased.\033[0m")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("\033[1;32mSUCCESS: Ripen data has been completely erased.\033[0m")
+    logger.info("=" * 60)
 
     # C. Instructions for Environment removal
     if getattr(sys, "frozen", False):
         exe_path = sys.executable
-        print(f"\nFinal Step: Please manually delete the executable file:")
-        print(f"  \033[1;36m{exe_path}\033[0m")
+        logger.info("\nFinal Step: Please manually delete the executable file:")
+        logger.info(f"  \033[1;36m{exe_path}\033[0m")
     else:
-        print("\n\033[1;33m[NOTE for Python Users]\033[0m")
-        print("To completely remove the Python environment:")
-        print("  1. If installed as a tool: \033[1;36muv tool uninstall ripen\033[0m")
-        print("  2. If using a local venv:  \033[1;36mrm -rf .venv\033[0m (in the project root)")
-        print("  3. Finally, uninstall the package: \033[1;36mpip uninstall ripen\033[0m")
+        logger.info("\n\033[1;33m[NOTE for Python Users]\033[0m")
+        logger.info("To completely remove the Python environment:")
+        logger.info("  1. If installed as a tool: \033[1;36muv tool uninstall ripen\033[0m")
+        logger.info(
+            "  2. If using a local venv:  \033[1;36mrm -rf .venv\033[0m (in the project root)"
+        )
+        logger.info("  3. Finally, uninstall the package: \033[1;36mpip uninstall ripen\033[0m")
 
-    print("\nGoodbye!\n")
+    logger.info("\nGoodbye!\n")
     sys.exit(0)

@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from ripen.common.utils import get_logger
 
@@ -34,8 +34,8 @@ class Settings:
     _instance = None
     _base_dir: Path | None = None
     _api_key: str | None = None
-    _config_data: dict = {}
-    _plugins: list = []
+    _config_data: ClassVar[dict] = {}
+    _plugins: ClassVar[list] = []
     # --- Licensing ---
     license_public_key: str = os.getenv(
         "RIPEN_LICENSE_PUBLIC_KEY", "vF9JtiTPlurcpy6F4UywkLdyisrHXEaU75CjeCVvZfg="
@@ -126,19 +126,6 @@ class Settings:
             return provider.lower()
         return DEFAULT_LLM_PROVIDER
 
-    @property
-    def generative_model(self) -> str:
-        """現在のプロバイダーに応じた生成モデル名を返す。"""
-        if self.llm_provider == "gemini":
-            return self.google_ai_model
-        return self.ollama_model
-
-    @property
-    def embedding_model(self) -> str:
-        """現在のエンジンに応じたEmbeddingモデル名を返す。"""
-        if self.embedding_engine == "gemini":
-            return self.google_embedding_model
-        return self.fastembed_model
 
     @property
     def ollama_base_url(self) -> str:

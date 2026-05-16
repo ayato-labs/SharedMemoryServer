@@ -1,21 +1,24 @@
 import os
+
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route, Router
 
-from ripen.ops import management
-from ripen.infra.llm import get_llm_provider
-from ripen.infra.embeddings import check_embeddings_health
-from ripen.infra.uow import UnitOfWork, SecureWriteContext
+from ripen.api.licensing import LicenseManager
+from ripen.common.config import settings
 from ripen.common.utils import get_resource_path
+from ripen.infra.embeddings import check_embeddings_health
+from ripen.infra.llm import get_llm_provider
+from ripen.infra.uow import SecureWriteContext, UnitOfWork
+from ripen.ops import management
 
 
-async def get_dashboard_html(request):
+async def get_dashboard_html(_request):
     """Loads the dashboard HTML from templates and returns it."""
     # Use get_resource_path to ensure it works in both source and frozen EXE modes
     template_path = get_resource_path(os.path.join("api", "templates", "dashboard.html"))
 
     try:
-        with open(template_path, "r", encoding="utf-8") as f:
+        with open(template_path, encoding="utf-8") as f:
             html_content = f.read()
     except Exception as e:
         return HTMLResponse(
@@ -34,7 +37,7 @@ async def api_history(request):
     return JSONResponse(history)
 
 
-async def api_conflicts(request):
+async def api_conflicts(_request):
     async with UnitOfWork() as uow:
         conflicts = await management.get_unresolved_conflicts_logic(uow)
     return JSONResponse(conflicts)
@@ -50,15 +53,12 @@ async def api_resolve_conflict(request):
     return JSONResponse({"status": "success", "message": result})
 
 
-async def api_health(request):
+async def api_health(_request):
     llm = get_llm_provider()
     llm_ok = await llm.check_health()
 
-    from ripen.common.config import settings
-
     vector_ok = await check_embeddings_health()
 
-    from ripen.api.licensing import LicenseManager
     lm = LicenseManager()
     is_licensed = lm.validate_locally()
     license_info = lm.get_status_summary()
@@ -81,13 +81,13 @@ async def api_health(request):
 
 async def api_activate_license(request):
     try:
-        from ripen.common.config import settings
-        from ripen.api.licensing import LicenseManager
-
         body = await request.json()
         key_content = body.get("key")
         if not key_content:
-            return JSONResponse({"status": "error", "message": "No key content provided"}, status_code=400)
+            return JSONResponse(
+                {"status": "error", "message": "No key content provided"},
+                status_code=400,
+            )
 
         lm = LicenseManager()
 
@@ -104,7 +104,10 @@ async def api_activate_license(request):
             return JSONResponse({"status": "success", "message": "License activated successfully!"})
         else:
             return JSONResponse(
-                {"status": "error", "message": "Invalid license key or signature verification failed."},
+                {
+                    "status": "error",
+                    "message": "Invalid license key or signature verification failed.",
+                },
                 status_code=400,
             )
     except Exception as e:

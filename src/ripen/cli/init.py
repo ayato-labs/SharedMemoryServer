@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-import sys
 
 from ripen.common.utils import get_logger, safe_main_executor
 
@@ -14,7 +13,7 @@ def clear_screen():
 
 
 def print_banner():
-    print("""
+    logger.info("""
     \033[1;32m      
     ██████╗ ██╗██████╗ ███████╗███╗   ██╗
     ██╔══██╗██║██╔══██╗██╔════╝████╗  ██║
@@ -41,7 +40,9 @@ def ask_question(question: str, default: Any = None, options: list[str] | None =
         if not choice and default:
             return str(default)
         if options and choice.lower() not in [o.lower() for o in options]:
-            print(f"\033[1;31m! Invalid choice. Please choose from: {', '.join(options)}\033[0m")
+            logger.info(
+                f"\033[1;31m! Invalid choice. Please choose from: {', '.join(options)}\033[0m"
+            )
             continue
         if choice:
             return choice
@@ -51,8 +52,8 @@ def main():
     clear_screen()
     print_banner()
 
-    print("Welcome to Ripen! Let's get your brain infrastructure set up.")
-    print("\n\033[1;33m--- Hub Mode (Setting up a local knowledge server) ---\033[0m")
+    logger.info("Welcome to Ripen! Let's get your brain infrastructure set up.")
+    logger.info("\n\033[1;33m--- Hub Mode (Setting up a local knowledge server) ---\033[0m")
     
     config = {}
 
@@ -62,7 +63,7 @@ def main():
     config["ripen_home"] = str(Path(ripen_home).absolute())
 
     # 2. LLM Provider
-    print("\n\033[1;33mStep 2: LLM Provider\033[0m (Required for knowledge distillation)")
+    logger.info("\n\033[1;33mStep 2: LLM Provider\033[0m (Required for knowledge distillation)")
     provider = ask_question(
         "Which LLM provider would you like to use?",
         default="ollama",
@@ -71,24 +72,28 @@ def main():
     config["llm_provider"] = provider.lower()
 
     if provider.lower() == "gemini":
-        print("\n\033[1;31m!!! PRIVACY WARNING !!!\033[0m")
-        print(
-            "Using an external LLM like Gemini will send snippets of your codebase and AI agent reasoning"
+        logger.info("\n\033[1;31m!!! PRIVACY WARNING !!!\033[0m")
+        logger.info(
+            "Using an external LLM like Gemini will send snippets of your codebase and AI agent "
+            "reasoning"
         )
-        print("to Google's servers for background knowledge distillation. For strict enterprise or confidential")
-        print("environments, we strongly recommend using a local LLM via Ollama instead.")
+        logger.info(
+            "to Google's servers for background knowledge distillation. For strict enterprise "
+            "or confidential"
+        )
+        logger.info("environments, we strongly recommend using a local LLM via Ollama instead.")
         
         api_key = ask_question("Enter your GOOGLE_API_KEY (from https://aistudio.google.com/):")
         config["google_api_key"] = api_key
         if len(api_key) < 20:
-            print("\033[1;31m! Warning: That API key looks a bit short.\033[0m")
+            logger.info("\033[1;31m! Warning: That API key looks a bit short.\033[0m")
 
     elif provider.lower() == "ollama":
         config["ollama_base_url"] = ask_question(
             "Ollama API URL?", default="http://localhost:11434"
         )
         config["ollama_model"] = ask_question("Ollama Model?", default="gemma4:e2b")
-        print("\n\033[1;33mNote:\033[0m Make sure Ollama is running (`ollama serve`)!")
+        logger.info("\n\033[1;33mNote:\033[0m Make sure Ollama is running (`ollama serve`)!")
 
     # 3. Port (Fixed to Streamable HTTP)
     config["sse_port"] = 8377
@@ -102,23 +107,23 @@ def main():
     with open(config_file, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
-    print(f"\n\033[1;32m✅ Configuration saved to {config_file}\033[0m")
+    logger.info(f"\n\033[1;32m✅ Configuration saved to {config_file}\033[0m")
 
-    print("\n" + "=" * 40)
-    print("\033[1;32m🎉 Hub Setup Complete!\033[0m")
-    print("\nTo start your Hub server:")
-    print("  \033[1;36mripen\033[0m (or run ripen-hub.exe)")
+    logger.info("\n" + "=" * 40)
+    logger.info("\033[1;32m🎉 Hub Setup Complete!\033[0m")
+    logger.info("\nTo start your Hub server:")
+    logger.info("  \033[1;36mripen\033[0m (or run ripen-hub.exe)")
     
-    print(f"\nClient Connection URL: \033[1;33mhttp://localhost:8377/mcp\033[0m")
+    logger.info("\nClient Connection URL: \033[1;33mhttp://localhost:8377/mcp\033[0m")
     
-    print("\nTo connect your agents, add this to your client config (e.g., mcp_config.json):")
-    print("""
+    logger.info("\nTo connect your agents, add this to your client config (e.g., mcp_config.json):")
+    logger.info("""
     "ripen": {
       "command": "npx",
       "args": ["-y", "@sammacbeth/mcp-remote", "http://localhost:8377/mcp"]
     }
     """)
-    print("=" * 40)
+    logger.info("=" * 40)
 
 
 if __name__ == "__main__":
