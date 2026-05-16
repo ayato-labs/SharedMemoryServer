@@ -16,6 +16,7 @@ if CURRENT_SRC not in sys.path:
 from fastmcp import FastMCP
 
 # Import project modules
+from ripen.api import dashboard
 from ripen.api.licensing import LicenseManager
 from ripen.common.config import settings
 from ripen.common.plugins import PluginLoader
@@ -37,7 +38,6 @@ from ripen.core import (
     logic as logic_module,
     thought_logic as thought_module,
 )
-from ripen.api import dashboard
 
 # --- INITIALIZATION ---
 logger = get_logger("server")
