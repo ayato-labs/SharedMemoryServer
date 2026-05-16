@@ -2,6 +2,131 @@
 
 <!-- version list -->
 
+## v1.11.0 (2026-05-16)
+
+### Bug Fixes
+
+- Remove blank lines in dashboard.html to satisfy linter
+  ([`e17f7fd`](https://github.com/ayato-labs/ripen/commit/e17f7fda4eb5d562ab400b8370214d1bdf4b7cbd))
+
+### Documentation
+
+- Add AGPL clarification and formalize trial in COMMERCIAL.md
+  ([`5e22311`](https://github.com/ayato-labs/ripen/commit/5e22311627ed72b21ca51699a48a2579e520ea66))
+
+- Add Keygen.sh 100 license limit warning to COMMERCIAL.md
+  ([`0fdc3fd`](https://github.com/ayato-labs/ripen/commit/0fdc3fdf9b4ff623c2f9cd838ca5f41ed3518e50))
+
+- Add update instructions for Docker in README
+  ([`b54ec5e`](https://github.com/ayato-labs/ripen/commit/b54ec5e026b12de24d0146bb71c7f315dc859216))
+
+- Clarify manual license fallback and mention Keygen.sh in COMMERCIAL.md
+  ([`293d572`](https://github.com/ayato-labs/ripen/commit/293d57272c7b787b06c136f006c4eae9c7ca29a9))
+
+- Use foreground execution as default in README Docker commands
+  ([`41863bf`](https://github.com/ayato-labs/ripen/commit/41863bfc57176ee69bb400495a2b52ee65efd384))
+
+- Use self-declaration flow and remove Keygen.sh in COMMERCIAL.md
+  ([`6f6d3a3`](https://github.com/ayato-labs/ripen/commit/6f6d3a3fb5d9905d13e1c8ef350de43bf92f22f7))
+
+### Features
+
+- Implement MCP server with knowledge management tools and permissive handshake protocol patching
+  ([`2b52df8`](https://github.com/ayato-labs/ripen/commit/2b52df8a30f11aefbebde157adecd7ae900cb65a))
+
+- Remove license activation UI and JS from dashboard
+  ([`29b6b2e`](https://github.com/ayato-labs/ripen/commit/29b6b2eb79fd6bb6f951a06ca6008b5705496e4f))
+
+
+## v1.10.1 (2026-05-16)
+
+### Bug Fixes
+
+- Mount dashboard routes in server.py using custom_route
+  ([`d87531f`](https://github.com/ayato-labs/ripen/commit/d87531fc0d5da468f8b7df9a53074a9f476b15d4))
+
+- Resolve Ruff import sorting error in server.py
+  ([`164cc97`](https://github.com/ayato-labs/ripen/commit/164cc9774418e4cf412e4990f1c2db765189d6ce))
+
+
+## v1.10.0 (2026-05-16)
+
+### Features
+
+- Log version at startup and expand Docker docs in README
+  ([`da1639f`](https://github.com/ayato-labs/ripen/commit/da1639fe39eb51bb52bc02dd845e47a34c892430))
+
+
+## v1.9.2 (2026-05-16)
+
+### Bug Fixes
+
+- Remove unsupported --sse flag from Dockerfile entrypoint
+  ([`d857a3f`](https://github.com/ayato-labs/ripen/commit/d857a3f10299afba7fa1bfe1a26cdbf4b34eec5d))
+
+### Documentation
+
+- Remove Stdio connection instructions from README
+  ([`16db705`](https://github.com/ayato-labs/ripen/commit/16db70587484e265ec15acd2596491ca71c92ad2))
+
+- Update README to prioritize Docker installation
+  ([`25d0ca2`](https://github.com/ayato-labs/ripen/commit/25d0ca2026b39fc68cf4d045374c81a1da8c6038))
+
+
+## v1.9.1 (2026-05-16)
+
+### Bug Fixes
+
+- Use PAT_TOKEN for Docker login to fix GHCR permission error
+  ([`ae47063`](https://github.com/ayato-labs/ripen/commit/ae4706369c50ce376c435ee2fca2461ee97852e7))
+
+
+## v1.9.0 (2026-05-16)
+
+### Features
+
+- Add Docker build and push to GHCR in main.yml
+  ([`4c4701e`](https://github.com/ayato-labs/ripen/commit/4c4701e6ee3f156bd12b693596cc153651507eec))
+
+
+## v1.8.4 (2026-05-16)
+
+### Bug Fixes
+
+- Add --copy-metadata for fastmcp and ripen to PyInstaller
+  ([`37051b5`](https://github.com/ayato-labs/ripen/commit/37051b554cde7263acbb3fbc2c4883ab314de881))
+
+- Rename SharedMemoryRegister to RipenInstaller
+  ([`79517ce`](https://github.com/ayato-labs/ripen/commit/79517ce416a92bba9b10e324e4f5e8dd2de68622))
+
+
+## v1.8.3 (2026-05-16)
+
+### Bug Fixes
+
+- Pass tag_name explicitly to action-gh-release to fix tag missing error
+  ([`32c0475`](https://github.com/ayato-labs/ripen/commit/32c0475bb3f67ea4d1f9b60d2605d3a862ad4273))
+
+- Remove duplicate env block in main.yml
+  ([`a0affa6`](https://github.com/ayato-labs/ripen/commit/a0affa616a532c630db8f88ff8bbcc68ec780dcf))
+
+
+## v1.8.2 (2026-05-16)
+
+### Bug Fixes
+
+- Correct PyInstaller script paths in main.yml
+  ([`69548aa`](https://github.com/ayato-labs/ripen/commit/69548aaa9751fee77199c00f411cbdc8641ba712))
+
+
+## v1.8.1 (2026-05-16)
+
+### Bug Fixes
+
+- Trigger release v1.8.1
+  ([`df3bbe5`](https://github.com/ayato-labs/ripen/commit/df3bbe574b62b6e4df04a23e967fd2c59ebdb328))
+
+
 ## v1.8.0 (2026-04-22)
 
 ### Features
