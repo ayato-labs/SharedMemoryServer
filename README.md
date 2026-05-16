@@ -4,13 +4,14 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Beta-orange)](CHANGELOG.md)
-[![Download Official Binary](https://img.shields.io/badge/Download-Official%20ripen.exe-brightgreen?style=for-the-badge&logo=github)](https://github.com/ayato-labs/ripen/releases)
+[![Docker Image](https://img.shields.io/badge/Docker-ghcr.io%2Fayato--labs%2Fripen-blue?style=for-the-badge&logo=docker)](https://github.com/ayato-labs/ripen/pkgs/container/ripen)
+[![Download Official Binary](https://img.shields.io/badge/Download-Official%20Ripen.exe-brightgreen?style=for-the-badge&logo=github)](https://github.com/ayato-labs/ripen/releases)
 
 > [!IMPORTANT]
-> **Official Distribution**: Always download the hub and admin binaries from the [Official GitHub Releases](https://github.com/ayato-labs/ripen/releases). This ensures you have the latest signed binary with all security patches.
+> **Official Distribution**: We strongly recommend running the Ripen Hub via **Docker**. For Windows users who prefer it, standalone `.exe` binaries are also available in the [Official GitHub Releases](https://github.com/ayato-labs/ripen/releases).
 
 > [!NOTE]
-> **Distribution Policy**: To concentrate our development resources and provide the best zero-friction experience, we focus solely on distributing standalone `.exe` files via GitHub Releases. PyPI distribution has been discontinued.
+> **Distribution Policy**: To provide the best developer experience and maximize multi-platform compatibility, our primary distribution method is **Docker Container Images via GHCR**. PyPI distribution has been discontinued.
 
 > [!TIP]
 > **🚀 Special Campaign: 180-Day Free Professional License!**
@@ -152,12 +153,18 @@ Ripen prioritizes **system stability** over massive internal dependencies.
 
 ## Installation
 
-### Option A: Native Binary (Easiest for Windows) 🚀
-No Python required. Best for a quick, stable setup.
-1. Download `ripen-hub.exe` and `ripen-admin.exe` from [GitHub Releases](https://github.com/ayato-labs/ripen/releases).
-2. Run `ripen-hub.exe` to start the server.
+### Option A: Docker (Recommended for Engineers) 🐳
+The most stable and easiest way to run the Ripen Hub. No Python required. Works on Windows, Mac, and Linux.
+```bash
+docker run -d -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+```
 
-### Option B: Python (Source)
+### Option B: Native Binary (Windows Only) 🚀
+For Windows users who prefer a standalone executable.
+1. Download `Ripen.exe` and `RipenInstaller.exe` from [GitHub Releases](https://github.com/ayato-labs/ripen/releases).
+2. Run `Ripen.exe` to start the server.
+
+### Option C: Python (Source)
 ```bash
 uv run -m src.ripen.api.server
 ```
