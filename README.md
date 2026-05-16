@@ -153,6 +153,7 @@ Ripen prioritizes **system stability** over massive internal dependencies.
 
 ### Option A: Docker (Recommended for Engineers) 🐳
 The most stable and easiest way to run the Ripen Hub. No Python required. Works on Windows, Mac, and Linux.
+Data is persisted in a Docker named volume (`ripen_data`) to avoid SQLite lock issues on Windows.
 
 #### 1. Install (取得)
 ```bash
@@ -160,9 +161,26 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 ```
 
 #### 2. Start (起動)
-Run the container. We recommend naming it `ripen-hub` for easy management. By default, it runs in the foreground so you can see the logs immediately.
+
+**Method A: Docker Compose (Recommended)**
+Use the provided `docker-compose.yml` to automatically handle volume mounting and environment variables.
+
+1. **Set your API Key**:
+   Create a `.env` file in the same directory as `docker-compose.yml` and add your provider and API key:
+   ```env
+   LLM_PROVIDER=gemini
+   GEMINI_API_KEY=your_actual_api_key_here
+   ```
+
+2. **Start**:
+   ```bash
+   docker compose up -d
+   ```
+
+**Method B: Docker Run**
+Run the container manually. By default, it runs in the foreground so you can see the logs immediately.
 ```bash
-docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data -e GEMINI_API_KEY=your_api_key ghcr.io/ayato-labs/ripen:latest
 ```
 *Note: If you want to run it in the background, add the `-d` option.*
 
@@ -176,13 +194,11 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 docker stop ripen-hub
 
 # 3. Rename the old container to preserve logs (Recommended)
-# For Linux/Mac:
-docker rename ripen-hub ripen-hub-old-$(date +%Y%m%d)
-# For Windows PowerShell:
-# docker rename ripen-hub "ripen-hub-old-$(Get-Date -Format 'yyyyMMdd')"
+# (Replace 20260516 with today's date / 本日の日付に置き換えてください)
+docker rename ripen-hub ripen-hub-old-20260516
 
 # 4. Start the new container with the same volume
-docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data ghcr.io/ayato-labs/ripen:latest
+docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data -e GEMINI_API_KEY=your_api_key ghcr.io/ayato-labs/ripen:latest
 ```
 *Note: If you want to run it in the background, add the `-d` option.*
 
