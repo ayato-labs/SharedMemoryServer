@@ -163,9 +163,17 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 
 **Method A: Docker Compose (Recommended)**
 Use the provided `docker-compose.yml` to automatically handle volume mounting and environment variables.
-```bash
-docker compose up -d
-```
+
+1. **Set your API Key**:
+   Create a `.env` file in the same directory as `docker-compose.yml` and add your Gemini API key:
+   ```env
+   GEMINI_API_KEY=your_actual_api_key_here
+   ```
+
+2. **Start**:
+   ```bash
+   docker compose up -d
+   ```
 
 **Method B: Docker Run**
 Run the container manually. By default, it runs in the foreground so you can see the logs immediately.
