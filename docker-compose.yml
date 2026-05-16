@@ -4,7 +4,7 @@ services:
     ports:
       - "8377:8377"
     volumes:
-      - ${RIPEN_HOST_DATA_DIR:-C:/Users/saiha/.ripen}:/data
+      - ./data:/data
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - LOG_LEVEL=INFO
