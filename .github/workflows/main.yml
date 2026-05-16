@@ -135,3 +135,34 @@ jobs:
           append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_docker:
+    name: Build and Push Docker Image
+    needs: release
+    # Only run when a new release is actually published
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get Latest Tag
+        id: tag
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.tag }}
