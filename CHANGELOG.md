@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.10.1 (2026-05-16)
+
+### Bug Fixes
+
+- Mount dashboard routes in server.py using custom_route
+  ([`d87531f`](https://github.com/ayato-labs/ripen/commit/d87531fc0d5da468f8b7df9a53074a9f476b15d4))
+
+- Resolve Ruff import sorting error in server.py
+  ([`164cc97`](https://github.com/ayato-labs/ripen/commit/164cc9774418e4cf412e4990f1c2db765189d6ce))
+
+
 ## v1.10.0 (2026-05-16)
 
 ### Features
