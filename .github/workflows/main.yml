@@ -181,6 +181,32 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
+  build_zip_assets:
+    name: Build Zip Assets
+    needs: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Zip
+        run: |
+          zip ripen-docker-setup.zip docker-compose.yml .env.example
+      - name: Get Latest Tag
+        id: tag
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - name: Upload Zip to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ripen-docker-setup.zip
+          tag_name: ${{ steps.tag.outputs.tag }}
+          fail_on_unmatched_files: true
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test_linux:
     name: Integration & E2E Test (Linux Docker)
     needs: build_docker
