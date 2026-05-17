@@ -42,14 +42,20 @@ from ripen.core import (
 # --- INITIALIZATION ---
 logger = get_logger("server")
 
-def get_current_user() -> str:
-    return "ayato-labs"
-
 # Create FastMCP server instance
 mcp = FastMCP(
     "Ripen-v2",
     version="3.2.4",
 )
+
+from ripen.api.auth import AuthMiddleware, get_current_user
+
+if hasattr(mcp, "app"):
+    logger.info("Applying AuthMiddleware to mcp.app")
+    mcp.app.add_middleware(AuthMiddleware)
+else:
+    logger.warning("mcp instance does not have 'app' attribute. Could not apply AuthMiddleware.")
+
 
 
 
@@ -143,7 +149,9 @@ async def save_memory(
     logger.info(
         f"Tool called: save_memory (Entities: {len(entities)}, Relations: {len(relations)})"
     )
-    user = agent_id or get_current_user() or "default_agent"
+    user = agent_id or get_current_user()
+    if not user:
+        raise Exception("Authentication required. Please provide a valid API key.")
     try:
         await logic_module.save_memory_core(
             entities=entities,
@@ -186,7 +194,9 @@ async def sequential_thinking(
     branch ideas, and maintain a structured thinking process.
     """
     logger.info(f"Tool called: sequential_thinking (Thought {thought_number}/{total_thoughts})")
-    user = get_current_user() or "default_agent"
+    user = get_current_user()
+    if not user:
+        raise Exception("Authentication required. Please provide a valid API key.")
     try:
         result = await thought_module.process_thought_core(
             thought=thought,
