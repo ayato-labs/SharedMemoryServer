@@ -249,7 +249,7 @@ jobs:
           exit 1
       - name: E2E Test (Initialize MCP)
         run: |
-          RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "e2e-test", "version": "1.0.0"}}}' http://localhost:8377/mcp)
+          RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "e2e-test", "version": "1.0.0"}}}' http://localhost:8377/mcp)
           echo "Response: $RESPONSE"
           if echo "$RESPONSE" | grep -q "protocolVersion"; then
             echo "MCP Initialize successful!"
@@ -310,7 +310,7 @@ jobs:
             }
           } | ConvertTo-Json -Depth 5
           
-          $response = Invoke-WebRequest -Uri http://localhost:8377/mcp -Method Post -Body $body -ContentType "application/json" -UseBasicParsing
+          $response = Invoke-WebRequest -Uri http://localhost:8377/mcp -Method Post -Body $body -ContentType "application/json" -Headers @{"Accept" = "application/json, text/event-stream"} -UseBasicParsing
           Write-Host "Response: $($response.Content)"
           if ($response.Content -match "protocolVersion") {
             Write-Host "MCP Initialize successful!"
