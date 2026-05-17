@@ -18,9 +18,12 @@ async def salvage_related_knowledge(
         # Fetch Top Candidates (already ranked by Hybrid Search logic in core.search)
         # We EXPLICITLY exclude TRANSIENT logs from automated salvage to prevent
         # noise/hallucination loops.
-        graph_data, bank_data = await perform_search(
-            thought, candidate_limit=7, include_transient=False
-        )
+        from ripen.infra.uow import UnitOfWork
+
+        async with UnitOfWork() as uow:
+            graph_data, bank_data = await perform_search(
+                query=thought, uow=uow, limit=7, include_transient=False
+            )
 
         results = []
         # 1. Flatten troubleshooting (Highest Priority)
