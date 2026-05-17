@@ -1,6 +1,6 @@
 [project]
 name = "ripen"
-version = "1.13.5"
+version = "1.14.0"
 description = "The centralized knowledge hub for AI agents. Hybrid Vector + Graph memory with autonomous distillation."
 readme = "README.md"
 requires-python = ">=3.11"
