@@ -262,18 +262,34 @@ jobs:
         run: docker compose down
 
   test_windows:
-    name: Integration & E2E Test (Windows Docker)
-    needs: build_docker
+    name: Integration & E2E Test (Windows Native)
+    needs: release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Replace image in docker-compose.yml
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+          enable-cache: true
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then uv venv; fi
+          uv pip install -e .
+          uv pip install pyinstaller
+      - name: Build with PyInstaller
+        run: |
+          uv run pyinstaller --onefile --name Ripen --copy-metadata fastmcp --copy-metadata ripen --collect-all fastembed --collect-all faiss --clean src/ripen/api/server.py
+      - name: Start Ripen Server (.exe)
         shell: pwsh
         run: |
-          (Get-Content docker-compose.yml) -replace 'ghcr.io/ayato-labs/ripen:latest', 'ghcr.io/${{ github.repository }}:latest' | Set-Content docker-compose.yml
-      - name: Start container
-        run: docker compose up -d
+          $process = Start-Process -FilePath ".\dist\Ripen.exe" -ArgumentList "--port 8377" -PassThru -NoNewWindow
+          echo "PROCESS_ID=$($process.Id)" >> $GITHUB_ENV
       - name: Wait for Health Check
         shell: pwsh
         run: |
@@ -318,9 +334,14 @@ jobs:
             Write-Error "MCP Initialize failed"
             exit 1
           }
-      - name: Stop container
+      - name: Stop Ripen Server
         if: always()
-        run: docker compose down
+        shell: pwsh
+        run: |
+          if ($env:PROCESS_ID) {
+            Stop-Process -Id $env:PROCESS_ID -Force
+          }
+
 
   test_macos:
     name: Integration Test (macOS Native)
