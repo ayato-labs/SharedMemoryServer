@@ -23,17 +23,21 @@ permissions:
 
 jobs:
   lint_and_test:
-    name: Lint and Test
+    name: Lint and Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           enable-cache: true
       - name: Install dependencies
         run: uv sync --all-extras
@@ -159,6 +163,7 @@ jobs:
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           echo "tag=$TAG" >> $GITHUB_OUTPUT
       - name: Build and push Docker image
+        id: docker_build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -166,3 +171,151 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.tag }}
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  test_linux:
+    name: Integration & E2E Test (Linux Docker)
+    needs: build_docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace image in docker-compose.yml
+        run: |
+          sed -i 's|ghcr.io/ayato-labs/ripen:latest|ghcr.io/${{ github.repository }}:latest|' docker-compose.yml
+      - name: Start container
+        run: docker compose up -d
+      - name: Wait for Health Check
+        run: |
+          timeout=30
+          while [ $timeout -gt 0 ]; do
+            if curl -s http://localhost:8377/api/health | grep -q "ok"; then
+              echo "Server is healthy!"
+              exit 0
+            fi
+            sleep 1
+            timeout=$((timeout-1))
+          done
+          echo "Timeout waiting for health check"
+          exit 1
+      - name: E2E Test (Initialize MCP)
+        run: |
+          RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "e2e-test", "version": "1.0.0"}}}' http://localhost:8377/mcp)
+          echo "Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q "protocolVersion"; then
+            echo "MCP Initialize successful!"
+          else
+            echo "MCP Initialize failed"
+            exit 1
+          fi
+      - name: Stop container
+        if: always()
+        run: docker compose down
+
+  test_windows:
+    name: Integration & E2E Test (Windows Docker)
+    needs: build_docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace image in docker-compose.yml
+        shell: pwsh
+        run: |
+          (Get-Content docker-compose.yml) -replace 'ghcr.io/ayato-labs/ripen:latest', 'ghcr.io/${{ github.repository }}:latest' | Set-Content docker-compose.yml
+      - name: Start container
+        run: docker compose up -d
+      - name: Wait for Health Check
+        shell: pwsh
+        run: |
+          $timeout = 30
+          while ($timeout -gt 0) {
+            try {
+              $response = Invoke-WebRequest -Uri http://localhost:8377/api/health -UseBasicParsing
+              if ($response.Content -match "ok") {
+                Write-Host "Server is healthy!"
+                exit 0
+              }
+            } catch {
+              # Ignore errors during startup
+            }
+            Start-Sleep -Seconds 1
+            $timeout--
+          }
+          Write-Error "Timeout waiting for health check"
+          exit 1
+      - name: E2E Test (Initialize MCP)
+        shell: pwsh
+        run: |
+          $body = @{
+            jsonrpc = "2.0"
+            id = 1
+            method = "initialize"
+            params = @{
+              protocolVersion = "2024-11-05"
+              capabilities = @{}
+              clientInfo = @{
+                name = "e2e-test"
+                version = "1.0.0"
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          
+          $response = Invoke-WebRequest -Uri http://localhost:8377/mcp -Method Post -Body $body -ContentType "application/json" -UseBasicParsing
+          Write-Host "Response: $($response.Content)"
+          if ($response.Content -match "protocolVersion") {
+            Write-Host "MCP Initialize successful!"
+          } else {
+            Write-Error "MCP Initialize failed"
+            exit 1
+          }
+      - name: Stop container
+        if: always()
+        run: docker compose down
+
+  test_macos:
+    name: Integration Test (macOS Native)
+    needs: build_docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Start server
+        run: |
+          uv run python src/ripen/api/server.py &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+      - name: Wait for Health Check
+        run: |
+          timeout=30
+          while [ $timeout -gt 0 ]; do
+            if curl -s http://localhost:8377/api/health | grep -q "ok"; then
+              echo "Server is healthy!"
+              exit 0
+            fi
+            sleep 1
+            timeout=$((timeout-1))
+          done
+          echo "Timeout waiting for health check"
+          exit 1
+      - name: Stop server
+        if: always()
+        run: |
+          kill $SERVER_PID || true
