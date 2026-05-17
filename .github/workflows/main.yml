@@ -116,8 +116,8 @@ jobs:
           uv pip install pyinstaller
       - name: Build with PyInstaller
         run: |
-          uv run pyinstaller --onefile --name Ripen --copy-metadata fastmcp --copy-metadata ripen --clean src/ripen/api/server.py
-          uv run pyinstaller --onefile --name RipenInstaller --copy-metadata fastmcp --copy-metadata ripen --clean src/ripen/cli/register.py
+          uv run pyinstaller --onefile --name Ripen --copy-metadata fastmcp --copy-metadata ripen --collect-all fastembed --collect-all faiss --clean src/ripen/api/server.py
+          uv run pyinstaller --onefile --name RipenInstaller --copy-metadata fastmcp --copy-metadata ripen --collect-all fastembed --collect-all faiss --clean src/ripen/cli/register.py
       - name: Get Latest Tag
         id: tag
         shell: bash
