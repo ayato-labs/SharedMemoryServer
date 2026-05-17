@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.14.0 (2026-05-17)
+
+### Features
+
+- Fix docker compose project name to ripen ([#138](https://github.com/ayato-labs/ripen/pull/138),
+  [`22db4ae`](https://github.com/ayato-labs/ripen/commit/22db4aee4fe97e265cd63ce0bc55d7a46f994d73))
+
+
 ## v1.13.5 (2026-05-17)
 
 ### Bug Fixes
