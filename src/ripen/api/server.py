@@ -308,14 +308,14 @@ except Exception as e:
 # --- ENTRY POINT ---
 
 
-def print_banner(mode: str, port: int):
+def print_banner(mode: str, port: int, version: str):
     lm = LicenseManager()
     lm.validate_locally()
     license_text = lm.get_status_summary()
 
     lines = [
         "\033[1;32m" + "=" * 60 + "\033[0m",
-        "  Ripen Knowledge Hub v3.2.4",
+        f"  Ripen Knowledge Hub v{version}",
         "  \033[1;30m" + "" + "\033[0m",
         f"  \033[1;34m[Mode]\033[0m      {mode}",
         f"  \033[1;32m[Port]\033[0m      {port}",
@@ -392,7 +392,7 @@ def main():
     logger.info("Loading plugins...")
     PluginLoader.load_all(context={"settings": settings})
     logger.info("Plugins loaded. Printing banner...")
-    print_banner("Streamable HTTP", port)
+    print_banner("Streamable HTTP", port, version)
     logger.info("Banner printed. Running FastMCP server...")
     mcp.run(transport="streamable-http", host=args.host, port=port, show_banner=False)
 
