@@ -180,11 +180,20 @@ docker pull ghcr.io/ayato-labs/ripen:latest
 **Method A: Docker Compose (Recommended)**
 Use the provided `docker-compose.yml` to automatically handle volume mounting and environment variables.
 
-1. **Set your API Key**:
-   Create a `.env` file in the same directory as `docker-compose.yml` and add your provider and API key:
+1. **Set your Configuration**:
+   Create a `.env` file in the same directory as `docker-compose.yml`.
+   
+   **For Gemini (Default)**:
    ```env
    LLM_PROVIDER=gemini
    GEMINI_API_KEY=your_actual_api_key_here
+   ```
+   
+   **For Ollama (Local)**:
+   ```env
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   GENERATIVE_MODEL=gemma4:e2b
    ```
 
 2. **Start**:
@@ -193,11 +202,18 @@ Use the provided `docker-compose.yml` to automatically handle volume mounting an
    ```
 
 **Method B: Docker Run**
-Run the container manually. By default, it runs in the foreground so you can see the logs immediately.
+Run the container manually.
+
+**For Gemini**:
 ```bash
 docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data -e GEMINI_API_KEY=your_api_key ghcr.io/ayato-labs/ripen:latest
 ```
-*Note: If you want to run it in the background, add the `-d` option.*
+
+**For Ollama**:
+```bash
+docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data -e LLM_PROVIDER=ollama -e OLLAMA_BASE_URL=http://host.docker.internal:11434 -e GENERATIVE_MODEL=gemma4:e2b ghcr.io/ayato-labs/ripen:latest
+```
+*Note: `host.docker.internal` is used to access Ollama running on the host machine. If you want to run it in the background, add the `-d` option.*
 
 #### 3. Update (更新)
 To update Ripen to the latest version while keeping your stored knowledge:
@@ -212,7 +228,7 @@ docker stop ripen-hub
 # (Replace 20260516 with today's date / 本日の日付に置き換えてください)
 docker rename ripen-hub ripen-hub-old-20260516
 
-# 4. Start the new container with the same volume
+# 4. Start the new container with the same volume (Gemini example)
 docker run --name ripen-hub -p 8377:8377 -v ripen_data:/data -e GEMINI_API_KEY=your_api_key ghcr.io/ayato-labs/ripen:latest
 ```
 *Note: If you want to run it in the background, add the `-d` option.*
@@ -237,7 +253,8 @@ For Windows users who prefer a standalone executable.
 
 ### Option C: Python (Source)
 ```bash
-uv run -m src.ripen.api.server
+# Make sure to set PYTHONPATH to src
+PYTHONPATH=src uv run python -m ripen.api.server
 ```
 
 ---
