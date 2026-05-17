@@ -22,10 +22,11 @@ GOOGLE_EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 # Ollama Settings (Local host)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
+OLLAMA_DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:31b")
 
 # FastEmbed Settings (Local vectorization)
 FASTEMBED_DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
+
 
 
 class Settings:
