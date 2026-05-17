@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v1.13.5 (2026-05-17)
+
+### Bug Fixes
+
+- Extend Gemini API timeout to 120s
+  ([`a7a0737`](https://github.com/ayato-labs/ripen/commit/a7a0737159e5e8ed5026b60c9a31a6a7a9fe6319))
+
+- Remove unused history argument from salvage_related_knowledge call
+  ([#131](https://github.com/ayato-labs/ripen/pull/131),
+  [`b66ca8e`](https://github.com/ayato-labs/ripen/commit/b66ca8e152826770ee2096c4f3445325490ce8ac))
+
+
+## v1.13.4 (2026-05-17)
+
+### Bug Fixes
+
+- Consolidated pipeline fixes and model change to gemma4:e2b
+  ([#129](https://github.com/ayato-labs/ripen/pull/129),
+  [`53827ef`](https://github.com/ayato-labs/ripen/commit/53827efe2904cbc0d1168a8748b5400f0bcc1f10))
+
+
+## v1.13.3 (2026-05-17)
+
+### Bug Fixes
+
+- Run Windows tests on native .exe to fix Docker platform error
+  ([`59fa1fd`](https://github.com/ayato-labs/ripen/commit/59fa1fd9aa585283f7b41e80243f6931b6bf6041))
+
+
+## v1.13.2 (2026-05-17)
+
+
 ## v1.13.1 (2026-05-17)
 
 ### Bug Fixes
