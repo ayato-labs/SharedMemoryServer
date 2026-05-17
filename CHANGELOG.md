@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.17.0 (2026-05-17)
+
+### Features
+
+- Implement Ripen Hub MCP server with memory management tools and permissive handshake protocol
+  patching
+  ([`06075e3`](https://github.com/ayato-labs/ripen/commit/06075e3d3ac947343cd142637a635c4cd4007461))
+
+
 ## v1.16.0 (2026-05-17)
 
 ### Features
