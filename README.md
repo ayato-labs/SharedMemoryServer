@@ -189,6 +189,15 @@ Use the provided `docker-compose.yml` to automatically handle volume mounting an
    GEMINI_API_KEY=your_actual_api_key_here
    ```
    
+   > [!NOTE]
+   > **Embedding Engine について**:
+   > `LLM_PROVIDER=gemini` を指定した場合でも、デフォルトでは Embedding（埋め込み）エンジンとして `fastembed` が使用されます。
+   > Embedding も Gemini に統一したい場合は、`.env` ファイルに以下の行を追加してください。
+   > ```env
+   > EMBEDDING_ENGINE=gemini
+   > ```
+   > 追加後は、`docker compose down` を実行してから再度 `docker compose up` を行ってください。
+   
    **For Ollama (Local)**:
    ```env
    LLM_PROVIDER=ollama
