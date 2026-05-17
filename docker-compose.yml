@@ -1,3 +1,5 @@
+name: ripen
+
 services:
   ripen:
     image: ghcr.io/ayato-labs/ripen:latest
